@@ -26,6 +26,7 @@ const EMOTIONS = [
   { label:"Loved",      emoji:"🥰", color:"#FF6B9D", valence:"positive", score:7  },
   // Neutral
   { label:"Okay",       emoji:"😐", color:"#A8937E", valence:"neutral",  score:6  },
+  { label:"Calm",       emoji:"😊", color:"#5B9BD5", valence:"neutral",  score:6  },
   { label:"Tired",      emoji:"😴", color:"#9B8BC4", valence:"neutral",  score:5  },
   { label:"Confused",   emoji:"🤔", color:"#6B9BB8", valence:"neutral",  score:4  },
   // Difficult
@@ -166,7 +167,7 @@ const btnStyle = (bg=PALETTE.honey, small=false) => ({
 
 // ── AI chat helper ────────────────────────────────────────────────────────────
 async function askBee(messages) {
-  const res = await fetch("/api/ai", {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({
@@ -283,60 +284,92 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
 
   return (
     <div>
-      {/* Step 1 — Pick emotion */}
+      {/* Step 1 — Pick emotion group then specific emotion */}
       {step === "emotion" && <>
         <h3 style={sectionTitle}>How are you feeling right now?</h3>
-        <p style={{color:PALETTE.soft,fontSize:13,marginBottom:16}}>Choose the one that fits best.</p>
+        <p style={{color:PALETTE.soft,fontSize:13,marginBottom:20}}>Choose a group to see your options.</p>
 
-        {/* Positive */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:PALETTE.sage,letterSpacing:1,marginBottom:6}}>POSITIVE</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {EMOTIONS.filter(e=>e.valence==="positive").map(e=>(
-              <button key={e.label} onClick={()=>{setEmotion(e);setStep("rating");}}
-                style={{...btnStyle(PALETTE.pollen,true), color:PALETTE.dark,
-                  border:`1.5px solid ${e.color}44`, borderRadius:20,
-                  display:"flex",alignItems:"center",gap:5}}>
-                <span>{e.emoji}</span><span style={{fontSize:12}}>{e.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Three big attractive group buttons */}
+        {[
+          { valence:"positive", label:"Positive",  emoji:"☀️",
+            sub:"Joyful · Excited · Grateful · Peaceful · Happy · Hopeful · Loved",
+            grad:"linear-gradient(135deg,#F5A623,#FFD700)",
+            shadow:"0 4px 20px rgba(245,166,35,0.45)" },
+          { valence:"neutral",  label:"Neutral",   emoji:"🌤️",
+            sub:"Okay · Calm · Tired · Confused",
+            grad:"linear-gradient(135deg,#6B9BB8,#9B8BC4)",
+            shadow:"0 4px 20px rgba(107,155,184,0.45)" },
+          { valence:"difficult",label:"Difficult", emoji:"🌧️",
+            sub:"Anxious · Angry · Sad · Low · Overwhelmed · Irritated · Struggling",
+            grad:"linear-gradient(135deg,#C45B6A,#9B6BC4)",
+            shadow:"0 4px 20px rgba(196,91,106,0.4)" },
+        ].map(group=>(
+          <div key={group.valence} style={{marginBottom:12}}>
+            <button
+              onClick={()=>setEmotion(group.valence==="expand" ? null : {_group:group.valence})}
+              style={{
+                width:"100%", border:"none", borderRadius:16, cursor:"pointer",
+                background: group.grad,
+                boxShadow: group.shadow,
+                padding:"18px 20px",
+                display:"flex", alignItems:"center", gap:14,
+                transition:"transform .15s",
+              }}
+              onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"}
+              onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+            >
+              <span style={{fontSize:36}}>{group.emoji}</span>
+              <div style={{textAlign:"left",flex:1}}>
+                <div style={{color:"white",fontWeight:800,fontSize:18,marginBottom:3,
+                  textShadow:"0 1px 3px rgba(0,0,0,0.2)"}}>{group.label}</div>
+                <div style={{color:"rgba(255,255,255,0.85)",fontSize:12,lineHeight:1.4}}>
+                  {group.sub}
+                </div>
+              </div>
+              <span style={{color:"rgba(255,255,255,0.8)",fontSize:20}}>›</span>
+            </button>
 
-        {/* Neutral */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:6}}>NEUTRAL</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {EMOTIONS.filter(e=>e.valence==="neutral").map(e=>(
-              <button key={e.label} onClick={()=>{setEmotion(e);setStep("rating");}}
-                style={{...btnStyle("#F0EFED",true), color:PALETTE.dark,
-                  border:`1.5px solid ${e.color}66`, borderRadius:20,
-                  display:"flex",alignItems:"center",gap:5}}>
-                <span>{e.emoji}</span><span style={{fontSize:12}}>{e.label}</span>
-              </button>
-            ))}
+            {/* Expanded emotion pills — show when this group is selected */}
+            {emotion?._group === group.valence && (
+              <div style={{
+                background:"white", borderRadius:"0 0 16px 16px",
+                padding:"14px 14px 10px",
+                boxShadow:"0 6px 20px rgba(0,0,0,0.1)",
+                marginTop:-4,
+                display:"flex", flexWrap:"wrap", gap:8,
+              }}>
+                {EMOTIONS.filter(e=>e.valence===group.valence).map(e=>(
+                  <button key={e.label}
+                    onClick={()=>{ setEmotion(e); setStep("rating"); }}
+                    style={{
+                      padding:"8px 14px", borderRadius:999, border:"none",
+                      background:`${e.color}18`, cursor:"pointer",
+                      display:"flex", alignItems:"center", gap:6,
+                      fontSize:14, color:PALETTE.dark, fontWeight:600,
+                      boxShadow:`inset 0 0 0 1.5px ${e.color}55`,
+                      transition:"all .15s",
+                    }}
+                    onMouseDown={ev=>ev.currentTarget.style.background=`${e.color}33`}
+                    onMouseUp={ev=>ev.currentTarget.style.background=`${e.color}18`}
+                  >
+                    <span style={{fontSize:18}}>{e.emoji}</span>
+                    <span>{e.label}</span>
+                  </button>
+                ))}
+                <button onClick={()=>setEmotion(null)}
+                  style={{padding:"6px 12px",borderRadius:999,border:"none",
+                    background:"#F0F0F0",color:PALETTE.soft,fontSize:12,cursor:"pointer"}}>
+                  ✕ Close
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Difficult */}
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:PALETTE.blush,letterSpacing:1,marginBottom:6}}>DIFFICULT</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {EMOTIONS.filter(e=>e.valence==="difficult").map(e=>(
-              <button key={e.label} onClick={()=>{setEmotion(e);setStep("rating");}}
-                style={{...btnStyle("#FFF0F0",true), color:PALETTE.dark,
-                  border:`1.5px solid ${e.color}55`, borderRadius:20,
-                  display:"flex",alignItems:"center",gap:5}}>
-                <span>{e.emoji}</span><span style={{fontSize:12}}>{e.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        ))}
       </>}
 
       {/* Step 2 — Rate 1–10 */}
-      {step === "rating" && emotion && <>
-        <button onClick={()=>setStep("emotion")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      {step === "rating" && emotion && !emotion._group && <>
+        <button onClick={()=>{setStep("emotion");setEmotion({_group:emotion.valence});}} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{fontSize:52,marginBottom:6}}>{emotion.emoji}</div>
           <h3 style={{...sectionTitle,textAlign:"center",margin:0}}>{emotion.label}</h3>

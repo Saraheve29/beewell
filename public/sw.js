@@ -1,25 +1,27 @@
-const CACHE_NAME = 'beewell-v1';
+const CACHE_NAME = 'beewell-v2';
 const STATIC_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+      Promise.all(keys.map((k) => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/')) return;
+  if (event.request.url.includes('/assets/')) {
+    return;
+  }
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });

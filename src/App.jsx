@@ -1,4 +1,29 @@
 import { useState, useEffect, useRef } from "react";
+import React from "react";
+// Error boundary to catch crashes gracefully
+export class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error("BeeWell error:", error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{padding:40,textAlign:"center",fontFamily:"sans-serif",background:"#FDF3E3",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <div style={{fontSize:64,marginBottom:16}}>🐝</div>
+          <h2 style={{color:"#2C2016",marginBottom:8}}>Oops, something went wrong</h2>
+          <p style={{color:"#6B5744",marginBottom:24,fontSize:14}}>{String(this.state.error?.message || "Unknown error")}</p>
+          <button onClick={()=>window.location.reload()}
+            style={{background:"#F5A623",color:"white",border:"none",borderRadius:999,padding:"12px 24px",fontSize:16,fontWeight:700,cursor:"pointer"}}>
+            Reload BeeWell
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 
 // ── Palette & constants ──────────────────────────────────────────────────────
 const PALETTE = {
@@ -267,7 +292,7 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
   const last14 = [...Array(14)].map((_,i)=>{
     const d = new Date(); d.setDate(d.getDate()-13+i);
     const key = d.toISOString().slice(0,10);
-    const entry = [...logs].filter(l=>l.date===key).at(-1);
+    const entry = ([...logs].filter(l=>l.date===key).slice(-1)[0]);
     return { key, rating: entry?.rating||null, emotion: entry?.mood, label:d.toLocaleDateString("en-GB",{day:"numeric",month:"short"}) };
   });
 
@@ -2034,11 +2059,11 @@ function ACTToolkit() {
           <svg viewBox="0 0 300 255" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
             {/* Connecting lines */}
             {[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,3],[1,4],[2,5]].map(([a,b],i)=>{
-              const angle=(idx)=>(-90+idx*60)*Math.PI/180;
+              const hexAngle=(idx)=>(-90+idx*60)*Math.PI/180;
               const r=85, cx=150, cy=128;
               return <line key={i}
-                x1={cx+r*Math.cos(angle(a))} y1={cy+r*Math.sin(angle(a))}
-                x2={cx+r*Math.cos(angle(b))} y2={cy+r*Math.sin(angle(b))}
+                x1={cx+r*Math.cos(hexAngle(a))} y1={cy+r*Math.sin(hexAngle(a))}
+                x2={cx+r*Math.cos(hexAngle(b))} y2={cy+r*Math.sin(hexAngle(b))}
                 stroke="#DDD" strokeWidth="1"/>;
             })}
             {/* Center circle */}
@@ -2047,9 +2072,9 @@ function ACTToolkit() {
             <text x="150" y="136" textAnchor="middle" fontSize="10" fill="#6B5744" fontWeight="700">Flexibility</text>
             {/* Six nodes */}
             {processes.map((p,i)=>{
-              const angle=(-90+i*60)*Math.PI/180;
+              const nodeAngle=(-90+i*60)*Math.PI/180;
               const r=85, cx=150, cy=128;
-              const x=cx+r*Math.cos(angle), y=cy+r*Math.sin(angle);
+              const x=cx+r*Math.cos(nodeAngle2), y=cy+r*Math.sin(nodeAngle2);
               const active=activeP===i;
               return (
                 <g key={i} onClick={()=>setActiveP(active?null:i)} style={{cursor:"pointer"}}>
@@ -2112,9 +2137,9 @@ function ACTToolkit() {
               const r=compassRatings[area.id]||{};
               const imp=(r.importance||0)/10, liv=(r.living||0)/10;
               const cx=150, cy=150, maxR=100;
-              const ix=cx+maxR*imp*Math.cos(angle), iy=cy+maxR*imp*Math.sin(angle);
-              const lx=cx+maxR*liv*Math.cos(angle), ly=cy+maxR*liv*Math.sin(angle);
-              const labelX=cx+(maxR+20)*Math.cos(angle), labelY=cy+(maxR+20)*Math.sin(angle);
+              const ix=cx+maxR*imp*Math.cos(nodeAngle), iy=cy+maxR*imp*Math.sin(nodeAngle);
+              const lx=cx+maxR*liv*Math.cos(nodeAngle), ly=cy+maxR*liv*Math.sin(nodeAngle);
+              const labelX=cx+(maxR+20)*Math.cos(nodeAngle), labelY=cy+(maxR+20)*Math.sin(nodeAngle);
               return (
                 <g key={area.id}>
                   <line x1={cx} y1={cy} x2={cx+maxR*Math.cos(angle)} y2={cy+maxR*Math.sin(angle)}

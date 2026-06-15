@@ -1,28 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import React from "react";
-// Error boundary to catch crashes gracefully
-export class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, info) { console.error("BeeWell error:", error, info); }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{padding:40,textAlign:"center",fontFamily:"sans-serif",background:"#FDF3E3",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-          <div style={{fontSize:64,marginBottom:16}}>🐝</div>
-          <h2 style={{color:"#2C2016",marginBottom:8}}>Oops, something went wrong</h2>
-          <p style={{color:"#6B5744",marginBottom:24,fontSize:14}}>{String(this.state.error?.message || "Unknown error")}</p>
-          <button onClick={()=>window.location.reload()}
-            style={{background:"#F5A623",color:"white",border:"none",borderRadius:999,padding:"12px 24px",fontSize:16,fontWeight:700,cursor:"pointer"}}>
-            Reload BeeWell
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 
 
 // ── Palette & constants ──────────────────────────────────────────────────────

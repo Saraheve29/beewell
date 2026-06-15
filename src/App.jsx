@@ -41,6 +41,12 @@ const EMOTIONS = [
 ];
 const MOODS = EMOTIONS; // legacy alias
 
+
+const CHEST_CLOSED = "/chest-closed.webp";
+const CHEST_OPEN   = "/chest-open.webp";
+
+const SEA_BG = "/sea.jpg";
+
 const RELEASE_STYLES = [
   { id:"sea",   label:"Release to the Sea", emoji:"🌊" },
   { id:"sky",   label:"Send to the Sky",    emoji:"☁️" },
@@ -122,37 +128,176 @@ function BreathingCircle() {
   );
 }
 
-// ── Release animation ────────────────────────────────────────────────────────
-function ReleaseAnimation({ style, onDone }) {
-  const [opacity, setOpacity] = useState(1);
-  const [y, setY] = useState(0);
+// ── Wave sound generator ─────────────────────────────────────────────────────
+function playWaves(duration=4000) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0, ctx.currentTime);
+    master.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.5);
+    master.gain.linearRampToValueAtTime(0, ctx.currentTime + duration/1000);
+    master.connect(ctx.destination);
+
+    // Create layered wave sounds using filtered noise
+    for(let i=0; i<3; i++) {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * (duration/1000 + 1), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for(let j=0; j<data.length; j++) data[j] = Math.random()*2-1;
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 200 + i*100;
+      filter.Q.value = 0.5;
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0.3 + i*0.1;
+
+      // Oscillate gain to create wave rhythm
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.frequency.value = 0.3 + i*0.15;
+      lfoGain.gain.value = 0.2;
+      lfo.connect(lfoGain);
+      lfoGain.connect(gain.gain);
+      lfo.start();
+
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      src.start(ctx.currentTime + i*0.3);
+    }
+
+    setTimeout(()=>ctx.close(), duration + 1000);
+  } catch(e) {
+    // Audio not available - silent fallback
+  }
+}
+
+// ── Release Animation — sea sunset ───────────────────────────────────────────
+function ReleaseAnimation({ style, onDone, text="" }) {
+  const [opacity, setOpacity] = useState(0);
+  const [floatY, setFloatY]   = useState(0);
+  const [phase, setPhase]     = useState("fadein"); // fadein | floating | fadeout
+
   useEffect(()=>{
+    // Start wave sounds
+    playWaves(5000);
+
     let frame;
     let start = null;
+    const totalDuration = 5000;
+
     const animate = (ts) => {
-      if(!start) start=ts;
-      const p = Math.min((ts-start)/2000,1);
-      setOpacity(1-p);
-      setY(-120*p);
-      if(p<1) frame=requestAnimationFrame(animate);
-      else onDone();
+      if(!start) start = ts;
+      const elapsed = ts - start;
+      const p = Math.min(elapsed / totalDuration, 1);
+
+      if(p < 0.15) {
+        // Fade in
+        setOpacity(p / 0.15);
+        setPhase("fadein");
+      } else if(p < 0.8) {
+        // Float and drift
+        setOpacity(1);
+        setFloatY(-180 * ((p - 0.15) / 0.65));
+        setPhase("floating");
+      } else {
+        // Fade out
+        setOpacity(1 - (p - 0.8) / 0.2);
+        setPhase("fadeout");
+      }
+
+      if(p < 1) {
+        frame = requestAnimationFrame(animate);
+      } else {
+        onDone();
+      }
     };
-    frame=requestAnimationFrame(animate);
-    return ()=>cancelAnimationFrame(frame);
-  },[]);
-  const bg = style==="sea"?"linear-gradient(180deg,#87CEEB,#1E90FF)"
-           : style==="fire"?"linear-gradient(180deg,#FFD700,#FF4500)"
-           : style==="wind"?"linear-gradient(180deg,#98FB98,#228B22)"
-           : "linear-gradient(180deg,#E0E0E0,#87CEEB)";
-  const emoji = RELEASE_STYLES.find(r=>r.id===style)?.emoji||"🌊";
+
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
-    <div style={{position:"fixed",inset:0,background:bg,zIndex:999,display:"flex",
-      alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
-      <div style={{fontSize:72,transform:`translateY(${y}px)`,opacity,transition:"none"}}>
-        {emoji}
+    <div style={{
+      position:"fixed", inset:0, zIndex:999,
+      backgroundImage:`url(${SEA_BG})`,
+      backgroundSize:"cover",
+      backgroundPosition:"center",
+      opacity,
+      transition:"none",
+      display:"flex",
+      flexDirection:"column",
+      alignItems:"center",
+      justifyContent:"flex-end",
+      paddingBottom:80,
+    }}>
+      {/* Dark overlay at bottom for text readability */}
+      <div style={{
+        position:"absolute",inset:0,
+        background:"linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.5) 100%)",
+        pointerEvents:"none",
+      }}/>
+
+      {/* Animated wave overlay */}
+      <div style={{
+        position:"absolute",bottom:0,left:0,right:0,height:120,
+        background:"linear-gradient(180deg, transparent, rgba(100,150,200,0.3))",
+        animation:"waveRise 2s ease-in-out infinite alternate",
+      }}/>
+      <style>{`
+        @keyframes waveRise {
+          from { transform: translateY(10px) scaleX(1); }
+          to   { transform: translateY(-10px) scaleX(1.02); }
+        }
+        @keyframes floatAway {
+          from { transform: translateY(0) scale(1); opacity: 1; }
+          to   { transform: translateY(-200px) scale(0.3); opacity: 0; }
+        }
+      `}</style>
+
+      {/* The problem/item floating away */}
+      {text && (
+        <div style={{
+          position:"absolute",
+          bottom: 200,
+          left:"50%",
+          transform:`translateX(-50%) translateY(${floatY}px)`,
+          background:"rgba(255,255,255,0.15)",
+          backdropFilter:"blur(8px)",
+          border:"1px solid rgba(255,255,255,0.3)",
+          borderRadius:16,
+          padding:"12px 20px",
+          maxWidth:260,
+          textAlign:"center",
+          transition:"none",
+        }}>
+          <p style={{
+            margin:0, color:"white", fontSize:14, lineHeight:1.5,
+            textShadow:"0 1px 4px rgba(0,0,0,0.5)",
+            fontStyle:"italic",
+          }}>{text}</p>
+        </div>
+      )}
+
+      {/* Message */}
+      <div style={{position:"relative",zIndex:1,textAlign:"center",padding:"0 24px"}}>
+        <p style={{
+          color:"white",fontSize:18,fontWeight:700,margin:"0 0 6px",
+          textShadow:"0 2px 8px rgba(0,0,0,0.6)",
+        }}>
+          {phase==="fadein" ? "Let it go…" : phase==="floating" ? "Releasing…" : "It's gone 🌊"}
+        </p>
+        <p style={{
+          color:"rgba(255,255,255,0.8)",fontSize:13,margin:0,
+          textShadow:"0 1px 4px rgba(0,0,0,0.5)",
+        }}>
+          The sea takes it from here
+        </p>
       </div>
-      <p style={{color:"white",fontSize:22,fontWeight:700,
-        transform:`translateY(${y*0.5}px)`,opacity}}>Letting go…</p>
     </div>
   );
 }
@@ -278,7 +423,7 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
       <h3 style={{...sectionTitle,textAlign:"center"}}>Logged 🐝</h3>
       <p style={{color:PALETTE.mid,fontSize:14}}>
         {followupText && emotion?.valence==="positive" && "Added to your Feel Better Box 💛"}
-        {followupText && emotion?.valence==="difficult" && "Stored safely in your Difficult Feelings Box 🌿"}
+        {followupText && emotion?.valence==="difficult" && "Sent to your Problem Box 📦 — open it when ready"}
       </p>
     </div>
   );
@@ -427,7 +572,7 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
           <p style={{fontSize:12,color:emotion.valence==="positive"?PALETTE.sage:PALETTE.blush,marginBottom:12}}>
             {emotion.valence==="positive"
               ? "✓ This will be saved to your Feel Better Box 💛"
-              : "✓ This will be stored safely in your Difficult Feelings Box 🌿"}
+              : "✓ This will be sent to your Problem Box 📦"}
           </p>
         )}
         <button onClick={handleSave} style={{...btnStyle(emotion.color), width:"100%"}}>
@@ -461,238 +606,467 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
 
 // ── Feel Better Box ───────────────────────────────────────────────────────────
 function FeelBetterBox({ items, onAdd, onDelete }) {
-  const [text, setText] = useState("");
-  const [type, setType] = useState("thought");
+  const [isOpen, setIsOpen]   = useState(false);
+  const [adding, setAdding]   = useState(false);
+  const [text, setText]       = useState("");
+  const [type, setType]       = useState("moment");
+  const [justAdded, setJustAdded] = useState(false);
+
   const types = [
-    {id:"thought",label:"💭 Thought"},{id:"quote",label:"📖 Quote"},
-    {id:"activity",label:"🎯 Activity"},{id:"song",label:"🎵 Song"},
-    {id:"moment",label:"✨ Moment"},
+    {id:"moment",   label:"Moment",   emoji:"✨", color:"#F5A623"},
+    {id:"activity", label:"Activity", emoji:"🎯", color:"#7BB369"},
+    {id:"thought",  label:"Thought",  emoji:"💭", color:"#9B8BC4"},
+    {id:"quote",    label:"Quote",    emoji:"📖", color:"#5B9BD5"},
+    {id:"song",     label:"Song",     emoji:"🎵", color:"#E8737A"},
   ];
+
   const add = () => {
     if(!text.trim()) return;
     onAdd({ id:uid(), text:text.trim(), type, date:today() });
     setText("");
-  };
-  return (
-    <div>
-      <h3 style={sectionTitle}>Your Feel Better Box 💛</h3>
-      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:16}}>
-        Save what lifts you. Open this box whenever you need it.
-      </p>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-        {types.map(t=>(
-          <button key={t.id} onClick={()=>setType(t.id)}
-            style={{...btnStyle(type===t.id?PALETTE.honey:"#EEE",true),
-              color:type===t.id?"white":PALETTE.mid}}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:8,marginBottom:20}}>
-        <input value={text} onChange={e=>setText(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&add()}
-          placeholder={`Add a ${type}…`}
-          style={{...inputStyle,flex:1}}/>
-        <button onClick={add} style={btnStyle(PALETTE.sage)}>Add</button>
-      </div>
-      {items.length===0 && (
-        <div style={emptyState}>Nothing here yet — add something that makes you smile 🌸</div>
-      )}
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {items.map(item=>(
-          <div key={item.id} style={{...card, display:"flex",alignItems:"flex-start",gap:10}}>
-            <span style={{fontSize:20}}>{types.find(t=>t.id===item.type)?.label.split(" ")[0]||"✨"}</span>
-            <div style={{flex:1}}>
-              <p style={{margin:0,color:PALETTE.dark,fontSize:15}}>{item.text}</p>
-              <p style={{margin:"4px 0 0",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
-            </div>
-            <button onClick={()=>onDelete(item.id)}
-              style={{background:"none",border:"none",cursor:"pointer",color:PALETTE.soft,fontSize:16}}>×</button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Difficult Feelings Box ───────────────────────────────────────────────────
-function DifficultBox({ items, onAdd, onStore, onRelease, releaseStyle }) {
-  const [text, setText]       = useState("");
-  const [emotion, setEmotion] = useState("");
-  const [releasing, setReleasing] = useState(null);
-
-  const add = () => {
-    if(!text.trim()) return;
-    onAdd({ id:uid(), text:text.trim(), emotion, date:today(), status:"pending" });
-    setText(""); setEmotion("");
+    setAdding(false);
+    setJustAdded(true);
+    setTimeout(()=>setJustAdded(false), 2000);
   };
 
-  const doRelease = (id) => setReleasing(id);
-
-  const pending  = items.filter(i=>i.status==="pending");
-  const stored   = items.filter(i=>i.status==="stored");
-
-  // Group stored by emotion
-  const grouped = stored.reduce((acc, item) => {
-    const key = item.emotion || "General";
-    if(!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
+  // Group items by type
+  const grouped = types.map(t=>({
+    ...t,
+    items: items.filter(i=>i.type===t.id)
+  })).filter(g=>g.items.length>0);
 
   return (
-    <div>
-      {releasing && (
-        <ReleaseAnimation style={releaseStyle} onDone={()=>{ onRelease(releasing); setReleasing(null); }}/>
-      )}
-      <h3 style={sectionTitle}>Difficult Feelings Box 🌿</h3>
-      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:16}}>
-        A safe place to name what's hard. Store it to process later, or let it go.
+    <div style={{padding:"0 0 80px"}}>
+      <h3 style={sectionTitle}>Feel Better Box</h3>
+      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:20,lineHeight:1.6}}>
+        {isOpen
+          ? "Everything that lifts you — open whenever you need it 💛"
+          : "Tap the chest to open your collection of good things 💛"}
       </p>
 
-      {/* Manual add */}
-      <div style={{...card, marginBottom:16}}>
-        <label style={labelStyle}>Emotion (optional)</label>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-          {EMOTIONS.filter(e=>e.valence==="difficult").map(e=>(
-            <button key={e.label} onClick={()=>setEmotion(emotion===e.label?"":e.label)}
-              style={{...btnStyle(emotion===e.label?e.color:"#F5F0EE",true),
-                color:emotion===e.label?"white":PALETTE.mid, borderRadius:20}}>
-              {e.emoji} {e.label}
-            </button>
-          ))}
+      {/* ── THE GOLDEN CHEST ── */}
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div onClick={()=>setIsOpen(o=>!o)} style={{cursor:"pointer",display:"inline-block",position:"relative"}}>
+          <img
+            src={isOpen ? CHEST_OPEN : CHEST_CLOSED}
+            alt={isOpen ? "Open feel better box" : "Closed feel better box"}
+            style={{
+              width:"100%", maxWidth:420, height:"auto",
+              transition:"opacity .4s",
+              filter:"drop-shadow(0 4px 16px rgba(245,166,35,0.35))",
+            }}
+          />
+          {/* Item count badge */}
+          {items.length > 0 && !isOpen && (
+            <div style={{
+              position:"absolute",top:-8,right:"10%",
+              background:PALETTE.honey,color:"white",
+              borderRadius:999,width:26,height:26,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:13,fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"
+            }}>
+              {items.length}
+            </div>
+          )}
+          {justAdded && (
+            <div style={{
+              position:"absolute",inset:0,display:"flex",
+              alignItems:"center",justifyContent:"center",
+              fontSize:36
+            }}>💛</div>
+          )}
         </div>
-        <label style={labelStyle}>What's weighing on you?</label>
-        <div style={{display:"flex",gap:8}}>
-          <input value={text} onChange={e=>setText(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&add()}
-            placeholder="Name it here…"
-            style={{...inputStyle,flex:1}}/>
-          <button onClick={add} style={btnStyle(PALETTE.lavender)}>Add</button>
-        </div>
+        <p style={{fontSize:12,color:PALETTE.soft,marginTop:6}}>
+          {isOpen ? "Tap to close" : "Tap to open"}
+        </p>
       </div>
 
-      {/* Pending decisions */}
-      {pending.length>0 && <>
-        <h4 style={{color:PALETTE.mid,marginBottom:8,fontSize:14}}>Waiting for your decision</h4>
-        {pending.map(item=>(
-          <div key={item.id} style={{...card,marginBottom:10,borderLeft:`3px solid ${EMOTIONS.find(e=>e.label===item.emotion)?.color||PALETTE.lavender}`}}>
-            {item.emotion && <div style={{fontSize:12,color:PALETTE.soft,marginBottom:4}}>{EMOTIONS.find(e=>e.label===item.emotion)?.emoji} {item.emotion}</div>}
-            <p style={{margin:"0 0 10px",color:PALETTE.dark}}>{item.text}</p>
-            <p style={{margin:"0 0 10px",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>onStore(item.id)} style={btnStyle(PALETTE.sky,true)}>
-                ✅ Store safely
-              </button>
-              <button onClick={()=>doRelease(item.id)} style={btnStyle(PALETTE.amber,true)}>
-                🌊 Let go
-              </button>
-            </div>
-          </div>
-        ))}
-      </>}
+      {/* ── ADD BUTTON ── */}
+      {isOpen && (
+        <button onClick={()=>setAdding(a=>!a)}
+          style={{...btnStyle(PALETTE.honey),width:"100%",marginBottom:16}}>
+          {adding ? "Cancel" : "+ Add something good"}
+        </button>
+      )}
 
-      {/* Stored — grouped by emotion */}
-      {Object.keys(grouped).length>0 && <>
-        <h4 style={{color:PALETTE.mid,margin:"16px 0 8px",fontSize:14}}>Stored safely</h4>
-        {Object.entries(grouped).map(([emo, emoItems])=>(
-          <div key={emo} style={{marginBottom:14}}>
-            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>
-              {EMOTIONS.find(e=>e.label===emo)?.emoji} {emo}
-            </div>
-            {emoItems.map(item=>(
-              <div key={item.id} style={{...card,marginBottom:6,padding:"10px 14px",opacity:.85}}>
-                <p style={{margin:0,color:PALETTE.dark,fontSize:14}}>{item.text}</p>
-                <p style={{margin:"3px 0 0",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
+      {/* ── ADD FORM ── */}
+      {isOpen && adding && (
+        <div style={{...card,marginBottom:16,background:`${PALETTE.honey}0D`,border:`1.5px solid ${PALETTE.honey}44`}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+            {types.map(t=>(
+              <button key={t.id} onClick={()=>setType(t.id)}
+                style={{...btnStyle(type===t.id?t.color:"#EEE",true),
+                  color:type===t.id?"white":PALETTE.mid,borderRadius:20}}>
+                {t.emoji} {t.label}
+              </button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <input value={text} onChange={e=>setText(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&add()}
+              placeholder={`What ${type} lifts you?`}
+              style={{...inputStyle,flex:1}}/>
+            <button onClick={add} disabled={!text.trim()}
+              style={{...btnStyle(PALETTE.honey),opacity:text.trim()?1:0.5}}>Add</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONTENTS ── */}
+      {isOpen && items.length===0 && (
+        <div style={emptyState}>
+          <p style={{margin:0,fontSize:13}}>
+            Your box is empty. Good things come from your mood check-ins automatically — or add your own above. 🌸
+          </p>
+        </div>
+      )}
+
+      {isOpen && grouped.map(group=>(
+        <div key={group.id} style={{marginBottom:20}}>
+          <div style={{
+            display:"flex",alignItems:"center",gap:8,marginBottom:10,
+            padding:"6px 0",borderBottom:`2px solid ${group.color}33`
+          }}>
+            <span style={{fontSize:20}}>{group.emoji}</span>
+            <span style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{group.label}s</span>
+            <span style={{fontSize:12,color:PALETTE.soft,marginLeft:"auto"}}>{group.items.length}</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {group.items.map(item=>(
+              <div key={item.id}
+                style={{
+                  background:`${group.color}0D`,
+                  borderRadius:12,padding:"12px 14px",
+                  border:`1.5px solid ${group.color}33`,
+                  display:"flex",alignItems:"flex-start",gap:10,
+                }}>
+                <div style={{flex:1}}>
+                  <p style={{margin:0,color:PALETTE.dark,fontSize:14,lineHeight:1.6}}>{item.text}</p>
+                  {item.source && (
+                    <p style={{margin:"3px 0 0",fontSize:11,color:group.color,fontStyle:"italic"}}>{item.source}</p>
+                  )}
+                  <p style={{margin:"3px 0 0",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
+                </div>
+                <button onClick={()=>onDelete(item.id)}
+                  style={{background:"none",border:"none",cursor:"pointer",
+                    color:PALETTE.soft,fontSize:16,padding:"0 4px"}}>×</button>
               </div>
             ))}
           </div>
-        ))}
-      </>}
-
-      {items.length===0 && <div style={emptyState}>This is your private space for difficult feelings. Whenever you're ready 🌿</div>}
+        </div>
+      ))}
     </div>
   );
 }
 
-// ── Triggers Box ──────────────────────────────────────────────────────────────
-function TriggersBox({ items, onAdd, onStore, onRelease, releaseStyle }) {
-  const [text, setText] = useState("");
-  const [releasing, setReleasing] = useState(null);
+// ── Problem Box ──────────────────────────────────────────────────────────────
+function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab }) {
+  const [chestOpen, setChestOpen]   = useState(false);
+  const [newText, setNewText]       = useState("");
+  const [justDropped, setJustDropped] = useState(false);
+  const [viewItem, setViewItem]     = useState(null);
+  const [releasing, setReleasing]   = useState(null);
+  const [beaSuggestion, setBeaSuggestion] = useState(null);
+  const [loadingSuggest, setLoadingSuggest] = useState(false);
 
-  const add = () => {
-    if(!text.trim()) return;
-    onAdd({ id:uid(), text:text.trim(), date:today(), status:"pending" });
-    setText("");
-  };
-
-  const doRelease = (id) => {
-    setReleasing(id);
-  };
-
-  const pending = items.filter(i=>i.status==="pending");
   const stored  = items.filter(i=>i.status==="stored");
+  const pending = items.filter(i=>i.status==="pending");
+  const total   = stored.length + pending.length;
 
-  return (
-    <div>
+  // ── Add new problem directly ─────────────────────────────────────────────
+  const handleAdd = () => {
+    if(!newText.trim()) return;
+    onAdd({ id:uid(), text:newText.trim(), date:today(), status:"pending" });
+    setNewText("");
+  };
+
+  // ── Drop into box ────────────────────────────────────────────────────────
+  const dropInBox = (item) => {
+    onUpdate(item.id, {status:"stored"});
+    setJustDropped(true);
+    setTimeout(()=>{ setChestOpen(false); setJustDropped(false); }, 1000);
+  };
+
+  // ── Bea detects best tool ────────────────────────────────────────────────
+  const getBeaSuggestion = async (text) => {
+    setLoadingSuggest(true);
+    setBeaSuggestion(null);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a CBT/ACT bee therapist. Someone has this problem or worry: "${text}"
+Based on this, recommend the SINGLE best therapy tool from these options:
+- Courtroom (CBT thought trial — best for negative self-beliefs, "I am..." thoughts, black-and-white thinking)
+- Distortions (best for recognising cognitive distortions like catastrophising, mind-reading, overgeneralising)
+- ACT Matrix (best for avoidance patterns, values conflicts, "stuck" feelings)
+- Defusion (best for repetitive intrusive thoughts that won't go away)
+- Bea Chat (best for processing emotions, feeling heard, general support)
+- Release to Sea (best for worries outside their control, past events, things they cannot change)
+
+Reply in this exact format:
+TOOL: [tool name]
+REASON: [one warm sentence explaining why this tool fits this problem]`
+      }]);
+
+      const toolMatch   = reply.match(/TOOL:\s*(.+)/);
+      const reasonMatch = reply.match(/REASON:\s*(.+)/);
+      setBeaSuggestion({
+        tool:   toolMatch?.[1]?.trim()   || "Bea Chat",
+        reason: reasonMatch?.[1]?.trim() || "I think talking it through would help.",
+      });
+    } catch(e) {
+      setBeaSuggestion({ tool:"Bea Chat", reason:"Let's talk this through together." });
+    } finally { setLoadingSuggest(false); }
+  };
+
+  const toolAction = (toolName) => {
+    const map = {
+      "Courtroom":      ()=>onSetTab("court"),
+      "Distortions":    ()=>onSetTab("distort"),
+      "ACT Matrix":     ()=>onSetTab("act"),
+      "Defusion":       ()=>onSetTab("act"),
+      "Bea Chat":       ()=>onSetTab("bea"),
+      "Release to Sea": ()=>setReleasing(viewItem?.id || "direct"),
+    };
+    (map[toolName] || (()=>onSetTab("bea")))();
+    setViewItem(null);
+    setBeaSuggestion(null);
+  };
+
+  // ── Working through a stored item ────────────────────────────────────────
+  if(viewItem) return (
+    <div style={{padding:"0 0 80px"}}>
       {releasing && (
-        <ReleaseAnimation style={releaseStyle} onDone={()=>{ onRelease(releasing); setReleasing(null); }}/>
+        <ReleaseAnimation
+          text={viewItem.text}
+          onDone={()=>{ onRelease(viewItem.id); setReleasing(null); setViewItem(null); }}
+        />
       )}
-      <h3 style={sectionTitle}>Worries & Triggers</h3>
-      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:16}}>
-        Name it. Then decide — store it safely, or let it go.
-      </p>
-      <div style={{display:"flex",gap:8,marginBottom:20}}>
-        <input value={text} onChange={e=>setText(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&add()}
-          placeholder="What's weighing on you?"
-          style={{...inputStyle,flex:1}}/>
-        <button onClick={add} style={btnStyle(PALETTE.lavender)}>Log</button>
+      <button onClick={()=>{ setViewItem(null); setBeaSuggestion(null); setLoadingSuggest(false); }}
+        style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>
+        ← Back to Box
+      </button>
+
+      {/* The problem */}
+      <div style={{...card,borderLeft:`3px solid ${PALETTE.lavender}`,marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:8}}>
+          YOUR PROBLEM · {fmtDate(viewItem.date)}
+        </div>
+        <p style={{margin:0,color:PALETTE.dark,fontSize:15,lineHeight:1.7}}>{viewItem.text}</p>
       </div>
 
-      {pending.length>0 && <>
-        <h4 style={{color:PALETTE.mid,marginBottom:8,fontSize:14}}>Waiting for your decision</h4>
-        {pending.map(item=>(
-          <div key={item.id} style={{...card,marginBottom:10}}>
-            <p style={{margin:"0 0 10px",color:PALETTE.dark}}>{item.text}</p>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>onStore(item.id)} style={btnStyle(PALETTE.sky,true)}>
-                ✅ Store safely
-              </button>
-              <button onClick={()=>doRelease(item.id)} style={btnStyle(PALETTE.amber,true)}>
-                🌊 Let go
-              </button>
+      {/* Bea's tool suggestion */}
+      {!beaSuggestion && !loadingSuggest && (
+        <button onClick={()=>getBeaSuggestion(viewItem.text)}
+          style={{
+            width:"100%",marginBottom:16,padding:"12px 16px",
+            background:`linear-gradient(135deg,${PALETTE.honey},${PALETTE.amber})`,
+            border:"none",borderRadius:12,cursor:"pointer",
+            display:"flex",alignItems:"center",gap:10,
+          }}>
+          <BeeMascot size={32}/>
+          <div style={{textAlign:"left"}}>
+            <div style={{color:"white",fontWeight:700,fontSize:14}}>Ask Bea which tool to use</div>
+            <div style={{color:"rgba(255,255,255,0.85)",fontSize:12}}>I'll read this and suggest the best approach</div>
+          </div>
+        </button>
+      )}
+
+      {loadingSuggest && (
+        <div style={{...card,marginBottom:16,textAlign:"center",padding:16}}>
+          <BeeMascot size={36} animated/>
+          <p style={{color:PALETTE.mid,fontSize:13,margin:"8px 0 0"}}>Bea is reading your problem…</p>
+        </div>
+      )}
+
+      {beaSuggestion && (
+        <div style={{
+          ...card,marginBottom:16,
+          background:`linear-gradient(135deg,${PALETTE.honey}15,${PALETTE.amber}08)`,
+          border:`1.5px solid ${PALETTE.honey}44`,
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:PALETTE.amber,fontSize:14}}>Bea suggests:</span>
+          </div>
+          <div style={{
+            background:PALETTE.honey,borderRadius:8,
+            padding:"8px 12px",marginBottom:8,
+            display:"inline-block",
+          }}>
+            <span style={{color:"white",fontWeight:700,fontSize:15}}>
+              {beaSuggestion.tool}
+            </span>
+          </div>
+          <p style={{margin:0,color:PALETTE.mid,fontSize:13,lineHeight:1.6}}>
+            {beaSuggestion.reason}
+          </p>
+          <button onClick={()=>toolAction(beaSuggestion.tool)}
+            style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:12}}>
+            Use {beaSuggestion.tool} →
+          </button>
+        </div>
+      )}
+
+      {/* All options */}
+      <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:10}}>
+        OR CHOOSE YOUR OWN
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {[
+          {label:"⚖️ Thought Courtroom",  sub:"Put this thought on trial",              tab:"court",   grad:"linear-gradient(135deg,#8B6A2A,#D4AF37)"},
+          {label:"🔍 Spot the Distortion",sub:"Find the thinking pattern",              tab:"distort", grad:"linear-gradient(135deg,#7B4A8B,#9B6BC4)"},
+          {label:"🌀 ACT Matrix",         sub:"Map your toward and away moves",         tab:"act",     grad:"linear-gradient(135deg,#2A7A5C,#5BAA8C)"},
+          {label:"🐝 Talk to Bea",        sub:"Process this with your bee therapist",   tab:"bea",     grad:"linear-gradient(135deg,#F5A623,#E8891A)"},
+          {label:"📦 Put back in box",    sub:"Not ready yet — save for another day",   tab:null,      grad:"linear-gradient(135deg,#6B5744,#8B7355)"},
+          {label:"🌊 Release to the Sea", sub:"Let it go — send it to the waves",       tab:"sea",     grad:"linear-gradient(135deg,#1A6B9B,#5B9BD5)"},
+        ].map(opt=>(
+          <button key={opt.label}
+            onClick={()=>{
+              if(opt.tab==="sea")  { setReleasing(viewItem.id); }
+              else if(opt.tab===null) { setViewItem(null); setBeaSuggestion(null); }
+              else { onSetTab(opt.tab); setViewItem(null); setBeaSuggestion(null); }
+            }}
+            style={{
+              background:opt.grad,border:"none",borderRadius:12,
+              cursor:"pointer",padding:"12px 16px",textAlign:"left",
+            }}>
+            <div style={{color:"white",fontWeight:700,fontSize:14,marginBottom:2}}>{opt.label}</div>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:12}}>{opt.sub}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Main box view ─────────────────────────────────────────────────────────
+  return (
+    <div style={{padding:"0 0 80px"}}>
+      {releasing && (
+        <ReleaseAnimation
+          text={items.find(i=>i.id===releasing)?.text||""}
+          onDone={()=>{ onRelease(releasing); setReleasing(null); }}
+        />
+      )}
+
+      <h3 style={sectionTitle}>📦 Problem Box</h3>
+      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:16,lineHeight:1.6}}>
+        Name what's weighing on you. Drop it in the box, work through it with therapy tools, or release it to the sea.
+      </p>
+
+      {/* Add new problem */}
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        <input value={newText} onChange={e=>setNewText(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&handleAdd()}
+          placeholder="What's on your mind?"
+          style={{...inputStyle,flex:1}}/>
+        <button onClick={handleAdd} disabled={!newText.trim()}
+          style={{...btnStyle(PALETTE.lavender),opacity:newText.trim()?1:0.5}}>
+          Add
+        </button>
+      </div>
+
+      {/* The chest */}
+      <div style={{textAlign:"center",marginBottom:20}}>
+        <div onClick={()=>setChestOpen(o=>!o)}
+          style={{cursor:"pointer",display:"inline-block",position:"relative"}}>
+          <img
+            src={chestOpen ? CHEST_OPEN : CHEST_CLOSED}
+            alt={chestOpen?"Open box":"Closed box"}
+            style={{width:"100%",maxWidth:420,height:"auto",transition:"opacity .3s"}}
+          />
+          {total > 0 && !chestOpen && (
+            <div style={{
+              position:"absolute",top:-8,right:"8%",
+              background:PALETTE.lavender,color:"white",
+              borderRadius:999,minWidth:26,height:26,padding:"0 6px",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:13,fontWeight:700,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"
+            }}>{total}</div>
+          )}
+          {justDropped && (
+            <div style={{
+              position:"absolute",inset:0,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:40,
+            }}>✓</div>
+          )}
+        </div>
+        <p style={{fontSize:12,color:PALETTE.soft,marginTop:6}}>
+          {chestOpen ? "Tap chest to close" : "Tap chest to open"}
+        </p>
+      </div>
+
+      {/* Pending — tap to drop */}
+      {chestOpen && pending.length > 0 && (
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.mid,letterSpacing:1,marginBottom:8}}>
+            NEW — TAP TO DROP IN BOX
+          </div>
+          {pending.map(item=>(
+            <div key={item.id} style={{marginBottom:10}}>
+              <div style={{
+                ...card,cursor:"pointer",
+                border:`2px dashed ${PALETTE.lavender}`,
+                background:`${PALETTE.lavender}0A`,
+              }}>
+                <p style={{margin:"0 0 10px",color:PALETTE.dark,fontSize:14,lineHeight:1.5}}>{item.text}</p>
+                <p style={{margin:"0 0 12px",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <button onClick={()=>dropInBox(item)}
+                    style={{...btnStyle(PALETTE.lavender,true),flex:1}}>
+                    📦 Put in box for later
+                  </button>
+                  <button onClick={()=>{ setViewItem(item); }}
+                    style={{...btnStyle(PALETTE.honey,true),flex:1}}>
+                    🐝 Work through it now
+                  </button>
+                  <button onClick={()=>{ setReleasing(item.id); }}
+                    style={{...btnStyle(PALETTE.sky,true),flex:1}}>
+                    🌊 Release to sea
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-      </>}
+          ))}
+        </div>
+      )}
 
-      {stored.length>0 && <>
-        <h4 style={{color:PALETTE.mid,margin:"16px 0 8px",fontSize:14}}>Stored safely</h4>
-        {stored.map(item=>(
-          <div key={item.id} style={{...card,opacity:.85,marginBottom:8}}>
-            <p style={{margin:0,color:PALETTE.dark,fontSize:14}}>{item.text}</p>
-            <p style={{margin:"4px 0 0",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
+      {/* Stored in box */}
+      {chestOpen && stored.length > 0 && (
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.mid,letterSpacing:1,marginBottom:8}}>
+            IN YOUR BOX — TAP TO WORK THROUGH
           </div>
-        ))}
-      </>}
+          {stored.map(item=>(
+            <div key={item.id} onClick={()=>{ setViewItem(item); setBeaSuggestion(null); }}
+              style={{
+                ...card,cursor:"pointer",marginBottom:8,
+                borderLeft:`3px solid ${PALETTE.lavender}`,
+                display:"flex",alignItems:"center",gap:10,
+              }}>
+              <span style={{fontSize:20}}>📦</span>
+              <div style={{flex:1}}>
+                <p style={{margin:0,color:PALETTE.dark,fontSize:14,lineHeight:1.5}}>{item.text}</p>
+                <p style={{margin:"3px 0 0",fontSize:11,color:PALETTE.soft}}>{fmtDate(item.date)}</p>
+              </div>
+              <span style={{fontSize:16,color:PALETTE.soft}}>›</span>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {items.length===0 && <div style={emptyState}>This space holds what's heavy — whenever you're ready 🌿</div>}
+      {chestOpen && total===0 && (
+        <div style={emptyState}>
+          <p style={{margin:0,fontSize:13}}>
+            Type a problem above, or log a difficult mood and it will appear here. 🐝
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Courtroom ─────────────────────────────────────────────────────────────────
-// Dramatic step-by-step trial with Judge, Prosecutor, Defence & Verdict
 
-const TRIAL_STEPS = [
-  { id:"thought",  role:"CLERK",       emoji:"📜", name:"Court Clerk",       color:"#6B5744" },
-  { id:"charges",  role:"PROSECUTOR",  emoji:"⚔️",  name:"The Prosecutor",    color:"#8B1A1A" },
-  { id:"defence",  role:"DEFENCE",     emoji:"🛡️",  name:"Your Defence",      color:"#1A4A8B" },
-  { id:"verdict",  role:"JUDGE",       emoji:"⚖️",  name:"The Honourable Judge",color:"#2C1810" },
-];
-
-// Robed figures as SVG avatars
 function RobedFigure({ role, size=52 }) {
   const cols = { CLERK:"#8B7355", PROSECUTOR:"#8B1A1A", DEFENCE:"#1A4A8B", JUDGE:"#2C1810" };
   const col = cols[role] || "#555";
@@ -2691,6 +3065,23 @@ export default function BeeWell() {
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme]           = useState("honey");
   const [outfit, setOutfit]         = useState("therapist");
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installed, setInstalled]   = useState(false);
+
+  useEffect(()=>{
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', ()=>setInstalled(true));
+    return ()=>{ window.removeEventListener('beforeinstallprompt', handler); };
+  },[]);
+
+  const handleInstall = async () => {
+    if(!installPrompt) return;
+    installPrompt.prompt();
+    const {outcome} = await installPrompt.userChoice;
+    if(outcome==='accepted') setInstalled(true);
+    setInstallPrompt(null);
+  };
 
   const themeAccent = { honey:PALETTE.honey, sage:PALETTE.sage, lavender:PALETTE.lavender, sky:PALETTE.sky }[theme] || PALETTE.honey;
 
@@ -2699,8 +3090,7 @@ export default function BeeWell() {
   const tabs = [
     {id:"mood",      label:"Mood",        emoji:"📊"},
     {id:"feel",      label:"Feel Better", emoji:"💛"},
-    {id:"difficult", label:"Feelings",    emoji:"🌿"},
-    {id:"triggers",  label:"Worries",     emoji:"🌊"},
+    {id:"difficult", label:"Problem Box", emoji:"📦"},
     {id:"court",     label:"Courtroom",   emoji:"⚖️"},
     {id:"distort",   label:"Distortions", emoji:"🔍"},
     {id:"activate",  label:"Activate",    emoji:"🌱"},
@@ -2735,11 +3125,21 @@ export default function BeeWell() {
             <div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>Your private hive 🍯</div>
           </div>
         </div>
-        <button onClick={()=>setShowSettings(s=>!s)}
-          style={{background:"rgba(255,255,255,0.25)",border:"none",borderRadius:999,
-            padding:"6px 12px",color:"white",fontSize:13,cursor:"pointer",fontWeight:600}}>
-          ⚙️ Hive
-        </button>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {installPrompt && !installed && (
+            <button onClick={handleInstall}
+              style={{background:"rgba(255,255,255,0.25)",border:"1px solid rgba(255,255,255,0.5)",
+                borderRadius:999,padding:"6px 12px",color:"white",fontSize:13,
+                cursor:"pointer",fontWeight:700}}>
+              📲 Install App
+            </button>
+          )}
+          <button onClick={()=>setShowSettings(s=>!s)}
+            style={{background:"rgba(255,255,255,0.25)",border:"none",borderRadius:999,
+              padding:"6px 12px",color:"white",fontSize:13,cursor:"pointer",fontWeight:600}}>
+            ⚙️ Hive
+          </button>
+        </div>
       </div>
 
       {/* Settings panel */}
@@ -2789,16 +3189,13 @@ export default function BeeWell() {
           onAddDifficult={e=>setDifficultItems(l=>[e,...l])}
         />}
         {tab==="feel"     && <FeelBetterBox items={feelItems} onAdd={e=>setFeelItems(l=>[e,...l])} onDelete={id=>setFeelItems(l=>l.filter(i=>i.id!==id))}/>}
-        {tab==="difficult" && <DifficultBox items={difficultItems}
+        {tab==="difficult" && <ProblemBox
+          items={difficultItems}
           onAdd={e=>setDifficultItems(l=>[e,...l])}
-          onStore={id=>setDifficultItems(ts=>ts.map(t=>t.id===id?{...t,status:"stored"}:t))}
+          onUpdate={(id,changes)=>setDifficultItems(ts=>ts.map(t=>t.id===id?{...t,...changes}:t))}
           onRelease={id=>setDifficultItems(ts=>ts.map(t=>t.id===id?{...t,status:"released"}:t))}
-          releaseStyle={releaseStyle}/>}
-        {tab==="triggers" && <TriggersBox items={triggers}
-          onAdd={e=>setTriggers(l=>[e,...l])}
-          onStore={id=>setTriggers(ts=>ts.map(t=>t.id===id?{...t,status:"stored"}:t))}
-          onRelease={handleRelease}
-          releaseStyle={releaseStyle}/>}
+          onSetTab={setTab}
+        />}
         {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])}/>}
         {tab==="distort"  && <DistortionsSpotter onAddFeel={e=>setFeelItems(l=>[e,...l])}/>}
         {tab==="activate" && <BehaviouralActivation/>}

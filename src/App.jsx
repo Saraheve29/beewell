@@ -2048,13 +2048,20 @@ const BA_CATEGORIES = [
   {id:"rest",   label:"Rest",        emoji:"☁️",  color:"#6B9BB8"},
 ];
 
-function BehaviouralActivation() {
+function BehaviouralActivation({ feelItems=[] }) {
   const [activities, setActivities] = useState([]);
   const [adding, setAdding]         = useState(false);
   const [newAct, setNewAct]         = useState({text:"",cat:"self",duration:15,mood_before:null,mood_after:null});
-  const [active, setActive]         = useState(null); // activity being "done"
+  const [active, setActive]         = useState(null);
   const [aiSuggest, setAiSuggest]   = useState("");
   const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [showFeelBox, setShowFeelBox] = useState(false);
+  const [feelSuggest, setFeelSuggest] = useState("");
+  const [loadingFeel, setLoadingFeel] = useState(false);
+  const [noItems, setNoItems]       = useState(false);
+  const [quickActivity1, setQuickActivity1] = useState("");
+  const [quickActivity2, setQuickActivity2] = useState("");
+  const [quickSaved, setQuickSaved] = useState(false);
 
   const getSuggestion = async (currentMood) => {
     setLoadingSuggest(true);
@@ -2069,25 +2076,143 @@ Format as 3 short bullet points. No preamble.`}]);
     } finally { setLoadingSuggest(false); }
   };
 
+  const getFeelBetterSuggestion = async (mood) => {
+    if(feelItems.length === 0) { setNoItems(true); return; }
+    setNoItems(false);
+    setLoadingFeel(true);
+    setShowFeelBox(true);
+    try {
+      const itemList = feelItems.slice(0,20).map(i=>`- ${i.text} (${i.type})`).join('\n');
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a CBT bee therapist using Behavioural Activation.
+A person is feeling ${mood||"low"} right now.
+Here are things from their personal Feel Better Box that they know lift their mood:
+${itemList}
+
+Pick the 2-3 BEST ones for how they are feeling right now, and explain in one warm sentence why each one would help at this moment.
+Format as bullet points. Be specific and encouraging. No preamble.`}]);
+      setFeelSuggest(reply);
+    } finally { setLoadingFeel(false); }
+  };
+
+  const saveQuickActivities = () => {
+    if(quickActivity1.trim()) {
+      setActivities(a=>[{id:uid(),date:today(),text:quickActivity1.trim(),cat:"joy",mood_after:null},...a]);
+    }
+    if(quickActivity2.trim()) {
+      setActivities(a=>[{id:uid(),date:today(),text:quickActivity2.trim(),cat:"joy",mood_after:null},...a]);
+    }
+    setQuickSaved(true);
+    setNoItems(false);
+    setQuickActivity1("");
+    setQuickActivity2("");
+    setTimeout(()=>setQuickSaved(false), 2000);
+  };
+
   const completedToday = activities.filter(a=>a.date===today()&&a.mood_after!==null).length;
 
   return (
     <div>
       <h3 style={sectionTitle}>🌱 Behavioural Activation</h3>
       <p style={{color:PALETTE.soft,fontSize:13,marginBottom:8}}>
-        CBT shows that doing small, meaningful activities — even when motivation is zero — is one of the most effective ways to lift mood. Action comes before motivation, not after.
+        CBT shows that doing small, meaningful activities — even when motivation is zero — lifts mood. Action comes before motivation, not after.
       </p>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"8px 12px",
         background:`${PALETTE.sage}18`,borderRadius:10,border:`1px solid ${PALETTE.sage}44`}}>
         <BeeMascot size={28}/>
         <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
-          You don"t have to feel like doing it. Do the smallest version of one thing. That's enough. 🐝
+          Do the smallest version of one thing. That is enough. 🐝
         </p>
       </div>
 
-      {/* Bea's suggestions */}
+      {/* ── THINGS THAT LIFT MY MOOD BUTTON ── */}
+      <button
+        onClick={()=>setShowFeelBox(v=>!v)}
+        style={{
+          width:"100%", marginBottom:showFeelBox?0:16,
+          padding:"14px 16px", border:"none", borderRadius:16,
+          cursor:"pointer", textAlign:"left",
+          background:`linear-gradient(135deg,#F5A623,#FFD700)`,
+          boxShadow:"0 4px 16px rgba(245,166,35,0.35)",
+          display:"flex", alignItems:"center", gap:12,
+        }}>
+        <span style={{fontSize:28}}>💛</span>
+        <div style={{flex:1}}>
+          <div style={{color:"white",fontWeight:800,fontSize:16,textShadow:"0 1px 3px rgba(0,0,0,0.2)"}}>
+            Things that lift my mood
+          </div>
+          <div style={{color:"rgba(255,255,255,0.85)",fontSize:12,marginTop:2}}>
+            {feelItems.length>0 ? `${feelItems.length} things saved in your Feel Better Box` : "Add things to your Feel Better Box"}
+          </div>
+        </div>
+        <span style={{color:"rgba(255,255,255,0.8)",fontSize:20}}>{showFeelBox?"▼":"›"}</span>
+      </button>
+
+      {/* Expanded feel better content */}
+      {showFeelBox && (
+        <div style={{
+          background:"#FFFDF5",borderRadius:"0 0 16px 16px",
+          padding:"16px",marginBottom:16,
+          boxShadow:"0 6px 20px rgba(245,166,35,0.15)",
+          border:"1.5px solid rgba(245,166,35,0.3)",
+          borderTop:"none",
+        }}>
+          {feelItems.length===0 ? (
+            /* Empty box */
+            <div>
+              <p style={{color:PALETTE.mid,fontSize:13,marginBottom:12,lineHeight:1.6}}>
+                Your Feel Better Box is empty. What are 2 small things that make you smile?
+              </p>
+              <input value={quickActivity1} onChange={e=>setQuickActivity1(e.target.value)}
+                placeholder="e.g. Making a cup of tea slowly"
+                style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:8}}/>
+              <input value={quickActivity2} onChange={e=>setQuickActivity2(e.target.value)}
+                placeholder="e.g. A short walk outside"
+                style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:10}}/>
+              <button onClick={saveQuickActivities}
+                disabled={!quickActivity1.trim()&&!quickActivity2.trim()}
+                style={{...btnStyle(PALETTE.honey),width:"100%",
+                  opacity:quickActivity1.trim()||quickActivity2.trim()?1:0.5}}>
+                Save 🌸
+              </button>
+              {quickSaved && <p style={{fontSize:13,color:PALETTE.sage,margin:"8px 0 0",fontWeight:600}}>✓ Saved! 🌸</p>}
+            </div>
+          ) : (
+            /* Show all items from feel better box */
+            <div>
+              <p style={{color:PALETTE.soft,fontSize:12,marginBottom:12}}>
+                Everything in your Feel Better Box — tap one to schedule it:
+              </p>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {feelItems.map(item=>{
+                  const typeEmojis = {moment:"✨",activity:"🎯",thought:"💭",quote:"📖",song:"🎵",joy:"🌸"};
+                  const emoji = typeEmojis[item.type] || "💛";
+                  return (
+                    <button key={item.id}
+                      onClick={()=>{
+                        setActivities(a=>[{id:uid(),date:today(),text:item.text,cat:"joy",mood_after:null},...a]);
+                        setShowFeelBox(false);
+                      }}
+                      style={{
+                        background:"white",border:`1.5px solid ${PALETTE.honey}33`,
+                        borderRadius:10,padding:"10px 12px",cursor:"pointer",
+                        textAlign:"left",display:"flex",alignItems:"center",gap:10,
+                      }}>
+                      <span style={{fontSize:18}}>{emoji}</span>
+                      <span style={{flex:1,color:PALETTE.dark,fontSize:13,lineHeight:1.4}}>{item.text}</span>
+                      <span style={{fontSize:11,color:PALETTE.honey,fontWeight:700}}>+ Add</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── ASK BEA ── */}
       <div style={{...card,marginBottom:16}}>
-        <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14,marginBottom:8}}>🐝 Ask Bea to suggest activities</div>
+        <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14,marginBottom:8}}>🐝 Ask Bea for ideas</div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
           {["low","anxious","flat","restless","overwhelmed"].map(m=>(
             <button key={m} onClick={()=>getSuggestion(m)}
@@ -2096,7 +2221,7 @@ Format as 3 short bullet points. No preamble.`}]);
             </button>
           ))}
         </div>
-        {loadingSuggest && <p style={{color:PALETTE.soft,fontSize:13,fontStyle:"italic"}}>🐝 Bea is thinking of ideas…</p>}
+        {loadingSuggest && <p style={{color:PALETTE.soft,fontSize:13,fontStyle:"italic"}}>🐝 Bea is thinking…</p>}
         {aiSuggest && <div style={{fontSize:13,color:PALETTE.dark,lineHeight:1.8,whiteSpace:"pre-line"}}>{aiSuggest}</div>}
       </div>
 
@@ -3315,7 +3440,7 @@ export default function BeeWell() {
           onSetTab={setTab}
         />}
         {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])}/>}
-        {tab==="activate" && <BehaviouralActivation/>}
+        {tab==="activate" && <BehaviouralActivation feelItems={feelItems}/>}
         {tab==="values"   && <ValuesGoals/>}
         {tab==="act"      && <ACTToolkit/>}
         {tab==="ground"   && <Grounding/>}

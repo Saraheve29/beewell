@@ -2328,191 +2328,635 @@ Format as bullet points. Be specific and encouraging. No preamble.`}]);
 }
 
 // ── Values & Goals (ACT/CBT) ──────────────────────────────────────────────────
-const VALUES_AREAS = [
-  {id:"health",  label:"Health & Body",   emoji:"💪"},
-  {id:"mind",    label:"Mind & Learning",  emoji:"📚"},
-  {id:"create",  label:"Creativity",       emoji:"🎨"},
-  {id:"spirit",  label:"Spirituality",     emoji:"✨"},
-  {id:"work",    label:"Work & Purpose",   emoji:"🎯"},
-  {id:"finance", label:"Financial",        emoji:"💰"},
-  {id:"home",    label:"Home & Space",     emoji:"🏡"},
-  {id:"growth",  label:"Personal Growth",  emoji:"🌱"},
+
+// ACT Values Assessment questions — 5 per domain
+const VALUES_QUESTIONS = [
+  // Health
+  {id:"h1", domain:"health",   emoji:"💪", text:"Taking care of my body and physical health matters deeply to me."},
+  {id:"h2", domain:"health",   emoji:"💪", text:"Being physically active and energetic is important to how I want to live."},
+  {id:"h3", domain:"health",   emoji:"💪", text:"I want to feel well rested, nourished and physically strong."},
+  // Mind
+  {id:"m1", domain:"mind",     emoji:"📚", text:"Learning new things and growing my knowledge gives my life meaning."},
+  {id:"m2", domain:"mind",     emoji:"📚", text:"I want to be someone who is curious, reflective and open-minded."},
+  {id:"m3", domain:"mind",     emoji:"📚", text:"Mental sharpness and intellectual growth matter to me."},
+  // Creativity
+  {id:"c1", domain:"create",   emoji:"🎨", text:"Expressing myself creatively is an important part of who I am."},
+  {id:"c2", domain:"create",   emoji:"🎨", text:"Making things, creating art, or building something brings me alive."},
+  {id:"c3", domain:"create",   emoji:"🎨", text:"I want creativity and self-expression to be central to my life."},
+  // Spirituality
+  {id:"s1", domain:"spirit",   emoji:"✨", text:"Connecting to something greater than myself gives my life purpose."},
+  {id:"s2", domain:"spirit",   emoji:"✨", text:"A spiritual or meaningful inner life is central to who I want to be."},
+  {id:"s3", domain:"spirit",   emoji:"✨", text:"Practices that nurture my soul — prayer, reflection, nature — matter to me."},
+  // Work & Purpose
+  {id:"w1", domain:"work",     emoji:"🎯", text:"Doing work that feels meaningful and purposeful matters deeply to me."},
+  {id:"w2", domain:"work",     emoji:"🎯", text:"I want to contribute something of value to the world through what I do."},
+  {id:"w3", domain:"work",     emoji:"🎯", text:"Having a sense of direction and purpose in my daily activities is important."},
+  // Financial
+  {id:"f1", domain:"finance",  emoji:"💰", text:"Financial stability and security are important to my sense of wellbeing."},
+  {id:"f2", domain:"finance",  emoji:"💰", text:"Being in control of my finances and building security matters to me."},
+  {id:"f3", domain:"finance",  emoji:"💰", text:"I want to live without financial stress and within my means."},
+  // Home
+  {id:"ho1", domain:"home",    emoji:"🏡", text:"Having a home that feels safe, calm and like mine matters deeply."},
+  {id:"ho2", domain:"home",    emoji:"🏡", text:"My home environment and daily space affect my sense of wellbeing greatly."},
+  {id:"ho3", domain:"home",    emoji:"🏡", text:"Creating a home I love and feel settled in is a genuine priority."},
+  // Growth
+  {id:"g1", domain:"growth",   emoji:"🌱", text:"Becoming the best version of myself is something I care about deeply."},
+  {id:"g2", domain:"growth",   emoji:"🌱", text:"Facing my challenges and growing through them matters to who I want to be."},
+  {id:"g3", domain:"growth",   emoji:"🌱", text:"Personal development — therapy, reflection, learning — is a genuine value."},
+  // Independence
+  {id:"i1", domain:"independence",emoji:"🦋",text:"Living life on my own terms and being self-sufficient matters to me."},
+  {id:"i2", domain:"independence",emoji:"🦋",text:"I want to be someone who is capable, resilient and self-reliant."},
+  {id:"i3", domain:"independence",emoji:"🦋",text:"Freedom and autonomy in how I live my life is deeply important."},
+  // Play & Joy
+  {id:"j1", domain:"joy",      emoji:"🎉", text:"Having fun, laughing and enjoying life are things I want more of."},
+  {id:"j2", domain:"joy",      emoji:"🎉", text:"Rest, play and simple pleasures are genuinely important to my wellbeing."},
+  {id:"j3", domain:"joy",      emoji:"🎉", text:"I want to make space for joy, lightness and delight in my daily life."},
 ];
 
-function ValuesGoals() {
-  const [goals, setGoals]         = useState([]);
-  const [beliefs, setBeliefs]     = useState([]);
-  const [view, setView]           = useState("goals"); // goals | beliefs | add_goal | add_belief
-  const [newGoal, setNewGoal]     = useState({text:"",area:"growth",why:"",limit_belief:"",reframe:""});
-  const [newBelief, setNewBelief] = useState({belief:"",origin:"",reframe:""});
-  const [loading, setLoading]     = useState(false);
-  const [aiReframe, setAiReframe] = useState("");
+const VALUES_DOMAINS = [
+  {id:"health",       label:"Health & Body",     emoji:"💪", color:"#7BB369"},
+  {id:"mind",         label:"Mind & Learning",   emoji:"📚", color:"#5B9BD5"},
+  {id:"create",       label:"Creativity",        emoji:"🎨", color:"#F5A623"},
+  {id:"spirit",       label:"Spirituality",      emoji:"✨", color:"#9B8BC4"},
+  {id:"work",         label:"Work & Purpose",    emoji:"🎯", color:"#D4AF37"},
+  {id:"finance",      label:"Financial",         emoji:"💰", color:"#5C8B3A"},
+  {id:"home",         label:"Home & Space",      emoji:"🏡", color:"#E8891A"},
+  {id:"growth",       label:"Personal Growth",   emoji:"🌱", color:"#2A7A5C"},
+  {id:"independence", label:"Independence",      emoji:"🦋", color:"#7B4A8B"},
+  {id:"joy",          label:"Play & Joy",        emoji:"🎉", color:"#E8737A"},
+];
 
-  const getReframe = async (belief) => {
-    if(!belief.trim()) return;
-    setLoading(true);
+const LIMITING_BELIEF_QUESTIONS = [
+  {id:"lb1", text:"Write the limiting belief exactly as it sounds in your head:",       placeholder:"e.g. I am not good enough. / I always fail. / I don't deserve good things."},
+  {id:"lb2", text:"When did you first start believing this? What might have planted it?", placeholder:"e.g. Childhood, something someone said, a repeated experience…"},
+  {id:"lb3", text:"What evidence do you have that this belief is completely true?",       placeholder:"List only facts — things you can observe, not feelings or interpretations."},
+  {id:"lb4", text:"What evidence challenges this belief — times it has NOT been true?",  placeholder:"Even small exceptions count. Look hard — they are there."},
+  {id:"lb5", text:"What has holding this belief cost you — in your choices, confidence or life?", placeholder:"What have you avoided, not tried, or held back because of this?"},
+  {id:"lb6", text:"If this belief were only 50% true — what would the other 50% say?",   placeholder:"Write a more balanced, realistic version…"},
+];
+
+const SMART_QUESTIONS = [
+  {field:"goal",        emoji:"🎯", label:"The Goal",         question:"What do you want to achieve? Be as specific as possible.",             placeholder:"e.g. Build a daily creative practice"},
+  {field:"value",       emoji:"💎", label:"Meaningful — Why", question:"Which of your core values does this connect to? Why does it matter to you personally?", placeholder:"e.g. Creativity — it makes me feel alive and like myself"},
+  {field:"specific",    emoji:"📍", label:"Specific",         question:"What exactly will you do? Who, what, where — no vague language.",       placeholder:"e.g. Spend 20 minutes drawing in my sketchbook"},
+  {field:"achievable",  emoji:"✅", label:"Achievable",       question:"Is this genuinely doable right now, given your real current situation?", placeholder:"e.g. Yes — I have 20 minutes each morning before the kids wake"},
+  {field:"realistic",   emoji:"🔍", label:"Realistic",        question:"What might get in the way? How will you handle it if it does?",         placeholder:"e.g. Tiredness — I will do 5 minutes minimum on hard days"},
+  {field:"timebound",   emoji:"⏰", label:"Time-bound",       question:"When exactly will you do this? Give a specific day, time or frequency.", placeholder:"e.g. Every morning at 7am, starting Monday"},
+  {field:"experiment",  emoji:"🧪", label:"What happened",    question:"After trying this — what actually happened? What did you learn?",       placeholder:"Fill this in after you have tried it…"},
+];
+
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans }) {
+  const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail
+
+  // Assessment state
+  const [ratings, setRatings]         = useState({});  // {question_id: 1-5}
+  const [assessStep, setAssessStep]   = useState(0);   // current question index
+  const [assessLoading, setAssessLoading] = useState(false);
+
+  // Limiting beliefs questionnaire state
+  const [beliefAnswers, setBeliefAnswers] = useState({});
+  const [beliefStep, setBeliefStep]   = useState(0);
+  const [beliefLoading, setBeliefLoading] = useState(false);
+  const [beliefAiReframe, setBeliefAiReframe] = useState("");
+
+  // SMART plan state
+  const [smartAnswers, setSmartAnswers] = useState({});
+  const [smartStep, setSmartStep]     = useState(0);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [viewBelief, setViewBelief]   = useState(null);
+  const [viewPlan, setViewPlan]       = useState(null);
+
+  // ── Score values assessment ─────────────────────────────────────────────
+  const scoreAssessment = async () => {
+    setAssessLoading(true);
+    // Average score per domain
+    const domainScores = VALUES_DOMAINS.map(d=>{
+      const qs = VALUES_QUESTIONS.filter(q=>q.domain===d.id);
+      const total = qs.reduce((sum,q)=>sum+(ratings[q.id]||0),0);
+      const avg = qs.length > 0 ? total/qs.length : 0;
+      return { ...d, score:avg };
+    });
+    const sorted = [...domainScores].sort((a,b)=>b.score-a.score);
+    const top3    = sorted.slice(0,3);
+    const bottom3 = sorted.slice(-3).reverse();
+
     try {
-      const r = await askBee([{role:"user",content:
-        `You are Bea, a CBT-trained bee therapist working with ACT (Acceptance and Commitment Therapy).
-A person has this limiting belief: "${belief}"
-1. In one sentence, identify what cognitive distortion this belief contains.
-2. In one sentence, write a defused, values-based reframe — not a positive affirmation, but a realistic, flexible alternative that makes room for both difficulty and possibility.
-3. In one sentence, suggest one small concrete action this week that would be consistent with someone who holds the reframed belief.
-Format as three numbered points.`}]);
-      setAiReframe(r);
-    } finally { setLoading(false); }
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, an ACT therapist. A person has completed a values assessment.
+Their TOP 3 values (most important): ${top3.map(v=>`${v.label} (${v.score.toFixed(1)}/5)`).join(", ")}
+Their LOWEST 3 values (least priority): ${bottom3.map(v=>`${v.label} (${v.score.toFixed(1)}/5)`).join(", ")}
+
+Write a warm, personal 3-sentence summary:
+1. Name their top values and what this says about what matters to them
+2. Note the lowest values without judgment — these are simply lower priorities right now
+3. One encouraging sentence about how knowing their values can guide their choices
+
+Be specific, warm, and not generic. No preamble.`}]);
+
+      const profile = {
+        id: uid(), date: today(),
+        domainScores, top3, bottom3,
+        summary: reply,
+        ratings: {...ratings},
+      };
+      onSaveProfile(profile);
+      setView("profile");
+    } finally { setAssessLoading(false); }
   };
 
-  return (
+  // ── Get Bea reframe for limiting belief ─────────────────────────────────
+  const getBeliefReframe = async (answers) => {
+    setBeliefLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a CBT/ACT therapist.
+A person has worked through this limiting belief:
+Belief: "${answers.lb1}"
+Origin: "${answers.lb2||"unknown"}"
+Evidence FOR: "${answers.lb3||"none listed"}"
+Evidence AGAINST: "${answers.lb4||"none listed"}"
+Cost of belief: "${answers.lb5||"not stated"}"
+Their own 50% reframe: "${answers.lb6||"not yet written"}"
+
+Write a compassionate, evidence-based reframe in 2-3 sentences. 
+Then on a new line write: REFRAME: [one clear balanced alternative thought they could carry forward]
+Make it realistic — not toxic positivity, but genuinely believable given the evidence.`}]);
+
+      setBeliefAiReframe(reply);
+    } finally { setBeliefLoading(false); }
+  };
+
+  const saveBelief = () => {
+    const belief = {
+      id: uid(), date: today(),
+      answers: {...beliefAnswers},
+      aiReframe: beliefAiReframe,
+    };
+    onSaveBeliefs(b=>[belief,...b]);
+    setBeliefAnswers({});
+    setBeliefStep(0);
+    setBeliefAiReframe("");
+    setView("home");
+  };
+
+  const savePlan = () => {
+    const plan = {
+      id: uid(), date: today(),
+      ...smartAnswers,
+    };
+    if(editingPlan) {
+      onSavePlans(ps=>ps.map(p=>p.id===editingPlan?{...p,...smartAnswers}:p));
+    } else {
+      onSavePlans(ps=>[plan,...ps]);
+    }
+    setSmartAnswers({});
+    setSmartStep(0);
+    setEditingPlan(null);
+    setView("home");
+  };
+
+  const deleteBelief = (id) => onSaveBeliefs(bs=>bs.filter(b=>b.id!==id));
+  const deletePlan   = (id) => onSavePlans(ps=>ps.filter(p=>p.id!==id));
+
+  // ── HOME ───────────────────────────────────────────────────────────────
+  if(view==="home") return (
     <div>
       <h3 style={sectionTitle}>🌟 Values & Goals</h3>
-      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:8}}>
-        CBT and ACT both show that connecting actions to personal values — and examining the limiting beliefs that block them — is more powerful than willpower alone.
-      </p>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"8px 12px",
-        background:`${PALETTE.lavender}18`,borderRadius:10,border:`1px solid ${PALETTE.lavender}44`}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:20,padding:"10px 12px",
+        background:`${PALETTE.lavender}18`,borderRadius:10}}>
         <BeeMascot size={28}/>
         <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
-          Goals work best when they're rooted in what genuinely matters to you — not what you think you should want. 🐝
+          Knowing what truly matters to you — and what holds you back — is the foundation of ACT therapy. 🐝
         </p>
       </div>
 
-      {/* Tab switcher */}
-      <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {[{id:"goals",label:"🎯 My Goals"},{id:"beliefs",label:"🔓 Limiting Beliefs"}].map(t=>(
-          <button key={t.id} onClick={()=>setView(t.id)}
-            style={{...btnStyle(view===t.id?PALETTE.lavender:"#EEE",true),
-              flex:1,color:view===t.id?"white":PALETTE.mid}}>
-            {t.label}
+      {/* Values Assessment */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.lavender}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🧭</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Values Assessment</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {valuesProfile ? `Completed ${fmtDate(valuesProfile.date)} · Top values: ${valuesProfile.top3.map(v=>v.label).join(", ")}` : "30 questions · Find your top 3 core values"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setRatings({});setAssessStep(0);setView("assessment");}}
+            style={{...btnStyle(PALETTE.lavender),flex:1}}>
+            {valuesProfile ? "Redo Assessment" : "Start Assessment"}
           </button>
-        ))}
+          {valuesProfile && <button onClick={()=>setView("profile")}
+            style={{...btnStyle(PALETTE.lavender,true),flex:1}}>View My Values</button>}
+        </div>
       </div>
 
-      {/* GOALS view */}
-      {view==="goals" && <>
-        <button onClick={()=>setView("add_goal")} style={{...btnStyle(PALETTE.lavender),width:"100%",marginBottom:14}}>
-          + Add a Goal
-        </button>
-        {goals.length===0 && <div style={emptyState}>No goals yet. Start with one area of your life that matters to you 🌟</div>}
-        {goals.map(g=>{
-          const area = VALUES_AREAS.find(a=>a.id===g.area);
-          return (
-            <div key={g.id} style={{...card,marginBottom:10,borderLeft:`3px solid ${PALETTE.lavender}`}}>
-              <div style={{fontSize:11,color:PALETTE.soft,marginBottom:4}}>{area?.emoji} {area?.label}</div>
-              <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15,marginBottom:4}}>{g.text}</div>
-              {g.why && <p style={{margin:"0 0 6px",fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
-                <strong>Why it matters:</strong> {g.why}
-              </p>}
-              {g.limit_belief && <div style={{background:"#FFF0F0",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,color:PALETTE.dark}}>
-                <strong style={{color:PALETTE.blush}}>Limiting belief:</strong> {g.limit_belief}
-              </div>}
-              {g.reframe && <div style={{background:"#F0FFF4",borderRadius:6,padding:"6px 10px",fontSize:12,color:PALETTE.dark}}>
-                <strong style={{color:PALETTE.sage}}>Reframe:</strong> {g.reframe}
-              </div>}
+      {/* Limiting Beliefs */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.blush}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🔓</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Limiting Beliefs Examiner</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {limitingBeliefs.length>0 ? `${limitingBeliefs.length} belief${limitingBeliefs.length>1?"s":""} examined` : "6-step questionnaire · Examine what holds you back"}
             </div>
-          );
-        })}
-      </>}
-
-      {/* ADD GOAL */}
-      {view==="add_goal" && (
-        <div>
-          <button onClick={()=>setView("goals")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:14}}>← Back</button>
-          <label style={labelStyle}>Life area</label>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-            {VALUES_AREAS.map(a=>(
-              <button key={a.id} onClick={()=>setNewGoal(g=>({...g,area:a.id}))}
-                style={{...btnStyle(newGoal.area===a.id?PALETTE.lavender:"#EEE",true),
-                  color:newGoal.area===a.id?"white":PALETTE.mid}}>
-                {a.emoji} {a.label}
-              </button>
-            ))}
           </div>
-          <label style={labelStyle}>The goal</label>
-          <textarea value={newGoal.text} onChange={e=>setNewGoal(g=>({...g,text:e.target.value}))}
-            placeholder={`e.g. Build a daily creative practice or Get my finances organised`}
-            style={{...textareaStyle,marginBottom:10,minHeight:60}}/>
-          <label style={labelStyle}>Why does this matter to you?</label>
-          <textarea value={newGoal.why} onChange={e=>setNewGoal(g=>({...g,why:e.target.value}))}
-            placeholder="What value does this connect to? How will it change your daily life?"
-            style={{...textareaStyle,marginBottom:10,minHeight:60}}/>
-          <label style={labelStyle}>What limiting belief might block you? (optional)</label>
-          <input value={newGoal.limit_belief} onChange={e=>setNewGoal(g=>({...g,limit_belief:e.target.value}))}
-            placeholder={`e.g. I am not the kind of person who can do this.`}
-            style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:10}}/>
-          <label style={labelStyle}>Reframe of that belief (optional)</label>
-          <input value={newGoal.reframe} onChange={e=>setNewGoal(g=>({...g,reframe:e.target.value}))}
-            placeholder={`e.g. I can take one small step, even without certainty.`}
-            style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:14}}/>
-          <button onClick={()=>{
-            if(newGoal.text.trim()){
-              setGoals(g=>[{id:uid(),date:today(),...newGoal},...g]);
-              setNewGoal({text:"",area:"growth",why:"",limit_belief:"",reframe:""});
-              setView("goals");
-            }
-          }} style={{...btnStyle(PALETTE.lavender),width:"100%"}}>Save Goal</button>
         </div>
-      )}
-
-      {/* LIMITING BELIEFS view */}
-      {view==="beliefs" && <>
-        <button onClick={()=>setView("add_belief")} style={{...btnStyle(PALETTE.lavender),width:"100%",marginBottom:14}}>
-          + Examine a Limiting Belief
-        </button>
-        {beliefs.length===0 && <div style={emptyState}>
-          Limiting beliefs are deeply held "I am..." or "I can"t..." thoughts that quietly shape what you try.
-          Bring one here to examine it. 🔓
-        </div>}
-        {beliefs.map(b=>(
-          <div key={b.id} style={{...card,marginBottom:10,borderLeft:`3px solid ${PALETTE.blush}`}}>
-            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14,marginBottom:4}}>"{b.belief}"</div>
-            {b.origin && <p style={{margin:"0 0 8px",fontSize:12,color:PALETTE.soft}}>Origin: {b.origin}</p>}
-            {b.reframe && <div style={{background:"#F0FFF4",borderRadius:6,padding:"8px 10px",fontSize:13,color:PALETTE.dark,lineHeight:1.6,whiteSpace:"pre-line"}}>{b.reframe}</div>}
-          </div>
-        ))}
-      </>}
-
-      {/* ADD BELIEF */}
-      {view==="add_belief" && (
-        <div>
-          <button onClick={()=>{setView("beliefs");setAiReframe("");}} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:14}}>← Back</button>
-          <label style={labelStyle}>The limiting belief</label>
-          <textarea value={newBelief.belief} onChange={e=>setNewBelief(b=>({...b,belief:e.target.value}))}
-            placeholder="e.g. I am not capable. / I do not deserve good things. / I always fail." 
-            style={{...textareaStyle,marginBottom:10,minHeight:60}}/>
-          <label style={labelStyle}>Where do you think this belief came from? (optional)</label>
-          <input value={newBelief.origin} onChange={e=>setNewBelief(b=>({...b,origin:e.target.value}))}
-            placeholder="e.g. childhood, a specific experience, something someone said"
-            style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:10}}/>
-          <button onClick={()=>getReframe(newBelief.belief)}
-            disabled={loading||!newBelief.belief.trim()}
-            style={{...btnStyle(PALETTE.lavender,true),marginBottom:10,opacity:newBelief.belief.trim()?1:0.5}}>
-            {loading?"🐝 Bea is working on this…":"🐝 Ask Bea to reframe this belief"}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setBeliefAnswers({});setBeliefStep(0);setBeliefAiReframe("");setView("beliefs_q");}}
+            style={{...btnStyle(PALETTE.blush),flex:1}}>
+            + Examine a Belief
           </button>
-          {aiReframe && <>
-            <div style={{...card,background:`${PALETTE.lavender}11`,borderLeft:`3px solid ${PALETTE.lavender}`,
-              marginBottom:10,fontSize:13,color:PALETTE.dark,lineHeight:1.8,whiteSpace:"pre-line"}}>
-              {aiReframe}
+          {limitingBeliefs.length>0 && <button onClick={()=>setView("beliefs_list")}
+            style={{...btnStyle(PALETTE.blush,true),flex:1}}>View Saved</button>}
+        </div>
+      </div>
+
+      {/* SMART Plans */}
+      <div style={{...card,borderTop:`3px solid ${PALETTE.honey}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🧪</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>SMART Plans</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {smartPlans.length>0 ? `${smartPlans.length} plan${smartPlans.length>1?"s":""} saved` : "Values-based goal experiments"}
             </div>
-            <label style={labelStyle}>Your reframe (edit Bea's, or write your own)</label>
-            <textarea value={newBelief.reframe||aiReframe} onChange={e=>setNewBelief(b=>({...b,reframe:e.target.value}))}
-              style={{...textareaStyle,marginBottom:10,minHeight:80}}/>
-          </>}
-          <button onClick={()=>{
-            if(newBelief.belief.trim()){
-              setBeliefs(b=>[{id:uid(),date:today(),...newBelief,reframe:newBelief.reframe||aiReframe},...b]);
-              setNewBelief({belief:"",origin:"",reframe:""});
-              setAiReframe("");
-              setView("beliefs");
-            }
-          }} disabled={!newBelief.belief.trim()}
-            style={{...btnStyle(PALETTE.lavender),width:"100%",opacity:newBelief.belief.trim()?1:0.5}}>
-            Save Belief Work
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setView("smart_q");}}
+            style={{...btnStyle(PALETTE.honey),flex:1}}>
+            + New Plan
           </button>
+          {smartPlans.length>0 && <button onClick={()=>setView("plans_list")}
+            style={{...btnStyle(PALETTE.honey,true),flex:1}}>View Plans</button>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── VALUES ASSESSMENT ──────────────────────────────────────────────────
+  if(view==="assessment") {
+    const q = VALUES_QUESTIONS[assessStep];
+    const total = VALUES_QUESTIONS.length;
+    const progress = Math.round((assessStep/total)*100);
+    const domain = VALUES_DOMAINS.find(d=>d.id===q.domain);
+    const allAnswered = VALUES_QUESTIONS.every(q=>ratings[q.id]);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🧭 Values Assessment</h3>
+
+        {/* Progress */}
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {assessStep+1} of {total}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:domain?.color||PALETTE.lavender,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+
+        {/* Domain label */}
+        <div style={{fontSize:12,fontWeight:700,color:domain?.color,letterSpacing:1,marginBottom:10}}>
+          {domain?.emoji} {domain?.label.toUpperCase()}
+        </div>
+
+        {/* Question */}
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:`3px solid ${domain?.color||PALETTE.lavender}`}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{q.text}</p>
+        </div>
+
+        {/* Rating scale */}
+        <p style={{fontSize:13,color:PALETTE.soft,marginBottom:10,textAlign:"center"}}>How much does this resonate with you?</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:24}}>
+          {[
+            {n:1,label:"Not at all"},
+            {n:2,label:"A little"},
+            {n:3,label:"Somewhat"},
+            {n:4,label:"Quite a lot"},
+            {n:5,label:"Deeply"},
+          ].map(opt=>{
+            const selected = ratings[q.id]===opt.n;
+            return (
+              <button key={opt.n} onClick={()=>{
+                setRatings(r=>({...r,[q.id]:opt.n}));
+                // Auto advance after short delay
+                setTimeout(()=>{
+                  if(assessStep < total-1) setAssessStep(s=>s+1);
+                }, 300);
+              }}
+                style={{
+                  padding:"14px 4px",borderRadius:12,border:"none",cursor:"pointer",
+                  background: selected?(domain?.color||PALETTE.lavender):"#F5F3F0",
+                  color: selected?"white":PALETTE.mid,
+                  fontWeight:700,fontSize:18,
+                  display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+                  transform:selected?"scale(1.05)":"scale(1)",
+                  transition:"all .15s",
+                  boxShadow:selected?`0 3px 10px ${domain?.color||PALETTE.lavender}66`:"none",
+                }}>
+                <span>{opt.n}</span>
+                <span style={{fontSize:9,fontWeight:400,lineHeight:1.2,textAlign:"center"}}>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Navigation */}
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          {assessStep>0 && <button onClick={()=>setAssessStep(s=>s-1)}
+            style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {assessStep<total-1 ? (
+            <button onClick={()=>setAssessStep(s=>s+1)} disabled={!ratings[q.id]}
+              style={{...btnStyle(domain?.color||PALETTE.lavender),flex:1,opacity:ratings[q.id]?1:0.4}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={scoreAssessment} disabled={!allAnswered||assessLoading}
+              style={{...btnStyle(PALETTE.lavender),flex:1,opacity:allAnswered?1:0.4}}>
+              {assessLoading?"🐝 Bea is calculating…":"See My Values Results →"}
+            </button>
+          )}
+        </div>
+        {!allAnswered && assessStep===total-1 && (
+          <p style={{fontSize:12,color:PALETTE.soft,textAlign:"center"}}>
+            Answer all questions to see your results — use ← Prev to go back
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── VALUES PROFILE RESULTS ─────────────────────────────────────────────
+  if(view==="profile" && valuesProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🧭 My Values Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(valuesProfile.date)}</p>
+
+      {/* Top 3 */}
+      <h4 style={{color:PALETTE.mid,fontSize:13,fontWeight:700,letterSpacing:1,marginBottom:8}}>💛 YOUR TOP 3 VALUES</h4>
+      {valuesProfile.top3.map((v,i)=>(
+        <div key={v.id} style={{...card,marginBottom:8,borderLeft:`4px solid ${v.color}`,
+          display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontSize:28,width:36,textAlign:"center",fontWeight:800,color:v.color}}>
+            {i+1}
+          </div>
+          <span style={{fontSize:24}}>{v.emoji}</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{v.label}</div>
+            <div style={{fontSize:11,color:PALETTE.soft,marginTop:2}}>Score: {v.score.toFixed(1)}/5</div>
+          </div>
+        </div>
+      ))}
+
+      {/* Bottom 3 */}
+      <h4 style={{color:PALETTE.mid,fontSize:13,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
+        🌿 LOWER PRIORITY RIGHT NOW
+      </h4>
+      {valuesProfile.bottom3.map(v=>(
+        <div key={v.id} style={{...card,marginBottom:8,opacity:0.75,display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:22}}>{v.emoji}</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,color:PALETTE.dark,fontSize:14}}>{v.label}</div>
+            <div style={{fontSize:11,color:PALETTE.soft}}>Score: {v.score.toFixed(1)}/5</div>
+          </div>
+        </div>
+      ))}
+
+      {/* Bea's summary */}
+      <div style={{...card,marginTop:16,background:`${PALETTE.lavender}0D`,border:`1.5px solid ${PALETTE.lavender}44`}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+          <BeeMascot size={28}/>
+          <span style={{fontWeight:700,color:PALETTE.lavender,fontSize:13}}>Bea's summary</span>
+        </div>
+        <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{valuesProfile.summary}</p>
+      </div>
+
+      <button onClick={()=>{setRatings({});setAssessStep(0);setView("assessment");}}
+        style={{...btnStyle(PALETTE.lavender,true),width:"100%",marginTop:16}}>
+        Redo Assessment
+      </button>
+    </div>
+  );
+
+  // ── LIMITING BELIEFS QUESTIONNAIRE ────────────────────────────────────
+  if(view==="beliefs_q") {
+    const q = LIMITING_BELIEF_QUESTIONS[beliefStep];
+    const isLast = beliefStep===LIMITING_BELIEF_QUESTIONS.length-1;
+    const allDone = LIMITING_BELIEF_QUESTIONS.every(q=>beliefAnswers[q.id]?.trim());
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🔓 Examine a Limiting Belief</h3>
+
+        {/* Progress */}
+        <div style={{display:"flex",gap:4,marginBottom:20}}>
+          {LIMITING_BELIEF_QUESTIONS.map((_,i)=>(
+            <div key={i} style={{flex:1,height:4,borderRadius:2,
+              background:i<beliefStep?PALETTE.blush:i===beliefStep?PALETTE.blush:"#EEE",
+              opacity:i<=beliefStep?1:0.4,transition:"background .3s"}}/>
+          ))}
+        </div>
+
+        <div style={{...card,marginBottom:16,borderLeft:`3px solid ${PALETTE.blush}`,padding:20}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.blush,letterSpacing:1,marginBottom:8}}>
+            STEP {beliefStep+1} OF {LIMITING_BELIEF_QUESTIONS.length}
+          </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{q.text}</p>
+        </div>
+
+        <textarea value={beliefAnswers[q.id]||""} onChange={e=>setBeliefAnswers(a=>({...a,[q.id]:e.target.value}))}
+          placeholder={q.placeholder}
+          style={{...textareaStyle,minHeight:100,marginBottom:12}}/>
+
+        {/* Bea reframe on last step */}
+        {isLast && beliefAnswers[q.id] && !beliefAiReframe && !beliefLoading && (
+          <button onClick={()=>getBeliefReframe(beliefAnswers)}
+            style={{...btnStyle(PALETTE.blush,true),width:"100%",marginBottom:12}}>
+            🐝 Ask Bea to reframe this belief
+          </button>
+        )}
+        {beliefLoading && <p style={{fontSize:13,color:PALETTE.soft,fontStyle:"italic",marginBottom:12}}>🐝 Bea is working on your reframe…</p>}
+        {beliefAiReframe && (
+          <div style={{...card,background:`${PALETTE.blush}0D`,borderLeft:`3px solid ${PALETTE.blush}`,
+            marginBottom:12,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>
+            {beliefAiReframe}
+          </div>
+        )}
+
+        <div style={{display:"flex",gap:8}}>
+          {beliefStep>0 && <button onClick={()=>setBeliefStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+          {!isLast ? (
+            <button onClick={()=>beliefAnswers[q.id]?.trim()&&setBeliefStep(s=>s+1)}
+              disabled={!beliefAnswers[q.id]?.trim()}
+              style={{...btnStyle(PALETTE.blush),flex:1,opacity:beliefAnswers[q.id]?.trim()?1:0.4}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={saveBelief} disabled={!allDone}
+              style={{...btnStyle(PALETTE.blush),flex:1,opacity:allDone?1:0.4}}>
+              Save This Work ✓
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── BELIEFS LIST ───────────────────────────────────────────────────────
+  if(view==="beliefs_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🔓 My Limiting Beliefs</h3>
+      {limitingBeliefs.map(b=>(
+        <div key={b.id} style={{...card,marginBottom:12,borderLeft:`3px solid ${PALETTE.blush}`}}>
+          <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14,marginBottom:4}}>
+            "{b.answers?.lb1}"
+          </div>
+          <div style={{fontSize:11,color:PALETTE.soft,marginBottom:10}}>{fmtDate(b.date)}</div>
+          {b.aiReframe && (
+            <div style={{background:`${PALETTE.blush}0D`,borderRadius:8,padding:"8px 10px",
+              fontSize:12,color:PALETTE.mid,marginBottom:10,lineHeight:1.6}}>
+              {b.aiReframe.includes("REFRAME:") ? b.aiReframe.split("REFRAME:")[1].trim().slice(0,100) : b.aiReframe.slice(0,100)}
+').find(l=>l.startsWith('REFRAME:'))?.replace('REFRAME:','').trim() || b.aiReframe.slice(0,120)+"…"}
+            </div>
+          )}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setViewBelief(b)}
+              style={{...btnStyle(PALETTE.blush,true),flex:1,fontSize:12}}>View full</button>
+            <button onClick={()=>{
+              setBeliefAnswers(b.answers||{});
+              setBeliefAiReframe(b.aiReframe||"");
+              setBeliefStep(0);
+              setView("beliefs_q");
+            }} style={{...btnStyle("#EEE",true),flex:1,fontSize:12}}>Redo</button>
+            <button onClick={()=>deleteBelief(b.id)}
+              style={{...btnStyle("#FFF0F0",true),color:PALETTE.blush,flex:1,fontSize:12}}>Delete</button>
+          </div>
+        </div>
+      ))}
+      {limitingBeliefs.length===0 && <div style={emptyState}>No beliefs examined yet.</div>}
+      <button onClick={()=>{setBeliefAnswers({});setBeliefStep(0);setBeliefAiReframe("");setView("beliefs_q");}}
+        style={{...btnStyle(PALETTE.blush),width:"100%",marginTop:8}}>
+        + Examine Another Belief
+      </button>
+    </div>
+  );
+
+  // ── BELIEF DETAIL ──────────────────────────────────────────────────────
+  if(viewBelief) return (
+    <div>
+      <button onClick={()=>setViewBelief(null)} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🔓 Belief Work</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>{fmtDate(viewBelief.date)}</p>
+      {LIMITING_BELIEF_QUESTIONS.map(q=>(
+        <div key={q.id} style={{...card,marginBottom:10,borderLeft:`3px solid ${PALETTE.blush}`}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.blush,letterSpacing:1,marginBottom:4}}>{q.text}</div>
+          <p style={{margin:0,color:PALETTE.dark,fontSize:13,lineHeight:1.6}}>{viewBelief.answers?.[q.id]||"—"}</p>
+        </div>
+      ))}
+      {viewBelief.aiReframe && (
+        <div style={{...card,background:`${PALETTE.lavender}0D`,borderLeft:`3px solid ${PALETTE.lavender}`,marginTop:8}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.lavender,letterSpacing:1,marginBottom:6}}>🐝 BEA'S REFRAME</div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{viewBelief.aiReframe}</p>
         </div>
       )}
     </div>
   );
+
+  // ── SMART QUESTIONNAIRE ────────────────────────────────────────────────
+  if(view==="smart_q") {
+    const q = SMART_QUESTIONS[smartStep];
+    const isLast = smartStep===SMART_QUESTIONS.length-1;
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🧪 SMART Plan</h3>
+
+        {/* Progress */}
+        <div style={{display:"flex",gap:4,marginBottom:20}}>
+          {SMART_QUESTIONS.map((_,i)=>(
+            <div key={i} style={{flex:1,height:4,borderRadius:2,
+              background:i<=smartStep?PALETTE.honey:"#EEE",transition:"background .3s"}}/>
+          ))}
+        </div>
+
+        <div style={{...card,marginBottom:16,borderLeft:`3px solid ${PALETTE.honey}`,padding:20}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:22}}>{q.emoji}</span>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1}}>{q.label.toUpperCase()}</div>
+          </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{q.question}</p>
+        </div>
+
+        {/* Show top values as hint */}
+        {valuesProfile && smartStep<=1 && (
+          <div style={{background:`${PALETTE.honey}11`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:PALETTE.mid}}>
+            💛 Your top values: {valuesProfile.top3.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
+          </div>
+        )}
+
+        <textarea value={smartAnswers[q.field]||""} onChange={e=>setSmartAnswers(a=>({...a,[q.field]:e.target.value}))}
+          placeholder={q.placeholder}
+          style={{...textareaStyle,minHeight:90,marginBottom:12}}/>
+
+        <div style={{display:"flex",gap:8}}>
+          {smartStep>0 && <button onClick={()=>setSmartStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+          {!isLast ? (
+            <button onClick={()=>smartAnswers[q.field]?.trim()&&setSmartStep(s=>s+1)}
+              disabled={!smartAnswers[q.field]?.trim()}
+              style={{...btnStyle(PALETTE.honey),flex:1,opacity:smartAnswers[q.field]?.trim()?1:0.4}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={savePlan}
+              style={{...btnStyle(PALETTE.honey),flex:1}}>
+              Save Plan ✓
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PLANS LIST ─────────────────────────────────────────────────────────
+  if(view==="plans_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🧪 My SMART Plans</h3>
+      {smartPlans.map(p=>(
+        <div key={p.id} style={{...card,marginBottom:12,borderLeft:`3px solid ${PALETTE.honey}`}}>
+          <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15,marginBottom:2}}>{p.goal}</div>
+          {p.value && <div style={{fontSize:12,color:PALETTE.amber,marginBottom:6}}>💎 {p.value}</div>}
+          {p.timebound && <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>⏰ {p.timebound}</div>}
+          {p.experiment && (
+            <div style={{background:"#F5FFF8",borderRadius:6,padding:"6px 10px",fontSize:12,color:PALETTE.dark,marginBottom:8,lineHeight:1.5}}>
+              <strong>What happened:</strong> {p.experiment}
+            </div>
+          )}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setSmartAnswers({...p});setSmartStep(0);setEditingPlan(p.id);setView("smart_q");}}
+              style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>Edit</button>
+            <button onClick={()=>deletePlan(p.id)}
+              style={{...btnStyle("#FFF8F0",true),color:PALETTE.amber,flex:1,fontSize:12}}>Delete</button>
+          </div>
+        </div>
+      ))}
+      {smartPlans.length===0 && <div style={emptyState}>No plans yet.</div>}
+      <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setView("smart_q");}}
+        style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:8}}>
+        + New Plan
+      </button>
+    </div>
+  );
+
+  return null;
 }
 
 
@@ -3311,6 +3755,9 @@ export default function BeeWell() {
   const [outfit, setOutfit]         = useState("therapist");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled]   = useState(false);
+  const [valuesProfile, setValuesProfile] = useState(null);  // saved values assessment
+  const [limitingBeliefs, setLimitingBeliefs] = useState([]); // saved limiting beliefs
+  const [smartPlans, setSmartPlans] = useState([]);           // saved SMART plans
 
   useEffect(()=>{
     const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
@@ -3441,7 +3888,14 @@ export default function BeeWell() {
         />}
         {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])}/>}
         {tab==="activate" && <BehaviouralActivation feelItems={feelItems}/>}
-        {tab==="values"   && <ValuesGoals/>}
+        {tab==="values"   && <ValuesGoals
+          valuesProfile={valuesProfile}
+          onSaveProfile={setValuesProfile}
+          limitingBeliefs={limitingBeliefs}
+          onSaveBeliefs={setLimitingBeliefs}
+          smartPlans={smartPlans}
+          onSavePlans={setSmartPlans}
+        />}
         {tab==="act"      && <ACTToolkit/>}
         {tab==="ground"   && <Grounding/>}
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}

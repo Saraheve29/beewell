@@ -433,23 +433,29 @@ const btnStyle = (bg=PALETTE.honey, small=false) => ({
 
 // ── AI chat helper ────────────────────────────────────────────────────────────
 async function askBee(messages) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"claude-sonnet-4-6",
-      max_tokens:1000,
-      system:`You are Bea — a warm, gentle bee therapist mascot for BeeWell, a mental wellness app.
+  try {
+    const res = await fetch("/api/ai", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-6",
+        max_tokens:1000,
+        system:`You are Bea — a warm, gentle bee therapist mascot for BeeWell, a mental wellness app.
 You are non-judgmental, supportive, and use calm, encouraging language.
 Keep responses concise (2-4 sentences) and conversational.
 Occasionally use 🐝 at the end of a thought, but sparingly.
 Never give medical advice. If someone seems in crisis, gently suggest they reach out to a professional or crisis line.
 You guide users through CBT tools, mood tracking, and grounding exercises with care and warmth.`,
-      messages,
-    })
-  });
-  const data = await res.json();
-  return data.content?.find(b=>b.type==="text")?.text || "I'm here with you. 🐝";
+        messages,
+      })
+    });
+    if(!res.ok) throw new Error(`API error: ${res.status}`);
+    const data = await res.json();
+    return data.content?.find(b=>b.type==="text")?.text || "I am here with you. 🐝";
+  } catch(e) {
+    console.error("Bea API error:", e);
+    throw e; // re-throw so callers can handle gracefully
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -725,7 +731,7 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
 }
 
 // ── Feel Better Box ───────────────────────────────────────────────────────────
-function FeelBetterBox({ items, onAdd, onDelete }) {
+function FeelBetterBox({ items, onAdd, onDelete, valuesProfile=null }) {
   const [isOpen, setIsOpen]   = useState(false);
   const [adding, setAdding]   = useState(false);
   const [text, setText]       = useState("");
@@ -1228,7 +1234,7 @@ const courtroomBg = (imgUrl) => ({
   backgroundPosition:"center top",
 });
 
-function Courtroom({ cases, onSave }) {
+function Courtroom({ cases, onSave, valuesProfile=null, dasProfile=null }) {
   const [view, setView]           = useState("list");   // list | trial | detail | upload
   const [gavel, setGavel]   = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1450,7 +1456,9 @@ RULING: [One sentence — a balanced, factual, realistic alternative thought tha
 
 ACTION: [One concrete, small, observable thing the person can do in the next 24 hours to act in line with the ruling rather than the distorted thought. Practical, specific, achievable alone.]
 
-Start with: "ORDER IN COURT. 🔨"`
+Start with: "ORDER IN COURT. 🔨"
+${valuesProfile ? `\nNote: This person's core values are ${valuesProfile.top3?.map(v=>v.label).join(", ")}. Where relevant, note if this thought conflicts with or undermines these values.` : ""}
+${dasProfile?.highest?.length>0 ? `\nNote: This person's core belief assessment shows vulnerability in: ${dasProfile.highest.map(d=>d.label).join(", ")}. If this thought reflects one of these patterns, gently name it in the DISTORTION section.` : ""}`
       );
       const rulingMatch = verdictReply.match(/RULING:\s*(.+)/);
       setVerdictText(verdictReply);
@@ -2048,7 +2056,7 @@ const BA_CATEGORIES = [
   {id:"rest",   label:"Rest",        emoji:"☁️",  color:"#6B9BB8"},
 ];
 
-function BehaviouralActivation({ feelItems=[] }) {
+function BehaviouralActivation({ feelItems=[], valuesProfile=null, dasProfile=null }) {
   const [activities, setActivities] = useState([]);
   const [adding, setAdding]         = useState(false);
   const [newAct, setNewAct]         = useState({text:"",cat:"self",duration:15,mood_before:null,mood_after:null});
@@ -2065,10 +2073,16 @@ function BehaviouralActivation({ feelItems=[] }) {
 
   const getSuggestion = async (currentMood) => {
     setLoadingSuggest(true);
+    const valuesContext = valuesProfile
+      ? `\nThis person's top 3 values are: ${valuesProfile.top3?.map(v=>v.label).join(", ")}. Suggest activities that align with these values where possible.`
+      : "";
+    const dasContext = dasProfile?.highest?.length>0
+      ? `\nThis person shows vulnerability in: ${dasProfile.highest.map(d=>d.label).join(", ")}. Avoid suggesting activities that could reinforce these patterns (e.g. avoid achievement-validation activities if Achievement is a vulnerability).`
+      : "";
     try {
       const reply = await askBee([{role:"user",content:
-        `You are Bea, a CBT bee therapist. 
-A person is feeling ${currentMood||"low"} right now.
+        `You are Bea, a CBT bee therapist.
+A person is feeling ${currentMood||"low"} right now.${valuesContext}${dasContext}
 Using Behavioural Activation principles from CBT, suggest 3 small, specific activities they can do alone in the next 30 minutes to gently lift their mood.
 Each activity should be achievable, concrete, and free or low-cost.
 Format as 3 short bullet points. No preamble.`}]);
@@ -2083,9 +2097,12 @@ Format as 3 short bullet points. No preamble.`}]);
     setShowFeelBox(true);
     try {
       const itemList = feelItems.slice(0,20).map(i=>`- ${i.text} (${i.type})`).join('\n');
+      const valuesHint = valuesProfile
+        ? `\nThis person's top values are: ${valuesProfile.top3?.map(v=>v.label).join(", ")}. Where possible, pick items that align with these values.`
+        : "";
       const reply = await askBee([{role:"user", content:
         `You are Bea, a CBT bee therapist using Behavioural Activation.
-A person is feeling ${mood||"low"} right now.
+A person is feeling ${mood||"low"} right now.${valuesHint}
 Here are things from their personal Feel Better Box that they know lift their mood:
 ${itemList}
 
@@ -2330,61 +2347,104 @@ Format as bullet points. Be specific and encouraging. No preamble.`}]);
 // ── Values & Goals (ACT/CBT) ──────────────────────────────────────────────────
 
 // ACT Values Assessment questions — 5 per domain
-const VALUES_QUESTIONS = [
-  // Health
-  {id:"h1", domain:"health",   emoji:"💪", text:"Taking care of my body and physical health matters deeply to me."},
-  {id:"h2", domain:"health",   emoji:"💪", text:"Being physically active and energetic is important to how I want to live."},
-  {id:"h3", domain:"health",   emoji:"💪", text:"I want to feel well rested, nourished and physically strong."},
-  // Mind
-  {id:"m1", domain:"mind",     emoji:"📚", text:"Learning new things and growing my knowledge gives my life meaning."},
-  {id:"m2", domain:"mind",     emoji:"📚", text:"I want to be someone who is curious, reflective and open-minded."},
-  {id:"m3", domain:"mind",     emoji:"📚", text:"Mental sharpness and intellectual growth matter to me."},
-  // Creativity
-  {id:"c1", domain:"create",   emoji:"🎨", text:"Expressing myself creatively is an important part of who I am."},
-  {id:"c2", domain:"create",   emoji:"🎨", text:"Making things, creating art, or building something brings me alive."},
-  {id:"c3", domain:"create",   emoji:"🎨", text:"I want creativity and self-expression to be central to my life."},
-  // Spirituality
-  {id:"s1", domain:"spirit",   emoji:"✨", text:"Connecting to something greater than myself gives my life purpose."},
-  {id:"s2", domain:"spirit",   emoji:"✨", text:"A spiritual or meaningful inner life is central to who I want to be."},
-  {id:"s3", domain:"spirit",   emoji:"✨", text:"Practices that nurture my soul — prayer, reflection, nature — matter to me."},
-  // Work & Purpose
-  {id:"w1", domain:"work",     emoji:"🎯", text:"Doing work that feels meaningful and purposeful matters deeply to me."},
-  {id:"w2", domain:"work",     emoji:"🎯", text:"I want to contribute something of value to the world through what I do."},
-  {id:"w3", domain:"work",     emoji:"🎯", text:"Having a sense of direction and purpose in my daily activities is important."},
-  // Financial
-  {id:"f1", domain:"finance",  emoji:"💰", text:"Financial stability and security are important to my sense of wellbeing."},
-  {id:"f2", domain:"finance",  emoji:"💰", text:"Being in control of my finances and building security matters to me."},
-  {id:"f3", domain:"finance",  emoji:"💰", text:"I want to live without financial stress and within my means."},
-  // Home
-  {id:"ho1", domain:"home",    emoji:"🏡", text:"Having a home that feels safe, calm and like mine matters deeply."},
-  {id:"ho2", domain:"home",    emoji:"🏡", text:"My home environment and daily space affect my sense of wellbeing greatly."},
-  {id:"ho3", domain:"home",    emoji:"🏡", text:"Creating a home I love and feel settled in is a genuine priority."},
-  // Growth
-  {id:"g1", domain:"growth",   emoji:"🌱", text:"Becoming the best version of myself is something I care about deeply."},
-  {id:"g2", domain:"growth",   emoji:"🌱", text:"Facing my challenges and growing through them matters to who I want to be."},
-  {id:"g3", domain:"growth",   emoji:"🌱", text:"Personal development — therapy, reflection, learning — is a genuine value."},
-  // Independence
-  {id:"i1", domain:"independence",emoji:"🦋",text:"Living life on my own terms and being self-sufficient matters to me."},
-  {id:"i2", domain:"independence",emoji:"🦋",text:"I want to be someone who is capable, resilient and self-reliant."},
-  {id:"i3", domain:"independence",emoji:"🦋",text:"Freedom and autonomy in how I live my life is deeply important."},
-  // Play & Joy
-  {id:"j1", domain:"joy",      emoji:"🎉", text:"Having fun, laughing and enjoying life are things I want more of."},
-  {id:"j2", domain:"joy",      emoji:"🎉", text:"Rest, play and simple pleasures are genuinely important to my wellbeing."},
-  {id:"j3", domain:"joy",      emoji:"🎉", text:"I want to make space for joy, lightness and delight in my daily life."},
+// Wilson's Valued Living Questionnaire (VLQ) — 10 domains
+// Each domain rated for Importance (1-10) AND Consistency (1-10) in the past week
+// Composite score = Importance × Consistency per domain
+const VLQ_DOMAINS = [
+  {
+    id:"family",
+    label:"Family Relations",
+    emoji:"👨‍👩‍👧",
+    color:"#E8737A",
+    desc:"Being a good brother, sister, son, daughter, or other family member. Showing love and care to family members.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"marriage",
+    label:"Intimate Relationships",
+    emoji:"💑",
+    color:"#E8497A",
+    desc:"Being a good, caring, supportive partner. Having a meaningful intimate relationship.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"parenting",
+    label:"Parenting",
+    emoji:"👶",
+    color:"#F5A623",
+    desc:"Being a good, caring, involved parent. Nurturing and guiding your children.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"friendship",
+    label:"Friendships",
+    emoji:"🤝",
+    color:"#5B9BD5",
+    desc:"Being a good, supportive friend. Having meaningful, caring friendships.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"work",
+    label:"Work & Career",
+    emoji:"🎯",
+    color:"#D4AF37",
+    desc:"Having a meaningful career or vocation. Contributing something of value through your work.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"education",
+    label:"Education & Learning",
+    emoji:"📚",
+    color:"#7B4A8B",
+    desc:"Learning, gaining knowledge and skills. Growing your understanding of yourself and the world.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"recreation",
+    label:"Recreation & Leisure",
+    emoji:"🎨",
+    color:"#2A7A5C",
+    desc:"Engaging in hobbies, sports, creative activities and other leisure that brings joy and relaxation.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"spirit",
+    label:"Spirituality",
+    emoji:"✨",
+    color:"#9B8BC4",
+    desc:"Connecting to something greater than yourself — through faith, nature, prayer, meditation or meaning.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"citizenship",
+    label:"Community & Citizenship",
+    emoji:"🌍",
+    color:"#5C8B3A",
+    desc:"Contributing to your community, society or the world. Being a responsible, caring citizen.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
+  {
+    id:"health",
+    label:"Physical Self-Care",
+    emoji:"💪",
+    color:"#7BB369",
+    desc:"Looking after your health, body and physical wellbeing — sleep, nutrition, exercise and medical care.",
+    importance_q:"How important is this area to you?",
+    consistency_q:"In the past week, how consistently have your actions in this area reflected your values?",
+  },
 ];
 
-const VALUES_DOMAINS = [
-  {id:"health",       label:"Health & Body",     emoji:"💪", color:"#7BB369"},
-  {id:"mind",         label:"Mind & Learning",   emoji:"📚", color:"#5B9BD5"},
-  {id:"create",       label:"Creativity",        emoji:"🎨", color:"#F5A623"},
-  {id:"spirit",       label:"Spirituality",      emoji:"✨", color:"#9B8BC4"},
-  {id:"work",         label:"Work & Purpose",    emoji:"🎯", color:"#D4AF37"},
-  {id:"finance",      label:"Financial",         emoji:"💰", color:"#5C8B3A"},
-  {id:"home",         label:"Home & Space",      emoji:"🏡", color:"#E8891A"},
-  {id:"growth",       label:"Personal Growth",   emoji:"🌱", color:"#2A7A5C"},
-  {id:"independence", label:"Independence",      emoji:"🦋", color:"#7B4A8B"},
-  {id:"joy",          label:"Play & Joy",        emoji:"🎉", color:"#E8737A"},
-];
+// Legacy alias
+const VALUES_DOMAINS = VLQ_DOMAINS.map(d=>({...d}));
 
 const LIMITING_BELIEF_QUESTIONS = [
   {id:"lb1", text:"Write the limiting belief exactly as it sounds in your head:",       placeholder:"e.g. I am not good enough. / I always fail. / I don't deserve good things."},
@@ -2405,8 +2465,142 @@ const SMART_QUESTIONS = [
   {field:"experiment",  emoji:"🧪", label:"What happened",    question:"After trying this — what actually happened? What did you learn?",       placeholder:"Fill this in after you have tried it…"},
 ];
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans }) {
-  const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail
+// ── Personal Goals Questionnaire ─────────────────────────────────────────────
+// Based on goal-setting research (Locke & Latham's Goal Setting Theory) and
+// Personal Projects Analysis (Little, 1983) used in coaching/positive psychology research.
+// Rate each listed goal across 6 research-backed dimensions to see which goals
+// are best positioned to succeed and which may need rethinking.
+
+const GOAL_RATING_DIMENSIONS = [
+  {
+    id:"commitment", emoji:"🔥", label:"Commitment",
+    question:"How committed are you to this goal — really?",
+    low:"Not committed at all", high:"Completely committed",
+    desc:"Goals with low commitment rarely get sustained effort, regardless of how well-planned they are.",
+  },
+  {
+    id:"difficulty", emoji:"⛰️", label:"Difficulty",
+    question:"How difficult or challenging is this goal for you?",
+    low:"Very easy", high:"Very difficult",
+    desc:"Research shows moderately difficult, specific goals lead to the best performance — too easy and there is no drive; too hard and motivation collapses.",
+  },
+  {
+    id:"clarity", emoji:"📍", label:"Clarity",
+    question:"How clear and specific is this goal in your mind?",
+    low:"Very vague", high:"Extremely specific",
+    desc:"Specific goals consistently outperform vague ones like 'do my best' — clarity itself drives motivation.",
+  },
+  {
+    id:"control", emoji:"🎮", label:"Sense of Control",
+    question:"How much control do you have over achieving this goal?",
+    low:"Mostly depends on others/luck", high:"Entirely within my control",
+    desc:"Goals that depend heavily on factors outside your control tend to create frustration rather than progress.",
+  },
+  {
+    id:"conflict", emoji:"⚔️", label:"Conflict with Other Goals",
+    question:"How much does this goal conflict with your other goals or values?",
+    low:"No conflict at all", high:"Major conflict",
+    desc:"Goals that compete with each other for your time and energy are harder to sustain — naming the conflict helps you resolve it.",
+  },
+  {
+    id:"support", emoji:"🤝", label:"Support Available",
+    question:"How much support do you have to achieve this goal?",
+    low:"No support at all", high:"Strong support",
+    desc:"Goals pursued with social or practical support are significantly more likely to be achieved.",
+  },
+];
+
+
+// ── Dysfunctional Attitude Scale (DAS) — Weissman & Beck ────────────────────
+// 35 items across 7 domains, scored -2 to +2 (Agree Strongly to Disagree Very Much)
+// Items in each domain are reverse-scored or direct depending on item direction —
+// here we use the simple convention: Agree Strongly = +2 (most dysfunctional), Disagree Very Much = -2
+
+const DAS_SCALE = [
+  {val:2,  label:"Agree Strongly"},
+  {val:1,  label:"Agree Slightly"},
+  {val:0,  label:"Neutral"},
+  {val:-1, label:"Disagree Slightly"},
+  {val:-2, label:"Disagree Very Much"},
+];
+
+const DAS_DOMAINS = [
+  {id:"approval",     label:"Approval",      emoji:"👥", color:"#5B9BD5",
+   desc:"Believing your happiness and worth depend on the approval of others.",
+   range:[0,5]},
+  {id:"love",         label:"Love",          emoji:"💗", color:"#E8497A",
+   desc:"Believing you cannot be happy or worthwhile without being loved.",
+   range:[5,10]},
+  {id:"achievement",  label:"Achievement",   emoji:"🏆", color:"#D4AF37",
+   desc:"Believing your worth depends on being outstanding or productive.",
+   range:[10,15]},
+  {id:"perfectionism",label:"Perfectionism", emoji:"🎯", color:"#8B1A1A",
+   desc:"Believing you must do everything well or not at all.",
+   range:[15,20]},
+  {id:"entitlement",  label:"Entitlement",   emoji:"⚖️", color:"#7B4A8B",
+   desc:"Believing strong wishes or efforts should guarantee results from others.",
+   range:[20,25]},
+  {id:"omnipotence",  label:"Omnipotence",   emoji:"🌀", color:"#2A7A5C",
+   desc:"Believing you are responsible for the feelings and behaviour of others.",
+   range:[25,30]},
+  {id:"autonomy",     label:"Autonomy",      emoji:"🦋", color:"#5C8B3A",
+   desc:"Believing your moods and happiness are controlled by external forces, not by you.",
+   range:[30,35]},
+];
+
+const DAS_QUESTIONS = [
+  "Criticism will obviously upset the person who receives the criticism.",
+  "It is best to give up my own interests in order to please other people.",
+  "I need other people's approval in order to be happy.",
+  "If someone important to me expects me to do something, then I really should do it.",
+  "My value as a person depends greatly on what others think of me.",
+  "I cannot find happiness without being loved by another person.",
+  "If others dislike you, you are bound to be less happy.",
+  "If people whom I care about reject me, it means there is something wrong with me.",
+  "If a person I love does not love me, it means I am unlovable.",
+  "Being isolated from others is bound to lead to unhappiness.",
+  "If I am to be a worthwhile person, I must be truly outstanding in at least one major respect.",
+  "I must be a useful, productive, creative person or life has no purpose.",
+  "People who have good ideas are more worthy than those who do not.",
+  "If I do not do as well as other people, it means I am inferior.",
+  "If I fail at my work, then I am a failure as a person.",
+  "If you cannot do something well, there is little point in doing it at all.",
+  "It is shameful for a person to display weakness.",
+  "A person should try to be the best at everything he or she undertakes.",
+  "I should be upset if I make a mistake.",
+  "If I don't set the highest standards for myself, I am likely to end up a second-rate person.",
+  "If I strongly believe I deserve something, I have reason to expect that I should get it.",
+  "It is necessary to become frustrated if you find obstacles to getting what you want.",
+  "If I put other people's needs before my own, they should help me when I need something from them.",
+  "If I am a good husband or wife, then my spouse is bound to love me.",
+  "If I do nice things for someone, I can anticipate that they will respect me and treat me just as well as I treat them.",
+  "I should assume responsibility for how people feel and behave if they are close to me.",
+  "If I criticise the way someone does something and they become angry or depressed, this means I have upset them.",
+  "To be a good, worthwhile, moral person, I must try to help everyone who needs it.",
+  "If a child is having emotional or behavioural difficulties, this shows that the child's parents have failed in some important respect.",
+  "I should be able to please everybody.",
+  "I cannot expect to control how I feel when something bad happens.",
+  "There is no point in trying to change upsetting emotions because they are a valid and inevitable part of daily living.",
+  "My moods are primarily created by factors that are largely beyond my control, such as the past, body chemistry, hormone cycles, biorhythms, or chance and fate.",
+  "My happiness is largely dependent on what happens to me.",
+  "People who have the marks of success — good looks, social status, wealth or fame — are bound to be happier than those who do not.",
+];
+
+const dasDomainForIndex = (i) => DAS_DOMAINS.find(d => i >= d.range[0] && i < d.range[1]);
+
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals }) {
+  const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile
+
+  // Goals questionnaire state
+  const [goalsList, setGoalsList]     = useState(goalsProfile?.goals?.map(g=>g.text) || [""]);
+  const [goalRatings, setGoalRatings] = useState({}); // {goalIndex: {dimensionId: 1-5}}
+  const [goalsStep, setGoalsStep]     = useState(0);  // which goal we're rating
+  const [goalsLoading, setGoalsLoading] = useState(false);
+
+  // DAS state
+  const [dasAnswers, setDasAnswers] = useState({});
+  const [dasStep, setDasStep]       = useState(0);
+  const [dasLoading, setDasLoading] = useState(false);
 
   // Assessment state
   const [ratings, setRatings]         = useState({});  // {question_id: 1-5}
@@ -2426,39 +2620,55 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [viewBelief, setViewBelief]   = useState(null);
   const [viewPlan, setViewPlan]       = useState(null);
 
-  // ── Score values assessment ─────────────────────────────────────────────
+  // ── Score VLQ ──────────────────────────────────────────────────────────
   const scoreAssessment = async () => {
     setAssessLoading(true);
-    // Average score per domain
-    const domainScores = VALUES_DOMAINS.map(d=>{
-      const qs = VALUES_QUESTIONS.filter(q=>q.domain===d.id);
-      const total = qs.reduce((sum,q)=>sum+(ratings[q.id]||0),0);
-      const avg = qs.length > 0 ? total/qs.length : 0;
-      return { ...d, score:avg };
+    // VLQ scoring: composite = importance × consistency per domain
+    const domainScores = VLQ_DOMAINS.map(d=>{
+      const imp = ratings[`${d.id}_imp`] || 0;
+      const con = ratings[`${d.id}_con`] || 0;
+      const composite = imp * con;
+      const discrepancy = imp - con; // high = important but not living it
+      return { ...d, importance:imp, consistency:con, composite, discrepancy };
     });
-    const sorted = [...domainScores].sort((a,b)=>b.score-a.score);
-    const top3    = sorted.slice(0,3);
-    const bottom3 = sorted.slice(-3).reverse();
+
+    // Top 3 by importance
+    const byImportance = [...domainScores].sort((a,b)=>b.importance-a.importance);
+    const top3 = byImportance.slice(0,3);
+    // Biggest gaps — high importance, low consistency
+    const gaps = [...domainScores].sort((a,b)=>b.discrepancy-a.discrepancy).filter(d=>d.discrepancy>3).slice(0,3);
+    // Lowest priority
+    const bottom3 = byImportance.slice(-3).reverse();
 
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, an ACT therapist. A person has completed a values assessment.
-Their TOP 3 values (most important): ${top3.map(v=>`${v.label} (${v.score.toFixed(1)}/5)`).join(", ")}
-Their LOWEST 3 values (least priority): ${bottom3.map(v=>`${v.label} (${v.score.toFixed(1)}/5)`).join(", ")}
+        `You are Bea, an ACT therapist. A person just completed the Valued Living Questionnaire.
 
-Write a warm, personal 3-sentence summary:
-1. Name their top values and what this says about what matters to them
-2. Note the lowest values without judgment — these are simply lower priorities right now
-3. One encouraging sentence about how knowing their values can guide their choices
+Their TOP 3 most important values: ${top3.map(v=>`${v.label} (importance: ${v.importance}/10, consistency: ${v.consistency}/10)`).join(", ")}
 
-Be specific, warm, and not generic. No preamble.`}]);
+Their BIGGEST GAPS (important but not living it): ${gaps.length>0 ? gaps.map(v=>`${v.label} (gap: ${v.discrepancy} points)`).join(", ") : "No major gaps identified"}
+
+Their LOWER priority areas: ${bottom3.map(v=>`${v.label} (${v.importance}/10)`).join(", ")}
+
+Write a warm, personal 4-sentence summary:
+1. Reflect what their top values say about who they are and what matters most
+2. If they have gaps, gently name them — these are the areas where life may feel most off-track
+3. Note their lower-priority areas without judgment
+4. One encouraging sentence about using this awareness to make small, values-based changes
+
+Be specific and personal. No preamble.`}]);
 
       const profile = {
         id: uid(), date: today(),
-        domainScores, top3, bottom3,
+        domainScores, top3, bottom3, gaps,
         summary: reply,
         ratings: {...ratings},
       };
+      onSaveProfile(profile);
+      setView("profile");
+    } catch(e) {
+      // If API fails, still save without summary
+      const profile = { id:uid(), date:today(), domainScores, top3, bottom3, gaps, summary:"", ratings:{...ratings} };
       onSaveProfile(profile);
       setView("profile");
     } finally { setAssessLoading(false); }
@@ -2518,6 +2728,108 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
   const deleteBelief = (id) => onSaveBeliefs(bs=>bs.filter(b=>b.id!==id));
   const deletePlan   = (id) => onSavePlans(ps=>ps.filter(p=>p.id!==id));
 
+  // ── Score DAS ─────────────────────────────────────────────────────────
+  const scoreDas = async () => {
+    setDasLoading(true);
+    // Score per domain using the original DAS scoring convention
+    const domainTotals = DAS_DOMAINS.map(d => {
+      const items = [];
+      for(let i=d.range[0]; i<d.range[1]; i++) items.push(dasAnswers[i] ?? 0);
+      const total = items.reduce((s,v)=>s+v, 0);
+      return { ...d, total, items };
+    });
+    const sorted = [...domainTotals].sort((a,b)=>b.total-a.total);
+    const highest = sorted.filter(d=>d.total>0).slice(0,3); // most dysfunctional / vulnerable
+    const lowest  = sorted.filter(d=>d.total<0).slice(-3).reverse(); // psychological strengths
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a CBT therapist. A person has completed the Dysfunctional Attitude Scale (DAS).
+This measures 7 domains of dysfunctional core beliefs. Positive scores indicate vulnerability in that domain; negative scores indicate psychological strength.
+
+Their HIGHEST (most vulnerable) domains: ${highest.length>0 ? highest.map(d=>`${d.label} (score: ${d.total>0?"+":""}${d.total})`).join(", ") : "None significantly elevated"}
+
+Their LOWEST (strongest/most resilient) domains: ${lowest.length>0 ? lowest.map(d=>`${d.label} (score: ${d.total})`).join(", ") : "None notably low"}
+
+Write a warm, clinically-informed 4-sentence summary:
+1. Gently name their most vulnerable domain(s) and what kind of thinking pattern this reflects (e.g. needing approval, perfectionism, believing they control others' feelings)
+2. Explain in plain language what this means day to day — give one concrete example of how this belief might show up
+3. Note their psychological strengths (lowest domains) — these are areas of resilience
+4. One encouraging, specific sentence about how naming this pattern is the first step to loosening its grip
+
+Be warm, precise, never clinical-cold. No preamble.`}]);
+
+      const profile = {
+        id: uid(), date: today(),
+        domainTotals, highest, lowest,
+        summary: reply,
+        answers: {...dasAnswers},
+      };
+      onSaveDas(profile);
+      setView("das_profile");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), domainTotals, highest, lowest, summary:"", answers:{...dasAnswers} };
+      onSaveDas(profile);
+      setView("das_profile");
+    } finally { setDasLoading(false); }
+  };
+
+  // ── Score Personal Goals Questionnaire ──────────────────────────────────
+  const scoreGoals = async () => {
+    setGoalsLoading(true);
+    const filledGoals = goalsList.filter(g=>g.trim());
+    const scored = filledGoals.map((text, i) => {
+      const ratings = goalRatings[i] || {};
+      const commitment = ratings.commitment || 0;
+      const difficulty  = ratings.difficulty || 0;
+      const clarity     = ratings.clarity || 0;
+      const control     = ratings.control || 0;
+      const conflict    = ratings.conflict || 0;
+      const support     = ratings.support || 0;
+      // Composite "success likelihood" score — research suggests commitment, clarity,
+      // control and support predict success; high conflict and extreme difficulty predict struggle
+      const successScore = Math.round(
+        (commitment*1.5 + clarity*1.3 + control*1.0 + support*1.0 - conflict*1.2
+         - Math.abs(difficulty-3)*0.5) // moderate difficulty (3/5) is optimal, not too easy or hard
+        * 10 / 6.8 // normalise roughly to 0-100
+      );
+      return { text, commitment, difficulty, clarity, control, conflict, support,
+               successScore: Math.max(0, Math.min(100, successScore)) };
+    });
+    const sorted = [...scored].sort((a,b)=>b.successScore-a.successScore);
+    const strongest = sorted.slice(0,2);
+    const atRisk = sorted.filter(g=>g.successScore<50).slice(-2);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a CBT/ACT therapist familiar with goal-setting research (Locke & Latham's Goal Setting Theory).
+A person has rated several personal goals across 6 dimensions: commitment, difficulty, clarity, sense of control, conflict with other goals, and support available.
+
+Their goals, ranked by estimated likelihood of success:
+${sorted.map(g=>`- "${g.text}" — success likelihood ${g.successScore}/100 (commitment ${g.commitment}/5, clarity ${g.clarity}/5, control ${g.control}/5, conflict ${g.conflict}/5, support ${g.support}/5)`).join("\n")}
+
+Write a warm, practical 4-sentence summary:
+1. Name their strongest-positioned goal and what makes it well-set-up to succeed
+2. If any goal has low success likelihood, gently name what's working against it (e.g. low commitment, high conflict with other goals, low support) — not as criticism but as useful information
+3. If any goals conflict with each other, name that conflict directly
+4. One practical, encouraging suggestion for what to do next with this information
+
+Be specific to their actual goals and ratings. No preamble.`}]);
+
+      const profile = {
+        id: uid(), date: today(),
+        goals: scored, strongest, atRisk,
+        summary: reply,
+      };
+      onSaveGoals(profile);
+      setView("goals_profile");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), goals:scored, strongest, atRisk, summary:"" };
+      onSaveGoals(profile);
+      setView("goals_profile");
+    } finally { setGoalsLoading(false); }
+  };
+
   // ── HOME ───────────────────────────────────────────────────────────────
   if(view==="home") return (
     <div>
@@ -2573,7 +2885,7 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
       </div>
 
       {/* SMART Plans */}
-      <div style={{...card,borderTop:`3px solid ${PALETTE.honey}`}}>
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.honey}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
           <span style={{fontSize:24}}>🧪</span>
           <div>
@@ -2592,100 +2904,177 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
             style={{...btnStyle(PALETTE.honey,true),flex:1}}>View Plans</button>}
         </div>
       </div>
+
+      {/* Dysfunctional Attitude Scale */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.dark}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🧠</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Core Beliefs Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {dasProfile ? `Completed ${fmtDate(dasProfile.date)} · Most vulnerable: ${dasProfile.highest?.[0]?.label||"—"}` : "35 questions · 7 domains of core beliefs"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setDasAnswers({});setDasStep(0);setView("das_q");}}
+            style={{...btnStyle(PALETTE.dark,true),flex:1,color:"white"}}>
+            {dasProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {dasProfile && <button onClick={()=>setView("das_profile")}
+            style={{...btnStyle("#EEE",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Personal Goals Questionnaire */}
+      <div style={{...card,borderTop:`3px solid ${PALETTE.sage}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>📋</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Personal Goals Questionnaire</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {goalsProfile ? `${goalsProfile.goals?.length||0} goal${goalsProfile.goals?.length===1?"":"s"} rated · Top: ${goalsProfile.strongest?.[0]?.text?.slice(0,30)||"—"}` : "List your goals · Rate them like a professional assessment"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{
+              setGoalsList(goalsProfile?.goals?.map(g=>g.text) || [""]);
+              setGoalRatings({});
+              setGoalsStep(0);
+              setView("goals_list");
+            }}
+            style={{...btnStyle(PALETTE.sage),flex:1}}>
+            {goalsProfile ? "Redo Assessment" : "List My Goals"}
+          </button>
+          {goalsProfile && <button onClick={()=>setView("goals_profile")}
+            style={{...btnStyle(PALETTE.sage,true),flex:1}}>View Results</button>}
+        </div>
+      </div>
     </div>
   );
 
   // ── VALUES ASSESSMENT ──────────────────────────────────────────────────
   if(view==="assessment") {
-    const q = VALUES_QUESTIONS[assessStep];
-    const total = VALUES_QUESTIONS.length;
+    const domain = VLQ_DOMAINS[assessStep];
+    const total = VLQ_DOMAINS.length;
     const progress = Math.round((assessStep/total)*100);
-    const domain = VALUES_DOMAINS.find(d=>d.id===q.domain);
-    const allAnswered = VALUES_QUESTIONS.every(q=>ratings[q.id]);
+    const impKey = `${domain.id}_imp`;
+    const conKey = `${domain.id}_con`;
+    const bothAnswered = ratings[impKey] && ratings[conKey];
+    const allAnswered = VLQ_DOMAINS.every(d=>ratings[`${d.id}_imp`]&&ratings[`${d.id}_con`]);
 
     return (
       <div>
         <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
-        <h3 style={sectionTitle}>🧭 Values Assessment</h3>
+        <h3 style={sectionTitle}>🧭 Values Assessment (VLQ)</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12}}>
+          Based on Wilson's Valued Living Questionnaire. Rate each area of life twice — how important it is, and how consistently you have been living it this past week.
+        </p>
 
         {/* Progress */}
         <div style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
-            <span>Question {assessStep+1} of {total}</span>
+            <span>Domain {assessStep+1} of {total}</span>
             <span>{progress}% complete</span>
           </div>
           <div style={{height:6,background:"#EEE",borderRadius:3}}>
-            <div style={{height:"100%",width:`${progress}%`,background:domain?.color||PALETTE.lavender,borderRadius:3,transition:"width .3s"}}/>
+            <div style={{height:"100%",width:`${progress}%`,background:domain.color,borderRadius:3,transition:"width .3s"}}/>
           </div>
         </div>
 
-        {/* Domain label */}
-        <div style={{fontSize:12,fontWeight:700,color:domain?.color,letterSpacing:1,marginBottom:10}}>
-          {domain?.emoji} {domain?.label.toUpperCase()}
+        {/* Domain card */}
+        <div style={{...card,marginBottom:20,borderTop:`3px solid ${domain.color}`,padding:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <span style={{fontSize:28}}>{domain.emoji}</span>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:17}}>{domain.label}</div>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.mid,lineHeight:1.6,fontStyle:"italic"}}>
+            {domain.desc}
+          </p>
         </div>
 
-        {/* Question */}
-        <div style={{...card,marginBottom:20,padding:20,borderLeft:`3px solid ${domain?.color||PALETTE.lavender}`}}>
-          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{q.text}</p>
+        {/* IMPORTANCE slider */}
+        <div style={{...card,marginBottom:12,padding:14}}>
+          <div style={{fontWeight:700,color:domain.color,fontSize:13,marginBottom:4}}>
+            How important is this area of life to you?
+          </div>
+          <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px"}}>1 = Not at all important · 10 = Extremely important</p>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"space-between"}}>
+            {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+              const sel = ratings[impKey]===n;
+              return (
+                <button key={n} onClick={()=>setRatings(r=>({...r,[impKey]:n}))}
+                  style={{
+                    width:28,height:36,borderRadius:8,border:"none",cursor:"pointer",
+                    background:sel?domain.color:"#F0F0F0",
+                    color:sel?"white":PALETTE.mid,
+                    fontWeight:700,fontSize:14,
+                    transform:sel?"scale(1.15)":"scale(1)",
+                    transition:"all .15s",
+                    boxShadow:sel?`0 2px 8px ${domain.color}66`:"none",
+                  }}>{n}</button>
+              );
+            })}
+          </div>
+          {ratings[impKey] && (
+            <p style={{margin:"8px 0 0",fontSize:12,color:domain.color,fontWeight:600}}>
+              You rated importance: {ratings[impKey]}/10
+            </p>
+          )}
         </div>
 
-        {/* Rating scale */}
-        <p style={{fontSize:13,color:PALETTE.soft,marginBottom:10,textAlign:"center"}}>How much does this resonate with you?</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:24}}>
-          {[
-            {n:1,label:"Not at all"},
-            {n:2,label:"A little"},
-            {n:3,label:"Somewhat"},
-            {n:4,label:"Quite a lot"},
-            {n:5,label:"Deeply"},
-          ].map(opt=>{
-            const selected = ratings[q.id]===opt.n;
-            return (
-              <button key={opt.n} onClick={()=>{
-                setRatings(r=>({...r,[q.id]:opt.n}));
-                // Auto advance after short delay
-                setTimeout(()=>{
-                  if(assessStep < total-1) setAssessStep(s=>s+1);
-                }, 300);
-              }}
-                style={{
-                  padding:"14px 4px",borderRadius:12,border:"none",cursor:"pointer",
-                  background: selected?(domain?.color||PALETTE.lavender):"#F5F3F0",
-                  color: selected?"white":PALETTE.mid,
-                  fontWeight:700,fontSize:18,
-                  display:"flex",flexDirection:"column",alignItems:"center",gap:4,
-                  transform:selected?"scale(1.05)":"scale(1)",
-                  transition:"all .15s",
-                  boxShadow:selected?`0 3px 10px ${domain?.color||PALETTE.lavender}66`:"none",
-                }}>
-                <span>{opt.n}</span>
-                <span style={{fontSize:9,fontWeight:400,lineHeight:1.2,textAlign:"center"}}>{opt.label}</span>
-              </button>
-            );
-          })}
+        {/* CONSISTENCY slider */}
+        <div style={{...card,marginBottom:16,padding:14}}>
+          <div style={{fontWeight:700,color:domain.color,fontSize:13,marginBottom:4}}>
+            In the past week, how consistently have your actions reflected this value?
+          </div>
+          <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px"}}>1 = Not at all consistent · 10 = Completely consistent</p>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"space-between"}}>
+            {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+              const sel = ratings[conKey]===n;
+              return (
+                <button key={n} onClick={()=>setRatings(r=>({...r,[conKey]:n}))}
+                  style={{
+                    width:28,height:36,borderRadius:8,border:"none",cursor:"pointer",
+                    background:sel?domain.color:"#F0F0F0",
+                    color:sel?"white":PALETTE.mid,
+                    fontWeight:700,fontSize:14,
+                    transform:sel?"scale(1.15)":"scale(1)",
+                    transition:"all .15s",
+                    boxShadow:sel?`0 2px 8px ${domain.color}66`:"none",
+                  }}>{n}</button>
+              );
+            })}
+          </div>
+          {ratings[conKey] && (
+            <p style={{margin:"8px 0 0",fontSize:12,color:domain.color,fontWeight:600}}>
+              You rated consistency: {ratings[conKey]}/10
+              {ratings[impKey] && ratings[conKey] && ratings[impKey]-ratings[conKey]>=3 && (
+                <span style={{color:PALETTE.blush,marginLeft:8}}>⚠️ Gap of {ratings[impKey]-ratings[conKey]} points</span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* Navigation */}
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
           {assessStep>0 && <button onClick={()=>setAssessStep(s=>s-1)}
             style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
           {assessStep<total-1 ? (
-            <button onClick={()=>setAssessStep(s=>s+1)} disabled={!ratings[q.id]}
-              style={{...btnStyle(domain?.color||PALETTE.lavender),flex:1,opacity:ratings[q.id]?1:0.4}}>
-              Next →
+            <button onClick={()=>bothAnswered&&setAssessStep(s=>s+1)}
+              disabled={!bothAnswered}
+              style={{...btnStyle(domain.color),flex:1,opacity:bothAnswered?1:0.4}}>
+              Next Domain →
             </button>
           ) : (
             <button onClick={scoreAssessment} disabled={!allAnswered||assessLoading}
               style={{...btnStyle(PALETTE.lavender),flex:1,opacity:allAnswered?1:0.4}}>
-              {assessLoading?"🐝 Bea is calculating…":"See My Values Results →"}
+              {assessLoading?"🐝 Bea is reading your results…":"See My Results →"}
             </button>
           )}
         </div>
-        {!allAnswered && assessStep===total-1 && (
-          <p style={{fontSize:12,color:PALETTE.soft,textAlign:"center"}}>
-            Answer all questions to see your results — use ← Prev to go back
-          </p>
-        )}
+        {!bothAnswered && <p style={{fontSize:11,color:PALETTE.soft,textAlign:"center"}}>Rate both importance and consistency to continue</p>}
       </div>
     );
   }
@@ -2695,46 +3084,90 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
     <div>
       <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
       <h3 style={sectionTitle}>🧭 My Values Profile</h3>
-      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(valuesProfile.date)}</p>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>VLQ completed {fmtDate(valuesProfile.date)}</p>
 
-      {/* Top 3 */}
-      <h4 style={{color:PALETTE.mid,fontSize:13,fontWeight:700,letterSpacing:1,marginBottom:8}}>💛 YOUR TOP 3 VALUES</h4>
+      {/* Top 3 most important */}
+      <h4 style={{color:PALETTE.mid,fontSize:12,fontWeight:700,letterSpacing:1,marginBottom:8}}>
+        💛 YOUR TOP 3 VALUES
+      </h4>
       {valuesProfile.top3.map((v,i)=>(
-        <div key={v.id} style={{...card,marginBottom:8,borderLeft:`4px solid ${v.color}`,
-          display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:28,width:36,textAlign:"center",fontWeight:800,color:v.color}}>
-            {i+1}
+        <div key={v.id} style={{...card,marginBottom:8,borderLeft:`4px solid ${v.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+            <div style={{fontSize:22,fontWeight:800,color:v.color,width:28}}>{i+1}</div>
+            <span style={{fontSize:22}}>{v.emoji}</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{v.label}</div>
+            </div>
           </div>
-          <span style={{fontSize:24}}>{v.emoji}</span>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{v.label}</div>
-            <div style={{fontSize:11,color:PALETTE.soft,marginTop:2}}>Score: {v.score.toFixed(1)}/5</div>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{flex:1,background:`${v.color}11`,borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
+              <div style={{fontSize:11,color:PALETTE.soft}}>Importance</div>
+              <div style={{fontSize:20,fontWeight:800,color:v.color}}>{v.importance}</div>
+              <div style={{fontSize:10,color:PALETTE.soft}}>/10</div>
+            </div>
+            <div style={{flex:1,background:`${v.color}11`,borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
+              <div style={{fontSize:11,color:PALETTE.soft}}>Living it</div>
+              <div style={{fontSize:20,fontWeight:800,color:v.color}}>{v.consistency}</div>
+              <div style={{fontSize:10,color:PALETTE.soft}}>/10</div>
+            </div>
+            <div style={{flex:1,background:v.discrepancy>=3?"#FFF0F0":`${v.color}11`,borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
+              <div style={{fontSize:11,color:PALETTE.soft}}>Gap</div>
+              <div style={{fontSize:20,fontWeight:800,color:v.discrepancy>=3?PALETTE.blush:PALETTE.sage}}>
+                {v.discrepancy>0?"+":""}{v.discrepancy}
+              </div>
+              <div style={{fontSize:10,color:PALETTE.soft}}>pts</div>
+            </div>
           </div>
         </div>
       ))}
 
-      {/* Bottom 3 */}
-      <h4 style={{color:PALETTE.mid,fontSize:13,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
+      {/* Biggest gaps */}
+      {valuesProfile.gaps?.length>0 && <>
+        <h4 style={{color:PALETTE.blush,fontSize:12,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
+          ⚠️ BIGGEST GAPS — IMPORTANT BUT NOT LIVING IT
+        </h4>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:10,lineHeight:1.5}}>
+          These are the areas where life may feel most off-track — high importance, low consistency.
+        </p>
+        {valuesProfile.gaps.map(v=>(
+          <div key={v.id} style={{...card,marginBottom:8,borderLeft:`3px solid ${PALETTE.blush}`,background:"#FFF8F8"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:20}}>{v.emoji}</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,color:PALETTE.dark,fontSize:14}}>{v.label}</div>
+                <div style={{fontSize:12,color:PALETTE.blush}}>
+                  Importance {v.importance}/10 · Living it {v.consistency}/10 · Gap of {v.discrepancy} points
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {/* Lower priority */}
+      <h4 style={{color:PALETTE.mid,fontSize:12,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
         🌿 LOWER PRIORITY RIGHT NOW
       </h4>
       {valuesProfile.bottom3.map(v=>(
-        <div key={v.id} style={{...card,marginBottom:8,opacity:0.75,display:"flex",alignItems:"center",gap:12}}>
-          <span style={{fontSize:22}}>{v.emoji}</span>
+        <div key={v.id} style={{...card,marginBottom:6,opacity:0.7,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>{v.emoji}</span>
           <div style={{flex:1}}>
-            <div style={{fontWeight:600,color:PALETTE.dark,fontSize:14}}>{v.label}</div>
-            <div style={{fontSize:11,color:PALETTE.soft}}>Score: {v.score.toFixed(1)}/5</div>
+            <div style={{fontWeight:500,color:PALETTE.dark,fontSize:13}}>{v.label}</div>
+            <div style={{fontSize:11,color:PALETTE.soft}}>Importance {v.importance}/10</div>
           </div>
         </div>
       ))}
 
       {/* Bea's summary */}
-      <div style={{...card,marginTop:16,background:`${PALETTE.lavender}0D`,border:`1.5px solid ${PALETTE.lavender}44`}}>
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-          <BeeMascot size={28}/>
-          <span style={{fontWeight:700,color:PALETTE.lavender,fontSize:13}}>Bea's summary</span>
+      {valuesProfile.summary && (
+        <div style={{...card,marginTop:16,background:`${PALETTE.lavender}0D`,border:`1.5px solid ${PALETTE.lavender}44`}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:PALETTE.lavender,fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{valuesProfile.summary}</p>
         </div>
-        <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{valuesProfile.summary}</p>
-      </div>
+      )}
 
       <button onClick={()=>{setRatings({});setAssessStep(0);setView("assessment");}}
         style={{...btnStyle(PALETTE.lavender,true),width:"100%",marginTop:16}}>
@@ -2901,6 +3334,11 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
             💛 Your top values: {valuesProfile.top3.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
           </div>
         )}
+        {goalsProfile?.strongest?.length>0 && smartStep===0 && (
+          <div style={{background:`${PALETTE.sage}11`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:PALETTE.mid}}>
+            📋 Your best-positioned goal from the questionnaire: "{goalsProfile.strongest[0].text}"
+          </div>
+        )}
 
         <textarea value={smartAnswers[q.field]||""} onChange={e=>setSmartAnswers(a=>({...a,[q.field]:e.target.value}))}
           placeholder={q.placeholder}
@@ -2956,6 +3394,381 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
     </div>
   );
 
+  // ── DAS QUESTIONNAIRE ───────────────────────────────────────────────────
+  if(view==="das_q") {
+    const i = dasStep;
+    const domain = dasDomainForIndex(i);
+    const total = DAS_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = DAS_QUESTIONS.every((_,idx)=>dasAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🧠 Core Beliefs Scale</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Based on the Dysfunctional Attitude Scale (Weissman & Beck). Rate how much you agree with each statement — there are no right or wrong answers.
+        </p>
+
+        {/* Progress */}
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Statement {i+1} of {total}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:domain?.color||PALETTE.dark,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+
+        {/* Domain label */}
+        <div style={{fontSize:11,fontWeight:700,color:domain?.color,letterSpacing:1,marginBottom:10}}>
+          {domain?.emoji} {domain?.label.toUpperCase()}
+        </div>
+
+        {/* Statement */}
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:`3px solid ${domain?.color||PALETTE.dark}`}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{DAS_QUESTIONS[i]}</p>
+        </div>
+
+        {/* Rating scale */}
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {DAS_SCALE.map(opt=>{
+            const selected = dasAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setDasAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setDasStep(s=>s+1); }, 250);
+              }}
+                style={{
+                  padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:selected?(domain?.color||PALETTE.dark):"#F5F3F0",
+                  color:selected?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",
+                  transition:"all .15s",
+                  boxShadow:selected?`0 3px 10px ${domain?.color||PALETTE.dark}66`:"none",
+                }}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Navigation */}
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setDasStep(s=>s-1)}
+            style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>dasAnswers[i]!==undefined&&setDasStep(s=>s+1)}
+              disabled={dasAnswers[i]===undefined}
+              style={{...btnStyle(domain?.color||PALETTE.dark),flex:1,opacity:dasAnswers[i]!==undefined?1:0.4}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={scoreDas} disabled={!allAnswered||dasLoading}
+              style={{...btnStyle(PALETTE.dark),flex:1,opacity:allAnswered?1:0.4}}>
+              {dasLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+        {!allAnswered && i===total-1 && (
+          <p style={{fontSize:11,color:PALETTE.soft,textAlign:"center",marginTop:8}}>
+            Answer all statements to see your results
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── DAS RESULTS ──────────────────────────────────────────────────────────
+  if(view==="das_profile" && dasProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🧠 My Core Beliefs Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(dasProfile.date)}</p>
+
+      {/* Bar chart of all 7 domains */}
+      <div style={{...card,marginBottom:16,padding:16}}>
+        <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:12}}>
+          ALL 7 DOMAINS
+        </div>
+        {dasProfile.domainTotals.map(d=>{
+          const maxAbs = 10;
+          const pct = Math.min(Math.abs(d.total)/maxAbs*100, 100);
+          return (
+            <div key={d.id} style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                <span style={{color:PALETTE.dark,fontWeight:600}}>{d.emoji} {d.label}</span>
+                <span style={{color:d.total>0?PALETTE.blush:PALETTE.sage,fontWeight:700}}>
+                  {d.total>0?"+":""}{d.total}
+                </span>
+              </div>
+              <div style={{height:8,background:"#EEE",borderRadius:4,position:"relative",overflow:"hidden"}}>
+                <div style={{
+                  position:"absolute",
+                  left: d.total>=0 ? "50%" : `${50-pct/2}%`,
+                  width:`${pct/2}%`,height:"100%",
+                  background: d.total>0 ? PALETTE.blush : PALETTE.sage,
+                  borderRadius:4,
+                }}/>
+                <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:1,background:"#CCC"}}/>
+              </div>
+            </div>
+          );
+        })}
+        <p style={{fontSize:10,color:PALETTE.soft,margin:"8px 0 0",textAlign:"center"}}>
+          ← Strength · Vulnerability →
+        </p>
+      </div>
+
+      {/* Most vulnerable domains */}
+      {dasProfile.highest?.length>0 && <>
+        <h4 style={{color:PALETTE.blush,fontSize:12,fontWeight:700,letterSpacing:1,marginBottom:8}}>
+          ⚠️ AREAS OF VULNERABILITY
+        </h4>
+        {dasProfile.highest.map(d=>(
+          <div key={d.id} style={{...card,marginBottom:8,borderLeft:`3px solid ${PALETTE.blush}`,background:"#FFF8F8"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontSize:20}}>{d.emoji}</span>
+              <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{d.label}</div>
+              <div style={{marginLeft:"auto",fontWeight:700,color:PALETTE.blush}}>+{d.total}</div>
+            </div>
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{d.desc}</p>
+          </div>
+        ))}
+      </>}
+
+      {/* Strengths */}
+      {dasProfile.lowest?.length>0 && <>
+        <h4 style={{color:PALETTE.sage,fontSize:12,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
+          💪 PSYCHOLOGICAL STRENGTHS
+        </h4>
+        {dasProfile.lowest.map(d=>(
+          <div key={d.id} style={{...card,marginBottom:8,borderLeft:`3px solid ${PALETTE.sage}`,background:"#F5FFF8"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18}}>{d.emoji}</span>
+              <div style={{fontWeight:600,color:PALETTE.dark,fontSize:13}}>{d.label}</div>
+              <div style={{marginLeft:"auto",fontWeight:700,color:PALETTE.sage}}>{d.total}</div>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {/* Bea's summary */}
+      {dasProfile.summary && (
+        <div style={{...card,marginTop:16,background:`${PALETTE.dark}08`,border:`1.5px solid ${PALETTE.dark}22`}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:PALETTE.dark,fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{dasProfile.summary}</p>
+        </div>
+      )}
+
+      <button onClick={()=>{setDasAnswers({});setDasStep(0);setView("das_q");}}
+        style={{...btnStyle(PALETTE.dark,true),width:"100%",marginTop:16}}>
+        Redo Assessment
+      </button>
+    </div>
+  );
+
+  // ── GOALS LIST (input goals) ─────────────────────────────────────────────
+  if(view==="goals_list") {
+    const updateGoal = (i, val) => setGoalsList(g=>g.map((x,idx)=>idx===i?val:x));
+    const addGoalField = () => setGoalsList(g=>[...g,""]);
+    const removeGoalField = (i) => setGoalsList(g=>g.filter((_,idx)=>idx!==i));
+    const filledCount = goalsList.filter(g=>g.trim()).length;
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>📋 Personal Goals Questionnaire</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          Based on goal-setting research. List up to 6 goals currently on your mind — big or small. You'll then rate each one across 6 dimensions shown to predict whether a goal succeeds.
+        </p>
+
+        {goalsList.map((g,i)=>(
+          <div key={i} style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+            <span style={{fontSize:13,color:PALETTE.soft,width:20}}>{i+1}.</span>
+            <input value={g} onChange={e=>updateGoal(i,e.target.value)}
+              placeholder={`Goal ${i+1}, e.g. "Build a daily creative practice"`}
+              style={{...inputStyle,flex:1}}/>
+            {goalsList.length>1 && (
+              <button onClick={()=>removeGoalField(i)}
+                style={{background:"none",border:"none",color:PALETTE.soft,fontSize:18,cursor:"pointer",padding:"0 4px"}}>×</button>
+            )}
+          </div>
+        ))}
+
+        {goalsList.length<6 && (
+          <button onClick={addGoalField}
+            style={{...btnStyle("#EEE",true),color:PALETTE.mid,width:"100%",marginBottom:16}}>
+            + Add another goal
+          </button>
+        )}
+
+        <button onClick={()=>{
+            if(filledCount===0) return;
+            setGoalsStep(0);
+            setGoalRatings({});
+            setView("goals_rate");
+          }}
+          disabled={filledCount===0}
+          style={{...btnStyle(PALETTE.sage),width:"100%",opacity:filledCount>0?1:0.4}}>
+          Rate My Goals → ({filledCount} goal{filledCount===1?"":"s"})
+        </button>
+      </div>
+    );
+  }
+
+  // ── GOALS RATE (rate each goal on 6 dimensions) ──────────────────────────
+  if(view==="goals_rate") {
+    const filledGoals = goalsList.filter(g=>g.trim());
+    const currentGoal = filledGoals[goalsStep];
+    const total = filledGoals.length;
+    const dimsAnswered = (i) => GOAL_RATING_DIMENSIONS.every(d=>goalRatings[i]?.[d.id]!==undefined);
+    const allDone = filledGoals.every((_,i)=>dimsAnswered(i));
+    const progress = Math.round((goalsStep/total)*100);
+
+    return (
+      <div>
+        <button onClick={()=>setView("goals_list")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit Goals</button>
+        <h3 style={sectionTitle}>📋 Rate Your Goal</h3>
+
+        {/* Progress */}
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Goal {goalsStep+1} of {total}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:PALETTE.sage,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+
+        <div style={{...card,marginBottom:20,padding:16,borderLeft:`3px solid ${PALETTE.sage}`}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.sage,letterSpacing:1,marginBottom:6}}>YOUR GOAL</div>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.6}}>{currentGoal}</p>
+        </div>
+
+        {GOAL_RATING_DIMENSIONS.map(dim=>{
+          const val = goalRatings[goalsStep]?.[dim.id];
+          return (
+            <div key={dim.id} style={{...card,marginBottom:12,padding:14}}>
+              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                <span style={{fontSize:18}}>{dim.emoji}</span>
+                <span style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{dim.label}</span>
+              </div>
+              <p style={{fontSize:13,color:PALETTE.mid,margin:"0 0 8px",lineHeight:1.5}}>{dim.question}</p>
+              <div style={{display:"flex",gap:6,justifyContent:"space-between",marginBottom:6}}>
+                {[1,2,3,4,5].map(n=>{
+                  const sel = val===n;
+                  return (
+                    <button key={n}
+                      onClick={()=>setGoalRatings(r=>({...r,[goalsStep]:{...(r[goalsStep]||{}),[dim.id]:n}}))}
+                      style={{
+                        flex:1,padding:"10px 4px",borderRadius:10,border:"none",cursor:"pointer",
+                        background:sel?PALETTE.sage:"#F0F0F0",
+                        color:sel?"white":PALETTE.mid,
+                        fontWeight:700,fontSize:15,
+                        transform:sel?"scale(1.08)":"scale(1)",
+                        transition:"all .15s",
+                      }}>{n}</button>
+                  );
+                })}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:PALETTE.soft}}>
+                <span>{dim.low}</span><span>{dim.high}</span>
+              </div>
+              <p style={{fontSize:11,color:PALETTE.soft,margin:"8px 0 0",fontStyle:"italic",lineHeight:1.4}}>{dim.desc}</p>
+            </div>
+          );
+        })}
+
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          {goalsStep>0 && <button onClick={()=>setGoalsStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Prev Goal</button>}
+          {goalsStep<total-1 ? (
+            <button onClick={()=>dimsAnswered(goalsStep)&&setGoalsStep(s=>s+1)}
+              disabled={!dimsAnswered(goalsStep)}
+              style={{...btnStyle(PALETTE.sage),flex:1,opacity:dimsAnswered(goalsStep)?1:0.4}}>
+              Next Goal →
+            </button>
+          ) : (
+            <button onClick={scoreGoals} disabled={!allDone||goalsLoading}
+              style={{...btnStyle(PALETTE.sage),flex:1,opacity:allDone?1:0.4}}>
+              {goalsLoading?"🐝 Bea is analysing…":"See My Results →"}
+            </button>
+          )}
+        </div>
+        {!allDone && goalsStep===total-1 && (
+          <p style={{fontSize:11,color:PALETTE.soft,textAlign:"center",marginTop:8}}>
+            Rate all 6 dimensions for every goal to see results
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── GOALS PROFILE (results) ──────────────────────────────────────────────
+  if(view==="goals_profile" && goalsProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>📋 My Goals Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(goalsProfile.date)}</p>
+
+      {/* All goals ranked */}
+      <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:10}}>
+        RANKED BY ESTIMATED SUCCESS LIKELIHOOD
+      </div>
+      {[...goalsProfile.goals].sort((a,b)=>b.successScore-a.successScore).map((g,i)=>{
+        const color = g.successScore>=70?PALETTE.sage : g.successScore>=50?PALETTE.honey : PALETTE.blush;
+        return (
+          <div key={i} style={{...card,marginBottom:10,borderLeft:`4px solid ${color}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <p style={{margin:0,fontWeight:600,color:PALETTE.dark,fontSize:14,flex:1,paddingRight:10}}>{g.text}</p>
+              <div style={{textAlign:"center",flexShrink:0}}>
+                <div style={{fontSize:22,fontWeight:800,color}}>{g.successScore}</div>
+                <div style={{fontSize:9,color:PALETTE.soft}}>/100</div>
+              </div>
+            </div>
+            <div style={{height:6,background:"#EEE",borderRadius:3,marginBottom:8}}>
+              <div style={{height:"100%",width:`${g.successScore}%`,background:color,borderRadius:3}}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4,fontSize:10,textAlign:"center"}}>
+              {GOAL_RATING_DIMENSIONS.map(d=>(
+                <div key={d.id}>
+                  <div>{d.emoji}</div>
+                  <div style={{fontWeight:700,color:PALETTE.mid}}>{g[d.id]}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Bea's summary */}
+      {goalsProfile.summary && (
+        <div style={{...card,marginTop:16,background:`${PALETTE.sage}0D`,border:`1.5px solid ${PALETTE.sage}44`}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:PALETTE.sage,fontSize:13}}>Bea's analysis</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{goalsProfile.summary}</p>
+        </div>
+      )}
+
+      <button onClick={()=>{
+          setGoalsList(goalsProfile.goals.map(g=>g.text));
+          setGoalRatings({});
+          setGoalsStep(0);
+          setView("goals_list");
+        }}
+        style={{...btnStyle(PALETTE.sage,true),width:"100%",marginTop:16}}>
+        Redo Assessment
+      </button>
+    </div>
+  );
+
   return null;
 }
 
@@ -3004,7 +3817,7 @@ const SMART_TEMPLATES = [
   {field:"timebound", label:"Time-bound", question:"When exactly will you do this? Give a specific day and time.", emoji:"⏰"},
 ];
 
-function ACTToolkit() {
+function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, goalsProfile=null }) {
   const [tool, setTool]         = useState(null); // null | "hexaflex"|"compass"|"defusion"|"matrix"|"smart"|"willingness"
   const [compassRatings, setCompassRatings] = useState({}); // {area_id: {importance:0-10, living:0-10}}
   const [defTechnique, setDefTechnique]     = useState(null);
@@ -3040,6 +3853,29 @@ function ACTToolkit() {
           ACT doesn't try to eliminate pain. It helps you carry it lightly while you move toward what matters. 🐝
         </p>
       </div>
+
+      {(valuesProfile || dasProfile || goalsProfile) && (
+        <div style={{...card,marginBottom:16,background:`${PALETTE.lavender}0D`,border:`1px solid ${PALETTE.lavender}33`}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.lavender,letterSpacing:1,marginBottom:8}}>
+            YOUR SAVED PROFILE
+          </div>
+          {valuesProfile && (
+            <p style={{margin:"0 0 6px",fontSize:12,color:PALETTE.mid}}>
+              🧭 Top values: {valuesProfile.top3?.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
+            </p>
+          )}
+          {dasProfile?.highest?.length>0 && (
+            <p style={{margin: goalsProfile?"0 0 6px":0,fontSize:12,color:PALETTE.mid}}>
+              🧠 Watch for: {dasProfile.highest.map(d=>`${d.emoji} ${d.label}`).join(" · ")}
+            </p>
+          )}
+          {goalsProfile?.strongest?.length>0 && (
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>
+              📋 Best-positioned goal: {goalsProfile.strongest[0].text} ({goalsProfile.strongest[0].successScore}/100)
+            </p>
+          )}
+        </div>
+      )}
 
       {/* The 6 ACT processes as tappable tiles */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
@@ -3148,6 +3984,19 @@ function ACTToolkit() {
 
   // ── VALUES COMPASS ──────────────────────────────────────────────────────────
   if(tool==="compass") {
+    // Pre-fill from VLQ if available and compass is empty
+    const initCompass = () => {
+      if(!valuesProfile || Object.keys(compassRatings).length > 0) return;
+      const prefilled = {};
+      valuesProfile.domainScores?.forEach(d => {
+        // Map VLQ domain ids to ACT area ids where they overlap
+        const map = {health:"health", work:"work", spirit:"spirit", education:"mind",
+                     recreation:"create", family:"connect", friendship:"connect"};
+        const actId = map[d.id] || d.id;
+        prefilled[actId] = { importance: d.importance||0, living: d.consistency||0 };
+      });
+      if(Object.keys(prefilled).length > 0) setCompassRatings(prefilled);
+    };
     const setRating = (areaId, field, val) =>
       setCompassRatings(r=>({...r,[areaId]:{...(r[areaId]||{}), [field]:val}}));
     const gaps = ACT_AREAS.filter(a=>{
@@ -3161,11 +4010,31 @@ function ACTToolkit() {
         <p style={{color:PALETTE.soft,fontSize:13,marginBottom:8}}>
           For each area of life: rate how important it is to you, and how much you're currently living in line with it. The gap between the two shows where to focus.
         </p>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"8px 12px",
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 12px",
           background:`${PALETTE.sky}18`,borderRadius:10}}>
           <BeeMascot size={24}/>
-          <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>This isn't about achievement — it's about direction. 🐝</p>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>This is not about achievement — it is about direction. 🐝</p>
         </div>
+        {valuesProfile ? (
+          <div style={{...card,marginBottom:14,background:`${PALETTE.lavender}0D`,
+            border:`1px solid ${PALETTE.lavender}33`,padding:"10px 12px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.lavender,letterSpacing:1,marginBottom:4}}>
+              🧭 YOUR VLQ TOP VALUES
+            </div>
+            <p style={{margin:"0 0 8px",fontSize:12,color:PALETTE.mid}}>
+              {valuesProfile.top3?.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
+            </p>
+            <button onClick={initCompass}
+              style={{...btnStyle(PALETTE.lavender,true),fontSize:11}}>
+              Pre-fill sliders from my VLQ results
+            </button>
+          </div>
+        ) : (
+          <div style={{...card,marginBottom:14,background:"#FFF8F0",padding:"8px 12px",
+            fontSize:12,color:PALETTE.soft,lineHeight:1.5}}>
+            💡 Complete the Values Assessment in the Values tab to pre-fill this automatically
+          </div>
+        )}
 
         {/* Visual wheel */}
         <div style={{position:"relative",width:"100%",paddingBottom:"100%",marginBottom:16}}>
@@ -3250,11 +4119,51 @@ function ACTToolkit() {
         <p style={{color:PALETTE.soft,fontSize:13,marginBottom:8}}>
           Defusion doesn't challenge thoughts or try to replace them. It changes your <em>relationship</em> to them — from fused (thought = fact) to defused (thought = just a thought).
         </p>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"8px 12px",
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"8px 12px",
           background:`${PALETTE.lavender}18`,borderRadius:10}}>
           <BeeMascot size={24}/>
-          <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>You don't have to believe everything your mind says. 🐝</p>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>You do not have to believe everything your mind says. 🐝</p>
         </div>
+        {limitingBeliefs.length>0 && !defTechnique && (
+          <div style={{...card,marginBottom:14,background:`${PALETTE.lavender}0D`,
+            border:`1px solid ${PALETTE.lavender}33`,padding:"10px 12px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.lavender,letterSpacing:1,marginBottom:6}}>
+              🔓 FROM YOUR LIMITING BELIEFS
+            </div>
+            <p style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>
+              Use a saved limiting belief as your starting thought:
+            </p>
+            {limitingBeliefs.slice(0,3).map(b=>(
+              <button key={b.id}
+                onClick={()=>{ setDefTechnique(DEFUSION_TECHNIQUES[0]); setDefText(b.answers?.lb1||""); }}
+                style={{...card,border:`1px solid ${PALETTE.lavender}33`,width:"100%",
+                  textAlign:"left",cursor:"pointer",marginBottom:6,padding:"8px 10px",
+                  fontSize:12,color:PALETTE.dark,display:"block"}}>
+                "{b.answers?.lb1?.slice(0,70)}{b.answers?.lb1?.length>70?"…":""}"
+              </button>
+            ))}
+          </div>
+        )}
+        {dasProfile?.highest?.length>0 && !defTechnique && (
+          <div style={{...card,marginBottom:14,background:`${PALETTE.dark}08`,
+            border:`1px solid ${PALETTE.dark}22`,padding:"10px 12px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.dark,letterSpacing:1,marginBottom:6}}>
+              🧠 FROM YOUR CORE BELIEFS SCALE
+            </div>
+            <p style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>
+              Your vulnerable domains — try defusing from the pattern itself:
+            </p>
+            {dasProfile.highest.map(d=>(
+              <button key={d.id}
+                onClick={()=>{ setDefTechnique(DEFUSION_TECHNIQUES[0]); setDefText(d.desc); }}
+                style={{...card,border:`1px solid ${PALETTE.dark}22`,width:"100%",
+                  textAlign:"left",cursor:"pointer",marginBottom:6,padding:"8px 10px",
+                  fontSize:12,color:PALETTE.dark,display:"block"}}>
+                {d.emoji} {d.label}: "{d.desc}"
+              </button>
+            ))}
+          </div>
+        )}
 
         {!defTechnique ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -3308,7 +4217,7 @@ In 2 warm, brief sentences, reflect back what they've done well and offer one ge
     const quadrants = [
       {key:"toward_inner", label:"Toward — Inner", color:"#7BB369", bg:"#F5FFF5",
        desc:"What matters to you? What do you want to stand for?",
-       placeholder:"Values, hopes, what truly matters…"},
+       placeholder: valuesProfile ? `Your values: ${valuesProfile.top3?.map(v=>v.label).join(", ")} — add more…` : "Values, hopes, what truly matters…"},
       {key:"toward_outer", label:"Toward — Outer", color:"#5B9BD5", bg:"#F5F8FF",
        desc:"What actions move you toward those values?",
        placeholder:"Behaviours, steps, things you could do…"},
@@ -3530,6 +4439,16 @@ In 3 sentences: (1) Name what their toward moves tell you about their values. (2
         </div>
 
         <label style={labelStyle}>What value matters to you right now, despite this feeling?</label>
+        {valuesProfile?.top3 && !willingness.value && (
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            {valuesProfile.top3.map(v=>(
+              <button key={v.id} onClick={()=>setWillingness(w=>({...w,value:v.label}))}
+                style={{...btnStyle(v.color,true),fontSize:11,color:"white"}}>
+                {v.emoji} {v.label}
+              </button>
+            ))}
+          </div>
+        )}
         <input value={willingness.value} onChange={e=>setWillingness(w=>({...w,value:e.target.value}))}
           placeholder={`e.g. showing up for myself, creativity, growth`}
           style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:10}}/>
@@ -3758,6 +4677,8 @@ export default function BeeWell() {
   const [valuesProfile, setValuesProfile] = useState(null);  // saved values assessment
   const [limitingBeliefs, setLimitingBeliefs] = useState([]); // saved limiting beliefs
   const [smartPlans, setSmartPlans] = useState([]);           // saved SMART plans
+  const [dasProfile, setDasProfile] = useState(null);         // Dysfunctional Attitude Scale results
+  const [goalsProfile, setGoalsProfile] = useState(null);     // Personal Goals Questionnaire results
 
   useEffect(()=>{
     const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
@@ -3878,7 +4799,7 @@ export default function BeeWell() {
           onAddFeel={e=>setFeelItems(l=>[e,...l])}
           onAddDifficult={e=>setDifficultItems(l=>[e,...l])}
         />}
-        {tab==="feel"     && <FeelBetterBox items={feelItems} onAdd={e=>setFeelItems(l=>[e,...l])} onDelete={id=>setFeelItems(l=>l.filter(i=>i.id!==id))}/>}
+        {tab==="feel"     && <FeelBetterBox items={feelItems} onAdd={e=>setFeelItems(l=>[e,...l])} onDelete={id=>setFeelItems(l=>l.filter(i=>i.id!==id))} valuesProfile={valuesProfile}/>}
         {tab==="difficult" && <ProblemBox
           items={difficultItems}
           onAdd={e=>setDifficultItems(l=>[e,...l])}
@@ -3886,8 +4807,8 @@ export default function BeeWell() {
           onRelease={id=>setDifficultItems(ts=>ts.map(t=>t.id===id?{...t,status:"released"}:t))}
           onSetTab={setTab}
         />}
-        {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])}/>}
-        {tab==="activate" && <BehaviouralActivation feelItems={feelItems}/>}
+        {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])} valuesProfile={valuesProfile} dasProfile={dasProfile}/>}
+        {tab==="activate" && <BehaviouralActivation feelItems={feelItems} valuesProfile={valuesProfile} dasProfile={dasProfile}/>}
         {tab==="values"   && <ValuesGoals
           valuesProfile={valuesProfile}
           onSaveProfile={setValuesProfile}
@@ -3895,8 +4816,12 @@ export default function BeeWell() {
           onSaveBeliefs={setLimitingBeliefs}
           smartPlans={smartPlans}
           onSavePlans={setSmartPlans}
+          dasProfile={dasProfile}
+          onSaveDas={setDasProfile}
+          goalsProfile={goalsProfile}
+          onSaveGoals={setGoalsProfile}
         />}
-        {tab==="act"      && <ACTToolkit/>}
+        {tab==="act"      && <ACTToolkit valuesProfile={valuesProfile} limitingBeliefs={limitingBeliefs} dasProfile={dasProfile} goalsProfile={goalsProfile}/>}
         {tab==="ground"   && <Grounding/>}
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}
         {tab==="bea"      && <BeaChat/>}

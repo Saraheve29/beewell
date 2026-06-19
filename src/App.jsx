@@ -2588,8 +2588,113 @@ const DAS_QUESTIONS = [
 
 const dasDomainForIndex = (i) => DAS_DOMAINS.find(d => i >= d.range[0] && i < d.range[1]);
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals }) {
-  const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile
+// ── PHQ-9 (Patient Health Questionnaire — depression screening) ────────────
+const PHQ9_QUESTIONS = [
+  "Little interest or pleasure in doing things",
+  "Feeling down, depressed, or hopeless",
+  "Trouble falling or staying asleep, or sleeping too much",
+  "Feeling tired or having little energy",
+  "Poor appetite or overeating",
+  "Feeling bad about yourself — or that you are a failure, or have let yourself or your family down",
+  "Trouble concentrating on things, such as reading or watching television",
+  "Moving or speaking so slowly that other people could have noticed — or the opposite, being so fidgety or restless that you have been moving around a lot more than usual",
+  "Thoughts that you would be better off dead, or of hurting yourself in some way",
+];
+const PHQ9_SCALE = [
+  {val:0, label:"Not at all"},
+  {val:1, label:"Several days"},
+  {val:2, label:"More than half the days"},
+  {val:3, label:"Nearly every day"},
+];
+const phq9Severity = (score) => {
+  if(score<=4)  return {label:"Minimal",  color:"#7BB369"};
+  if(score<=9)  return {label:"Mild",     color:"#D4AF37"};
+  if(score<=14) return {label:"Moderate", color:"#E8891A"};
+  if(score<=19) return {label:"Moderately Severe", color:"#E8497A"};
+  return               {label:"Severe",   color:"#8B1A1A"};
+};
+
+// ── GAD-7 (Generalised Anxiety Disorder screening) ──────────────────────────
+const GAD7_QUESTIONS = [
+  "Feeling nervous, anxious, or on edge",
+  "Not being able to stop or control worrying",
+  "Worrying too much about different things",
+  "Trouble relaxing",
+  "Being so restless that it is hard to sit still",
+  "Becoming easily annoyed or irritable",
+  "Feeling afraid as if something awful might happen",
+];
+const gad7Severity = (score) => {
+  if(score<=4)  return {label:"Minimal",  color:"#7BB369"};
+  if(score<=9)  return {label:"Mild",     color:"#D4AF37"};
+  if(score<=14) return {label:"Moderate", color:"#E8891A"};
+  return               {label:"Severe",   color:"#8B1A1A"};
+};
+
+// ── Self-Compassion Scale (short form, Neff) ────────────────────────────────
+// Items 2,4,6,8,11,12 are reverse-scored (higher agreement = LESS self-compassion)
+const SCS_QUESTIONS = [
+  {text:"I try to be understanding and patient towards aspects of my personality I don't like.", reverse:false},
+  {text:"When times are really difficult, I tend to be tough on myself.", reverse:true},
+  {text:"When something painful happens I try to take a balanced view of the situation.", reverse:false},
+  {text:"When I'm feeling down I tend to feel like most other people are probably happier than I am.", reverse:true},
+  {text:"I try to see my failings as part of the human condition.", reverse:false},
+  {text:"When I'm going through a very hard time, I give myself the caring and tenderness I need.", reverse:false},
+  {text:"When something upsets me I try to keep my emotions in balance.", reverse:false},
+  {text:"When I fail at something important to me, I tend to feel alone in my failure.", reverse:true},
+  {text:"When I'm feeling down, I tend to ruminate and fixate on everything that's wrong.", reverse:true},
+  {text:"I'm disapproving and judgmental about my own flaws and inadequacies.", reverse:true},
+];
+const SCS_SCALE = [
+  {val:1, label:"Almost Never"},
+  {val:2, label:"Rarely"},
+  {val:3, label:"Sometimes"},
+  {val:4, label:"Often"},
+  {val:5, label:"Almost Always"},
+];
+const scsLevel = (avg) => {
+  if(avg<2.5) return {label:"Low Self-Compassion", color:"#8B1A1A"};
+  if(avg<3.5) return {label:"Moderate Self-Compassion", color:"#D4AF37"};
+  return             {label:"High Self-Compassion", color:"#7BB369"};
+};
+
+// ── Rumination & Worry Tendency (inspired by Penn State Worry Questionnaire) ─
+const WORRY_QUESTIONS = [
+  "Once I start worrying, I can't seem to stop.",
+  "My worries feel overwhelming.",
+  "I notice I am replaying the same thoughts or conversations over and over.",
+  "Many situations make me worry.",
+  "I know I shouldn't worry about things, but I just can't help it.",
+  "When I am under pressure I worry a lot.",
+  "I am always worrying about something.",
+  "I find it easy to dismiss worrisome thoughts once they have passed.",
+];
+const WORRY_SCALE = [
+  {val:1, label:"Not at all typical of me"},
+  {val:2, label:"Slightly typical"},
+  {val:3, label:"Somewhat typical"},
+  {val:4, label:"Very typical"},
+  {val:5, label:"Extremely typical of me"},
+];
+const worryLevel = (score) => {
+  if(score<=16) return {label:"Low Worry Tendency", color:"#7BB369"};
+  if(score<=27) return {label:"Moderate Worry Tendency", color:"#D4AF37"};
+  return               {label:"High Worry Tendency", color:"#8B1A1A"};
+};
+
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary }) {
+  const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
+
+  // PHQ-9 / GAD-7 / SCS / Worry state
+  const [phqAnswers, setPhqAnswers] = useState({});
+  const [phqStep, setPhqStep]       = useState(0);
+  const [gadAnswers, setGadAnswers] = useState({});
+  const [gadStep, setGadStep]       = useState(0);
+  const [scsAnswers, setScsAnswers] = useState({});
+  const [scsStep, setScsStep]       = useState(0);
+  const [worryAnswers, setWorryAnswers] = useState({});
+  const [worryStep, setWorryStep]   = useState(0);
+  const [masterLoading, setMasterLoading] = useState(false);
 
   // Goals questionnaire state
   const [goalsList, setGoalsList]     = useState(goalsProfile?.goals?.map(g=>g.text) || [""]);
@@ -2830,6 +2935,88 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     } finally { setGoalsLoading(false); }
   };
 
+  // ── Score PHQ-9 ───────────────────────────────────────────────────────
+  const scorePhq9 = () => {
+    const total = PHQ9_QUESTIONS.reduce((s,_,i)=>s+(phqAnswers[i]||0),0);
+    const sev = phq9Severity(total);
+    const profile = { id:uid(), date:today(), total, severity:sev, answers:{...phqAnswers},
+      flagItem9: (phqAnswers[8]||0) > 0 };
+    onSavePhq9(profile);
+    setView("phq9_profile");
+  };
+
+  // ── Score GAD-7 ───────────────────────────────────────────────────────
+  const scoreGad7 = () => {
+    const total = GAD7_QUESTIONS.reduce((s,_,i)=>s+(gadAnswers[i]||0),0);
+    const sev = gad7Severity(total);
+    const profile = { id:uid(), date:today(), total, severity:sev, answers:{...gadAnswers} };
+    onSaveGad7(profile);
+    setView("gad7_profile");
+  };
+
+  // ── Score Self-Compassion Scale ───────────────────────────────────────
+  const scoreScs = () => {
+    const scores = SCS_QUESTIONS.map((q,i) => {
+      const raw = scsAnswers[i] || 3;
+      return q.reverse ? (6 - raw) : raw; // reverse-score where needed
+    });
+    const avg = scores.reduce((s,v)=>s+v,0) / scores.length;
+    const level = scsLevel(avg);
+    const profile = { id:uid(), date:today(), avg: Math.round(avg*100)/100, level, answers:{...scsAnswers} };
+    onSaveScs(profile);
+    setView("scs_profile");
+  };
+
+  // ── Score Worry/Rumination Scale ──────────────────────────────────────
+  const scoreWorry = () => {
+    const scores = WORRY_QUESTIONS.map((q,i) => {
+      const raw = worryAnswers[i] || 3;
+      return i===7 ? (6 - raw) : raw; // last item is reverse-scored ("I find it easy to dismiss...")
+    });
+    const total = scores.reduce((s,v)=>s+v,0);
+    const level = worryLevel(total);
+    const profile = { id:uid(), date:today(), total, level, answers:{...worryAnswers} };
+    onSaveWorry(profile);
+    setView("worry_profile");
+  };
+
+  // ── Master Summary — combine ALL assessments ─────────────────────────
+  const completedCount = [valuesProfile, dasProfile, goalsProfile, phq9Profile, gad7Profile, scsProfile, worryProfile].filter(Boolean).length;
+
+  const generateMasterSummary = async () => {
+    setMasterLoading(true);
+    const parts = [];
+    if(valuesProfile) parts.push(`VALUES (VLQ): Top values are ${valuesProfile.top3?.map(v=>v.label).join(", ")}. ${valuesProfile.gaps?.length>0 ? `Biggest gaps (important but not lived): ${valuesProfile.gaps.map(g=>g.label).join(", ")}.` : ""}`);
+    if(dasProfile) parts.push(`CORE BELIEFS (DAS): Vulnerable domains: ${dasProfile.highest?.map(d=>d.label).join(", ")||"none significant"}. Strengths: ${dasProfile.lowest?.map(d=>d.label).join(", ")||"none notable"}.`);
+    if(limitingBeliefs?.length>0) parts.push(`LIMITING BELIEFS: ${limitingBeliefs.length} examined, most recent: "${limitingBeliefs[0]?.answers?.lb1}".`);
+    if(goalsProfile) parts.push(`GOALS: Best-positioned goal "${goalsProfile.strongest?.[0]?.text}" (${goalsProfile.strongest?.[0]?.successScore}/100). At-risk: ${goalsProfile.atRisk?.map(g=>g.text).join(", ")||"none"}.`);
+    if(phq9Profile) parts.push(`DEPRESSION SCREENING (PHQ-9): ${phq9Profile.severity.label} (score ${phq9Profile.total}/27).`);
+    if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity.label} (score ${gad7Profile.total}/21).`);
+    if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level.label} (avg ${scsProfile.avg}/5).`);
+    if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level.label} (score ${worryProfile.total}/40).`);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, an integrative CBT/ACT therapist. A person has completed several validated psychological assessments in their wellness app. Here are all their results:
+
+${parts.join("\n\n")}
+
+Write a warm, clinically-grounded, INTEGRATED summary (6-8 sentences) that connects the dots across assessments rather than repeating each one separately. Specifically:
+1. Identify the SINGLE most important pattern connecting 2+ assessments (e.g. low self-compassion + high perfectionism + values gap in self-care all pointing to the same root issue)
+2. Note any concerning combinations gently but honestly (e.g. elevated depression/anxiety screening alongside low self-compassion)
+3. Highlight genuine strengths shown across the assessments
+4. Give ONE clear, specific, actionable recommendation for what to focus on first — naming which BeeWell tool would help most (Courtroom, Defusion Board, Behavioural Activation, Willingness Meter, etc.)
+5. End with one warm, grounding sentence
+
+Be specific to THEIR actual results, not generic. No preamble, no bullet points — flowing warm prose.`}]);
+      onSaveMasterSummary({ id:uid(), date:today(), summary:reply, basedOn:completedCount });
+      setView("master_summary");
+    } catch(e) {
+      onSaveMasterSummary({ id:uid(), date:today(), summary:"Bea couldn't generate a summary right now — please try again.", basedOn:completedCount });
+      setView("master_summary");
+    } finally { setMasterLoading(false); }
+  };
+
   // ── HOME ───────────────────────────────────────────────────────────────
   if(view==="home") return (
     <div>
@@ -2927,7 +3114,7 @@ Be specific to their actual goals and ratings. No preamble.`}]);
       </div>
 
       {/* Personal Goals Questionnaire */}
-      <div style={{...card,borderTop:`3px solid ${PALETTE.sage}`}}>
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.sage}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
           <span style={{fontSize:24}}>📋</span>
           <div>
@@ -2951,6 +3138,114 @@ Be specific to their actual goals and ratings. No preamble.`}]);
             style={{...btnStyle(PALETTE.sage,true),flex:1}}>View Results</button>}
         </div>
       </div>
+
+      {/* PHQ-9 Depression Screening */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid #5B9BD5`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌧️</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Mood Screening (PHQ-9)</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {phq9Profile ? `${fmtDate(phq9Profile.date)} · ${phq9Profile.severity.label} (${phq9Profile.total}/27)` : "9 questions · Standard depression screening tool"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setPhqAnswers({});setPhqStep(0);setView("phq9_q");}}
+            style={{...btnStyle("#5B9BD5"),flex:1}}>
+            {phq9Profile ? "Redo Screening" : "Start Screening"}
+          </button>
+          {phq9Profile && <button onClick={()=>setView("phq9_profile")}
+            style={{...btnStyle("#5B9BD5",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* GAD-7 Anxiety Screening */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid #9B8BC4`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌀</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Anxiety Screening (GAD-7)</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {gad7Profile ? `${fmtDate(gad7Profile.date)} · ${gad7Profile.severity.label} (${gad7Profile.total}/21)` : "7 questions · Standard anxiety screening tool"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setGadAnswers({});setGadStep(0);setView("gad7_q");}}
+            style={{...btnStyle("#9B8BC4"),flex:1}}>
+            {gad7Profile ? "Redo Screening" : "Start Screening"}
+          </button>
+          {gad7Profile && <button onClick={()=>setView("gad7_profile")}
+            style={{...btnStyle("#9B8BC4",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Self-Compassion Scale */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid #E8737A`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🤲</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Self-Compassion Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {scsProfile ? `${fmtDate(scsProfile.date)} · ${scsProfile.level.label} (${scsProfile.avg}/5)` : "10 questions · How kind are you to yourself?"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setScsAnswers({});setScsStep(0);setView("scs_q");}}
+            style={{...btnStyle("#E8737A"),flex:1}}>
+            {scsProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {scsProfile && <button onClick={()=>setView("scs_profile")}
+            style={{...btnStyle("#E8737A",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Worry/Rumination Tendency */}
+      <div style={{...card,borderTop:`3px solid #7B4A8B`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌪️</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Worry & Rumination Tendency</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {worryProfile ? `${fmtDate(worryProfile.date)} · ${worryProfile.level.label} (${worryProfile.total}/40)` : "8 questions · How much do you get stuck in thought loops?"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setWorryAnswers({});setWorryStep(0);setView("worry_q");}}
+            style={{...btnStyle("#7B4A8B"),flex:1}}>
+            {worryProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {worryProfile && <button onClick={()=>setView("worry_profile")}
+            style={{...btnStyle("#7B4A8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Master Summary */}
+      {completedCount>=2 && (
+        <div style={{...card,marginTop:12,background:`linear-gradient(135deg,${PALETTE.honey}15,${PALETTE.lavender}15)`,
+          border:`2px solid ${PALETTE.honey}55`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <BeeMascot size={32}/>
+            <div>
+              <div style={{fontWeight:800,color:PALETTE.dark,fontSize:16}}>🐝 My Full Picture</div>
+              <div style={{fontSize:12,color:PALETTE.soft}}>
+                {masterSummary ? `Last generated ${fmtDate(masterSummary.date)} · Based on ${completedCount} assessments` : `Based on ${completedCount} completed assessments — let Bea connect the dots`}
+              </div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={generateMasterSummary} disabled={masterLoading}
+              style={{...btnStyle(PALETTE.honey),flex:1}}>
+              {masterLoading?"🐝 Bea is connecting the dots…":(masterSummary?"Regenerate Summary":"Generate My Summary")}
+            </button>
+            {masterSummary && <button onClick={()=>setView("master_summary")}
+              style={{...btnStyle(PALETTE.honey,true),flex:1}}>View Summary</button>}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -3765,6 +4060,413 @@ Be specific to their actual goals and ratings. No preamble.`}]);
         }}
         style={{...btnStyle(PALETTE.sage,true),width:"100%",marginTop:16}}>
         Redo Assessment
+      </button>
+    </div>
+  );
+
+  // ── PHQ-9 QUESTIONNAIRE ──────────────────────────────────────────────────
+  if(view==="phq9_q") {
+    const i = phqStep;
+    const total = PHQ9_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = PHQ9_QUESTIONS.every((_,idx)=>phqAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌧️ Mood Screening (PHQ-9)</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Over the last 2 weeks, how often have you been bothered by the following?
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#5B9BD5",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #5B9BD5"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{PHQ9_QUESTIONS[i]}</p>
+        </div>
+        {i===8 && (
+          <div style={{...card,marginBottom:16,background:"#FFF8F0",border:"1px solid #E8891A44"}}>
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
+              💛 This question matters. If you are having thoughts of self-harm, please know support is available — talking to a doctor, calling a crisis line, or telling someone you trust are all real options, right now.
+            </p>
+          </div>
+        )}
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {PHQ9_SCALE.map(opt=>{
+            const sel = phqAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setPhqAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setPhqStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#5B9BD5":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #5B9BD566":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setPhqStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>phqAnswers[i]!==undefined&&setPhqStep(s=>s+1)} disabled={phqAnswers[i]===undefined}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:phqAnswers[i]!==undefined?1:0.4}}>Next →</button>
+          ) : (
+            <button onClick={scorePhq9} disabled={!allAnswered}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PHQ-9 RESULTS ────────────────────────────────────────────────────────
+  if(view==="phq9_profile" && phq9Profile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🌧️ Mood Screening Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(phq9Profile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${phq9Profile.severity.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:phq9Profile.severity.color}}>{phq9Profile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 27</div>
+        <div style={{display:"inline-block",background:phq9Profile.severity.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {phq9Profile.severity.label}
+        </div>
+      </div>
+      {phq9Profile.flagItem9 && (
+        <div style={{...card,marginBottom:16,background:"#FFF0F0",border:"1.5px solid #8B1A1A44"}}>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.6}}>
+            💛 You indicated some thoughts of self-harm. Please consider reaching out to a doctor, crisis line, or someone you trust — you deserve support, and it is available.
+          </p>
+        </div>
+      )}
+      <div style={{...card,background:"#F8F8F8"}}>
+        <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
+          This is a screening tool, not a diagnosis. Scores of 10+ are typically discussed with a GP or therapist. Tracking this monthly can help show patterns over time.
+        </p>
+      </div>
+      <button onClick={()=>{setPhqAnswers({});setPhqStep(0);setView("phq9_q");}}
+        style={{...btnStyle("#5B9BD5",true),width:"100%",marginTop:16}}>Redo Screening</button>
+    </div>
+  );
+
+  // ── GAD-7 QUESTIONNAIRE ──────────────────────────────────────────────────
+  if(view==="gad7_q") {
+    const i = gadStep;
+    const total = GAD7_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = GAD7_QUESTIONS.every((_,idx)=>gadAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌀 Anxiety Screening (GAD-7)</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Over the last 2 weeks, how often have you been bothered by the following?
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#9B8BC4",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #9B8BC4"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{GAD7_QUESTIONS[i]}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {PHQ9_SCALE.map(opt=>{
+            const sel = gadAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setGadAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setGadStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#9B8BC4":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #9B8BC466":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setGadStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>gadAnswers[i]!==undefined&&setGadStep(s=>s+1)} disabled={gadAnswers[i]===undefined}
+              style={{...btnStyle("#9B8BC4"),flex:1,opacity:gadAnswers[i]!==undefined?1:0.4}}>Next →</button>
+          ) : (
+            <button onClick={scoreGad7} disabled={!allAnswered}
+              style={{...btnStyle("#9B8BC4"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── GAD-7 RESULTS ────────────────────────────────────────────────────────
+  if(view==="gad7_profile" && gad7Profile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🌀 Anxiety Screening Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(gad7Profile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${gad7Profile.severity.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:gad7Profile.severity.color}}>{gad7Profile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 21</div>
+        <div style={{display:"inline-block",background:gad7Profile.severity.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {gad7Profile.severity.label}
+        </div>
+      </div>
+      <div style={{...card,background:"#F8F8F8"}}>
+        <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
+          This is a screening tool, not a diagnosis. Scores of 10+ are typically discussed with a GP or therapist.
+        </p>
+      </div>
+      <button onClick={()=>{setGadAnswers({});setGadStep(0);setView("gad7_q");}}
+        style={{...btnStyle("#9B8BC4",true),width:"100%",marginTop:16}}>Redo Screening</button>
+    </div>
+  );
+
+  // ── SELF-COMPASSION SCALE ────────────────────────────────────────────────
+  if(view==="scs_q") {
+    const i = scsStep;
+    const total = SCS_QUESTIONS.length;
+    const q = SCS_QUESTIONS[i];
+    const progress = Math.round((i/total)*100);
+    const allAnswered = SCS_QUESTIONS.every((_,idx)=>scsAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🤲 Self-Compassion Scale</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          How often do you behave this way when you are having a hard time?
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#E8737A",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #E8737A"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{q.text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {SCS_SCALE.map(opt=>{
+            const sel = scsAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setScsAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setScsStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#E8737A":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #E8737A66":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setScsStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>scsAnswers[i]!==undefined&&setScsStep(s=>s+1)} disabled={scsAnswers[i]===undefined}
+              style={{...btnStyle("#E8737A"),flex:1,opacity:scsAnswers[i]!==undefined?1:0.4}}>Next →</button>
+          ) : (
+            <button onClick={scoreScs} disabled={!allAnswered}
+              style={{...btnStyle("#E8737A"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── SELF-COMPASSION RESULTS ───────────────────────────────────────────────
+  if(view==="scs_profile" && scsProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🤲 Self-Compassion Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(scsProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${scsProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:scsProfile.level.color}}>{scsProfile.avg}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 5</div>
+        <div style={{display:"inline-block",background:scsProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {scsProfile.level.label}
+        </div>
+      </div>
+      <div style={{...card,background:`${PALETTE.lavender}0D`}}>
+        <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
+          Self-compassion means treating yourself with the same kindness you would offer a good friend going through a hard time. This score can genuinely shift with practice — your Courtroom and Limiting Beliefs work directly build this skill.
+        </p>
+      </div>
+      <button onClick={()=>{setScsAnswers({});setScsStep(0);setView("scs_q");}}
+        style={{...btnStyle("#E8737A",true),width:"100%",marginTop:16}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── WORRY/RUMINATION SCALE ───────────────────────────────────────────────
+  if(view==="worry_q") {
+    const i = worryStep;
+    const total = WORRY_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = WORRY_QUESTIONS.every((_,idx)=>worryAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌪️ Worry & Rumination Tendency</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          How typical is each statement of you?
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#7B4A8B",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #7B4A8B"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{WORRY_QUESTIONS[i]}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {WORRY_SCALE.map(opt=>{
+            const sel = worryAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setWorryAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setWorryStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#7B4A8B":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #7B4A8B66":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setWorryStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>worryAnswers[i]!==undefined&&setWorryStep(s=>s+1)} disabled={worryAnswers[i]===undefined}
+              style={{...btnStyle("#7B4A8B"),flex:1,opacity:worryAnswers[i]!==undefined?1:0.4}}>Next →</button>
+          ) : (
+            <button onClick={scoreWorry} disabled={!allAnswered}
+              style={{...btnStyle("#7B4A8B"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── WORRY RESULTS ────────────────────────────────────────────────────────
+  if(view==="worry_profile" && worryProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🌪️ Worry & Rumination Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(worryProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${worryProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:worryProfile.level.color}}>{worryProfile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 40</div>
+        <div style={{display:"inline-block",background:worryProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {worryProfile.level.label}
+        </div>
+      </div>
+      <div style={{...card,background:`${PALETTE.lavender}0D`,marginBottom:12}}>
+        <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
+          If this score is high, the Defusion Board in your ACT Toolkit was built exactly for this pattern — try "Clouds Passing" or "Leaves on a Stream" next time worry takes hold.
+        </p>
+      </div>
+      <button onClick={()=>{setWorryAnswers({});setWorryStep(0);setView("worry_q");}}
+        style={{...btnStyle("#7B4A8B",true),width:"100%"}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── MASTER SUMMARY ───────────────────────────────────────────────────────
+  if(view==="master_summary" && masterSummary) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🐝 My Full Picture</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>
+        Generated {fmtDate(masterSummary.date)} · Based on {masterSummary.basedOn} completed assessments
+      </p>
+
+      {/* Quick reference grid of all completed assessments */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+        {valuesProfile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🧭 TOP VALUE</div>
+            <div style={{fontSize:13,fontWeight:700,color:PALETTE.dark}}>{valuesProfile.top3?.[0]?.label}</div>
+          </div>
+        )}
+        {dasProfile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🧠 WATCH FOR</div>
+            <div style={{fontSize:13,fontWeight:700,color:PALETTE.dark}}>{dasProfile.highest?.[0]?.label||"—"}</div>
+          </div>
+        )}
+        {phq9Profile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🌧️ MOOD</div>
+            <div style={{fontSize:13,fontWeight:700,color:phq9Profile.severity.color}}>{phq9Profile.severity.label}</div>
+          </div>
+        )}
+        {gad7Profile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🌀 ANXIETY</div>
+            <div style={{fontSize:13,fontWeight:700,color:gad7Profile.severity.color}}>{gad7Profile.severity.label}</div>
+          </div>
+        )}
+        {scsProfile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🤲 SELF-COMPASSION</div>
+            <div style={{fontSize:13,fontWeight:700,color:scsProfile.level.color}}>{scsProfile.level.label}</div>
+          </div>
+        )}
+        {worryProfile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🌪️ WORRY</div>
+            <div style={{fontSize:13,fontWeight:700,color:worryProfile.level.color}}>{worryProfile.level.label}</div>
+          </div>
+        )}
+        {goalsProfile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>📋 BEST GOAL</div>
+            <div style={{fontSize:13,fontWeight:700,color:PALETTE.dark}}>{goalsProfile.strongest?.[0]?.successScore}/100</div>
+          </div>
+        )}
+      </div>
+
+      {/* Bea's integrated summary */}
+      <div style={{...card,background:`linear-gradient(135deg,${PALETTE.honey}12,${PALETTE.lavender}12)`,
+        border:`2px solid ${PALETTE.honey}44`,padding:20}}>
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+          <BeeMascot size={36}/>
+          <span style={{fontWeight:800,color:PALETTE.dark,fontSize:15}}>Bea's Integrated Reflection</span>
+        </div>
+        <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.9}}>{masterSummary.summary}</p>
+      </div>
+
+      <button onClick={generateMasterSummary} disabled={masterLoading}
+        style={{...btnStyle(PALETTE.honey,true),width:"100%",marginTop:16}}>
+        {masterLoading?"🐝 Regenerating…":"Regenerate Summary"}
       </button>
     </div>
   );
@@ -4679,6 +5381,11 @@ export default function BeeWell() {
   const [smartPlans, setSmartPlans] = useState([]);           // saved SMART plans
   const [dasProfile, setDasProfile] = useState(null);         // Dysfunctional Attitude Scale results
   const [goalsProfile, setGoalsProfile] = useState(null);     // Personal Goals Questionnaire results
+  const [phq9Profile, setPhq9Profile] = useState(null);       // PHQ-9 depression screening
+  const [gad7Profile, setGad7Profile] = useState(null);       // GAD-7 anxiety screening
+  const [scsProfile, setScsProfile]   = useState(null);       // Self-Compassion Scale
+  const [worryProfile, setWorryProfile] = useState(null);     // Rumination/Worry tendency
+  const [masterSummary, setMasterSummary] = useState(null);   // Combined AI summary across all assessments
 
   useEffect(()=>{
     const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
@@ -4820,6 +5527,16 @@ export default function BeeWell() {
           onSaveDas={setDasProfile}
           goalsProfile={goalsProfile}
           onSaveGoals={setGoalsProfile}
+          phq9Profile={phq9Profile}
+          onSavePhq9={setPhq9Profile}
+          gad7Profile={gad7Profile}
+          onSaveGad7={setGad7Profile}
+          scsProfile={scsProfile}
+          onSaveScs={setScsProfile}
+          worryProfile={worryProfile}
+          onSaveWorry={setWorryProfile}
+          masterSummary={masterSummary}
+          onSaveMasterSummary={setMasterSummary}
         />}
         {tab==="act"      && <ACTToolkit valuesProfile={valuesProfile} limitingBeliefs={limitingBeliefs} dasProfile={dasProfile} goalsProfile={goalsProfile}/>}
         {tab==="ground"   && <Grounding/>}

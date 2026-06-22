@@ -468,6 +468,11 @@ const btnStyle = (bg=PALETTE.honey, small=false) => ({
 });
 
 // ── AI chat helper ────────────────────────────────────────────────────────────
+// Set by the main app once the person's name is known, so every askBee call
+// can personalise its system prompt without threading userName through every call site.
+let _beeUserName = "";
+function setBeeUserName(name) { _beeUserName = name || ""; }
+
 async function askBee(messages) {
   try {
     const res = await fetch("/api/ai", {
@@ -477,6 +482,7 @@ async function askBee(messages) {
         model:"claude-sonnet-4-6",
         max_tokens:1000,
         system:`You are Bea — a warm, gentle bee therapist mascot for BeeWell, a mental wellness app.
+${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use their name naturally and sparingly where it feels warm — not in every message, and never forced.` : ""}
 You are non-judgmental, supportive, and use calm, encouraging language.
 Keep responses concise (2-4 sentences) and conversational.
 Occasionally use 🐝 at the end of a thought, but sparingly.
@@ -499,35 +505,56 @@ You guide users through CBT tools, mood tracking, and grounding exercises with c
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
-function Onboarding({ onDone }) {
+function Onboarding({ onDone, onSaveName, userName }) {
   const [step, setStep] = useState(0);
+  const [nameInput, setNameInput] = useState(userName || "");
   const steps = [
     { title:"Welcome to your Hive 🍯", body:"This is your private, safe space. Everything here belongs to you — no judgement, no pressure, just support whenever you need it.", emoji:"🏡" },
     { title:"Meet Bea 🐝", body:"I'm Bea, your gentle bee therapist. I'm here to listen, guide you through tools, and cheer you on. You're never alone in the hive.", emoji:null, bee:true },
+    { title:"What should I call you?", body:"", emoji:null, nameStep:true },
     { title:"Track your mood", body:"Log how you're feeling each day — I'll quietly spot patterns and help you understand yourself better over time.", emoji:"📊" },
     { title:"Your Feel Better Box", body:"Save everything that lifts you up: songs, quotes, photos, moments. Pull it open any time you need a lift.", emoji:"💛" },
     { title:"Let things go", body:"When worries feel heavy, you can store them safely or release them — send them to the sea, the sky, wherever feels right.", emoji:"🌊" },
     { title:"Thought Courtroom", body:"When a difficult thought won't leave you alone, we'll examine it together — fairly, gently — and find a balanced truth.", emoji:"⚖️" },
   ];
   const s = steps[step];
+
+  const handleNext = () => {
+    if(s.nameStep) onSaveName?.(nameInput.trim());
+    if(step < steps.length-1) setStep(st=>st+1);
+    else onDone();
+  };
+
   return (
     <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${PALETTE.comb} 0%,#FFF5D6 100%)`,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{maxWidth:360,textAlign:"center"}}>
         <div style={{marginBottom:16}}>
-          {s.bee ? <BeeMascot size={100} outfit="therapist" animated/> : <div style={{fontSize:72}}>{s.emoji}</div>}
+          {s.bee ? <BeeMascot size={100} outfit="therapist" animated/> : s.nameStep ? <BeeMascot size={80} outfit="therapist"/> : <div style={{fontSize:72}}>{s.emoji}</div>}
         </div>
         <h2 style={{fontFamily:"Georgia,serif",fontSize:24,color:PALETTE.dark,marginBottom:12}}>{s.title}</h2>
-        <p style={{color:PALETTE.mid,fontSize:16,lineHeight:1.6,marginBottom:32}}>{s.body}</p>
+        {s.nameStep ? (
+          <div style={{marginBottom:32}}>
+            <p style={{color:PALETTE.mid,fontSize:15,lineHeight:1.6,marginBottom:14}}>
+              I'd love to know what to call you — it'll just feel a bit more like us, not just an app. Totally optional.
+            </p>
+            <input value={nameInput} onChange={e=>setNameInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&handleNext()}
+              placeholder="Your name, or whatever you'd like to be called"
+              style={{...inputStyle,width:"100%",boxSizing:"border-box",textAlign:"center",fontSize:16}}/>
+          </div>
+        ) : (
+          <p style={{color:PALETTE.mid,fontSize:16,lineHeight:1.6,marginBottom:32}}>{s.body}</p>
+        )}
         <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
           {steps.map((_,i)=>(
             <div key={i} style={{width:8,height:8,borderRadius:4,
               background:i===step?PALETTE.honey:"#DDD",transition:"background .2s"}}/>
           ))}
         </div>
-        <button onClick={()=> step<steps.length-1 ? setStep(s=>s+1) : onDone()}
+        <button onClick={handleNext}
           style={btnStyle()}>
-          {step<steps.length-1 ? "Next →" : "Enter My Hive 🍯"}
+          {s.nameStep ? (nameInput.trim() ? `Nice to meet you, ${nameInput.trim()} →` : "Skip for now →") : step<steps.length-1 ? "Next →" : "Enter My Hive 🍯"}
         </button>
       </div>
     </div>
@@ -535,7 +562,7 @@ function Onboarding({ onDone }) {
 }
 
 // ── Mood Tracker ──────────────────────────────────────────────────────────────
-function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
+function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, valuesProfile=null, dasProfile=null, ysqProfile=null, fcsProfile=null, phq9Profile=null, gad7Profile=null, pcl5Profile=null, masterSummary=null, problemCount=0, onQuickEating=null, onQuickLoop=null, lastProblem=null, onDismissCheckIn=null, userName="" }) {
   // step: "emotion" → "rating" → "followup" → "done"
   const [step, setStep]       = useState("emotion");
   const [emotion, setEmotion] = useState(null);
@@ -544,6 +571,25 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
   const [saved, setSaved]     = useState(false);
 
   const reset = () => { setStep("emotion"); setEmotion(null); setRating(null); setFollowupText(""); setSaved(false); };
+
+  // Check-in flow: "ask" → "what_helped" → "saved" (or dismissed entirely)
+  const [checkInStage, setCheckInStage] = useState(lastProblem ? "ask" : null);
+  const [whatHelpedText, setWhatHelpedText] = useState("");
+  const [checkInSaved, setCheckInSaved] = useState(false);
+  useEffect(() => {
+    if(lastProblem && checkInStage===null && !checkInSaved) setCheckInStage("ask");
+  }, [lastProblem?.id]);
+
+  const dismissCheckIn = () => { setCheckInStage(null); onDismissCheckIn?.(); };
+
+  const saveWhatHelped = () => {
+    if(!whatHelpedText.trim()) { dismissCheckIn(); return; }
+    onAddFeel({ id:uid(), text:whatHelpedText.trim(), type:"activity",
+      source:`Helped after feeling ${lastProblem?.emotionLabel||"upset"} about: ${lastProblem?.text?.slice(0,40)||"something"}`,
+      date:today() });
+    setCheckInSaved(true);
+    setTimeout(()=>{ dismissCheckIn(); }, 2200);
+  };
 
   const followupQ = emotion
     ? emotion.valence === "positive"
@@ -592,9 +638,73 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
 
   return (
     <div>
+      {/* Check-in: follow up on the last problem logged */}
+      {checkInStage && step === "emotion" && (
+        <div style={{...card,marginBottom:20,background:`linear-gradient(135deg,${PALETTE.lavender}12,${PALETTE.sky}12)`,
+          border:`1.5px solid ${PALETTE.lavender}44`}}>
+          {checkInStage==="ask" && (
+            <>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <BeeMascot size={32}/>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,color:PALETTE.dark,fontSize:14}}>
+                    {userName ? `Checking in, ${userName} 🐝` : "Checking in 🐝"}
+                  </div>
+                  <div style={{fontSize:12,color:PALETTE.soft}}>
+                    Earlier you mentioned feeling {lastProblem?.emotionLabel ? lastProblem.emotionLabel.toLowerCase() : "upset"} about:
+                  </div>
+                </div>
+              </div>
+              <div style={{background:"white",borderRadius:10,padding:"10px 12px",marginBottom:12,fontSize:13,color:PALETTE.dark,fontStyle:"italic"}}>
+                "{lastProblem?.text?.slice(0,100)}{lastProblem?.text?.length>100?"…":""}"
+              </div>
+              <p style={{fontSize:13,color:PALETTE.mid,margin:"0 0 12px"}}>Are you feeling better now?</p>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setCheckInStage("what_helped")}
+                  style={{...btnStyle(PALETTE.sage),flex:1}}>Yes, better 💛</button>
+                <button onClick={dismissCheckIn}
+                  style={{...btnStyle("#EEE",true),flex:1,color:PALETTE.mid}}>Not yet</button>
+              </div>
+            </>
+          )}
+
+          {checkInStage==="what_helped" && !checkInSaved && (
+            <>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <BeeMascot size={32}/>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,color:PALETTE.dark,fontSize:14}}>That's good to hear 🌸</div>
+                  <div style={{fontSize:12,color:PALETTE.soft}}>What helped you feel better?</div>
+                </div>
+              </div>
+              <textarea value={whatHelpedText} onChange={e=>setWhatHelpedText(e.target.value)}
+                placeholder="e.g. I wrote a song about it and played it…"
+                style={{...textareaStyle,minHeight:70,marginBottom:10}}/>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={saveWhatHelped} disabled={!whatHelpedText.trim()}
+                  style={{...btnStyle(PALETTE.sage),flex:1,opacity:whatHelpedText.trim()?1:0.4}}>
+                  Save to Feel Better Box 💛
+                </button>
+                <button onClick={dismissCheckIn}
+                  style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>Skip</button>
+              </div>
+            </>
+          )}
+
+          {checkInSaved && (
+            <div style={{textAlign:"center",padding:"8px 0"}}>
+              <div style={{fontSize:32,marginBottom:6}}>💛</div>
+              <p style={{margin:0,fontSize:13,color:PALETTE.sage,fontWeight:600}}>
+                Saved! Next time this comes up, Bea will remember this helped.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Step 1 — Pick emotion group then specific emotion */}
       {step === "emotion" && <>
-        <h3 style={sectionTitle}>How are you feeling right now?</h3>
+        <h3 style={sectionTitle}>{userName ? `How are you feeling right now, ${userName}?` : "How are you feeling right now?"}</h3>
         <p style={{color:PALETTE.soft,fontSize:13,marginBottom:20}}>Choose a group to see your options.</p>
 
         {/* Three big attractive group buttons */}
@@ -673,6 +783,113 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult }) {
             )}
           </div>
         ))}
+
+        {/* Therapeutic Profile snapshot */}
+        {(() => {
+          const completedAny = [valuesProfile, dasProfile, ysqProfile, fcsProfile, phq9Profile, gad7Profile, pcl5Profile].filter(Boolean).length;
+          return (
+            <div style={{...card,background:`linear-gradient(135deg,${PALETTE.honey}10,${PALETTE.lavender}10)`,
+              border:`1.5px solid ${PALETTE.honey}33`}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <BeeMascot size={32}/>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,color:PALETTE.dark,fontSize:14}}>Your Therapeutic Profile</div>
+                  <div style={{fontSize:11,color:PALETTE.soft}}>
+                    {completedAny>0 ? `${completedAny} assessment${completedAny===1?"":"s"} completed` : "No assessments completed yet"}
+                  </div>
+                </div>
+                {problemCount>0 && (
+                  <div style={{
+                    background:PALETTE.lavender,color:"white",borderRadius:999,
+                    padding:"4px 10px",fontSize:11,fontWeight:700,
+                  }}>
+                    📦 {problemCount}
+                  </div>
+                )}
+              </div>
+
+              {completedAny>0 ? (
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                  {valuesProfile?.top3?.[0] && (
+                    <span style={{fontSize:11,background:"white",color:PALETTE.mid,padding:"4px 10px",borderRadius:999}}>
+                      🧭 {valuesProfile.top3[0].label}
+                    </span>
+                  )}
+                  {dasProfile?.highest?.[0] && (
+                    <span style={{fontSize:11,background:"white",color:PALETTE.mid,padding:"4px 10px",borderRadius:999}}>
+                      🧠 {dasProfile.highest[0].label}
+                    </span>
+                  )}
+                  {ysqProfile?.top3?.[0] && (
+                    <span style={{fontSize:11,background:"white",color:PALETTE.mid,padding:"4px 10px",borderRadius:999}}>
+                      🧸 {ysqProfile.top3[0].label}
+                    </span>
+                  )}
+                  {fcsProfile?.highest && (
+                    <span style={{fontSize:11,background:"white",color:PALETTE.mid,padding:"4px 10px",borderRadius:999}}>
+                      🪞 {fcsProfile.highest.label}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p style={{fontSize:12,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+                  Complete assessments in Values & Goals to help Bea recommend the right tool when something's bothering you.
+                </p>
+              )}
+
+              <div style={{display:"flex",gap:8}}>
+                {completedAny>=2 && masterSummary ? (
+                  <button onClick={()=>onSetTab?.("values")}
+                    style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>
+                    🐝 View Full Picture
+                  </button>
+                ) : (
+                  <button onClick={()=>onSetTab?.("values")}
+                    style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>
+                    {completedAny>0 ? "More Assessments" : "Start an Assessment"}
+                  </button>
+                )}
+                <button onClick={()=>onSetTab?.("difficult")}
+                  style={{...btnStyle(PALETTE.lavender,true),flex:1,fontSize:12}}>
+                  📦 Problem Box
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Quick-access: catch the urge before it happens — smaller, secondary placement */}
+        <button onClick={()=>onQuickEating?.()}
+          style={{
+            width:"100%",marginTop:8,marginBottom:8,padding:"10px 14px",
+            background:"rgba(232,137,26,0.10)",
+            border:"1px solid rgba(232,137,26,0.3)",borderRadius:12,cursor:"pointer",
+            display:"flex",alignItems:"center",gap:8,
+          }}>
+          <span style={{fontSize:18}}>🍽️</span>
+          <div style={{textAlign:"left",flex:1}}>
+            <div style={{color:PALETTE.amber,fontWeight:700,fontSize:12}}>Want to eat but not hungry?</div>
+            <div style={{color:PALETTE.soft,fontSize:10}}>Tap before you do — let's see what you need</div>
+          </div>
+          <span style={{color:PALETTE.amber,fontSize:14}}>→</span>
+        </button>
+
+        {/* Quick-access: stuck in a thought loop right now */}
+        <button onClick={()=>onQuickLoop?.()}
+          style={{
+            width:"100%",marginBottom:16,padding:"10px 14px",
+            background:"rgba(58,107,139,0.10)",
+            border:"1px solid rgba(58,107,139,0.3)",borderRadius:12,cursor:"pointer",
+            display:"flex",alignItems:"center",gap:8,
+          }}>
+          <span style={{fontSize:18}}>🌀</span>
+          <div style={{textAlign:"left",flex:1}}>
+            <div style={{color:"#3A6B8B",fontWeight:700,fontSize:12}}>Stuck on a thought loop right now?</div>
+            <div style={{color:PALETTE.soft,fontSize:10}}>Tap to interrupt it</div>
+          </div>
+          <span style={{color:"#3A6B8B",fontSize:14}}>→</span>
+        </button>
+
       </>}
 
       {/* Step 2 — Rate 1–10 */}
@@ -922,7 +1139,7 @@ function FeelBetterBox({ items, onAdd, onDelete, valuesProfile=null }) {
 }
 
 // ── Problem Box ──────────────────────────────────────────────────────────────
-function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab }) {
+function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab, feelItems=[], valuesProfile=null, dasProfile=null, ysqProfile=null, fcsProfile=null, phq9Profile=null, gad7Profile=null, pcl5Profile=null, griefEntries=[], eatingEntries=[] }) {
   const [chestOpen, setChestOpen]   = useState(false);
   const [newText, setNewText]       = useState("");
   const [justDropped, setJustDropped] = useState(false);
@@ -930,6 +1147,8 @@ function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab }) {
   const [releasing, setReleasing]   = useState(null);
   const [beaSuggestion, setBeaSuggestion] = useState(null);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [feelBoxMatch, setFeelBoxMatch] = useState(null);
+  const [loadingFeelMatch, setLoadingFeelMatch] = useState(false);
 
   const stored  = items.filter(i=>i.status==="stored");
   const pending = items.filter(i=>i.status==="pending");
@@ -949,23 +1168,57 @@ function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab }) {
     setTimeout(()=>{ setChestOpen(false); setJustDropped(false); }, 1000);
   };
 
-  // ── Bea detects best tool ────────────────────────────────────────────────
+  // ── Build a compact profile summary for Bea to reason over ──────────────
+  const buildProfileContext = () => {
+    const parts = [];
+    if(valuesProfile?.top3) parts.push(`Top values: ${valuesProfile.top3.map(v=>v.label).join(", ")}.${valuesProfile.gaps?.length>0?` Values gaps: ${valuesProfile.gaps.map(g=>g.label).join(", ")}.`:""}`);
+    if(dasProfile?.highest?.length>0) parts.push(`Dysfunctional belief vulnerabilities: ${dasProfile.highest.map(d=>d.label).join(", ")}.`);
+    if(ysqProfile?.top3?.length>0) parts.push(`Childhood schema patterns: ${ysqProfile.top3.map(s=>s.label).join(", ")}. Active schema mode: ${ysqProfile.activeModes?.[0]?.label||"none notable"}.`);
+    if(fcsProfile?.highest) parts.push(`Fear of compassion: highest is ${fcsProfile.highest.label}.`);
+    if(phq9Profile) parts.push(`Mood screening (PHQ-9): ${phq9Profile.severity.label}.`);
+    if(gad7Profile) parts.push(`Anxiety screening (GAD-7): ${gad7Profile.severity.label}.`);
+    if(pcl5Profile) parts.push(`Trauma screening (PCL-5): ${pcl5Profile.severity.label}.`);
+    if(griefEntries?.length>0) parts.push(`Has logged ${griefEntries.length} grief entr${griefEntries.length===1?"y":"ies"} — most recent loss: "${griefEntries[0]?.answers?.who}".`);
+    if(eatingEntries?.length>0) parts.push(`Has logged ${eatingEntries.length} emotional eating entr${eatingEntries.length===1?"y":"ies"} — most common trigger feeling: ${eatingEntries[0]?.emotionLabel}.`);
+    return parts.length>0 ? parts.join("\n") : "No assessment profile completed yet.";
+  };
+
+  // ── Bea detects best tool, reasoning over the person's full profile ─────
   const getBeaSuggestion = async (text) => {
     setLoadingSuggest(true);
     setBeaSuggestion(null);
+    const profileContext = buildProfileContext();
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, a CBT/ACT bee therapist. Someone has this problem or worry: "${text}"
-Based on this, recommend the SINGLE best therapy tool from these options:
-- Courtroom (CBT thought trial — best for negative self-beliefs, "I am..." thoughts, black-and-white thinking)
-- ACT Matrix (best for avoidance patterns, values conflicts, "stuck" feelings)
-- Defusion (best for repetitive intrusive thoughts that won't go away)
-- Bea Chat (best for processing emotions, feeling heard, general support)
-- Release to Sea (best for worries outside their control, past events, things they cannot change)
+        `You are Bea, an integrative therapist with CBT, ACT, Schema Therapy and Compassion-Focused Therapy training.
+
+Someone has this problem or worry: "${text}"
+
+Here is what you know about this specific person from their completed assessments:
+${profileContext}
+
+Based on BOTH the problem itself AND what you know about this person's specific psychological patterns, recommend the SINGLE best-matched tool from this full list:
+- Courtroom (CBT thought trial — best for negative self-beliefs, black-and-white thinking, "I am..." thoughts)
+- ACT Matrix (best for avoidance patterns, values conflicts, feeling "stuck")
+- Defusion Board (best for repetitive intrusive thoughts, rumination, worry loops)
+- Limited Reparenting (best when the problem connects to a childhood schema pattern, especially Vulnerable Child or Punitive Parent themes)
+- Imagery Rescripting (best when the problem is rooted in a specific painful memory)
+- Mode Check-In (best for quickly identifying which part of them — Vulnerable Child, Punitive Parent, Detached Protector — is active right now)
+- Compassionate Self Practice (best when self-criticism or harshness toward themselves is the core issue)
+- Three Circles Check-In (best when they seem stuck in Threat or Drive mode and need to access calm)
+- Behavioural Activation (best for low motivation, withdrawal, or needing to take a small concrete step)
+- Willingness Meter (best for pain that can't be changed, needing to carry a feeling while still moving forward)
+- Grief Box (best when the problem involves loss of any kind — a person, relationship, or life that used to be)
+- Emotional Eating Support (best when the problem involves eating in response to feelings rather than hunger)
+- Loop Interrupt (best when the problem is a repetitive thought loop about someone else's actions, an argument, or distressing external content like conflict/news — not a self-critical thought)
+- Bea Chat (best for general processing, feeling heard, when nothing else clearly fits)
+- Release to Sea (best for worries entirely outside their control, or things from the past they cannot change)
+
+Choose the tool that best matches BOTH the specific problem AND this person's known patterns — not a generic match.
 
 Reply in this exact format:
-TOOL: [tool name]
-REASON: [one warm sentence explaining why this tool fits this problem]`
+TOOL: [tool name exactly as listed above]
+REASON: [one warm, SPECIFIC sentence explaining why this tool fits — reference their actual pattern if relevant, not generically]`
       }]);
 
       const toolMatch   = reply.match(/TOOL:\s*(.+)/);
@@ -979,14 +1232,59 @@ REASON: [one warm sentence explaining why this tool fits this problem]`
     } finally { setLoadingSuggest(false); }
   };
 
+  // ── Match Feel Better Box items to this specific problem ─────────────────
+  const getFeelBoxMatch = async (text) => {
+    if(feelItems.length===0) { setFeelBoxMatch({ none:true }); return; }
+    setLoadingFeelMatch(true);
+    setFeelBoxMatch(null);
+    try {
+      const indexed = feelItems.slice(0,25);
+      const itemList = indexed.map((i,idx)=>`${idx}: ${i.text} (${i.type})`).join("\n");
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. Someone is dealing with this problem: "${text}"
+
+Here is everything in their personal Feel Better Box, each with an index number:
+${itemList}
+
+Pick 1-3 items whose INDEX NUMBER genuinely connects to THIS SPECIFIC problem (not just generally nice things). If truly nothing fits, say so honestly.
+
+Reply ONLY in this exact format, one line per match:
+INDEX: [number] | REASON: [one specific sentence why this helps with this exact problem]
+
+If nothing fits well, reply only: NONE_FIT`
+      }]);
+      if(reply.includes("NONE_FIT")) {
+        setFeelBoxMatch({ none:true, noFit:true });
+      } else {
+        const matches = [...reply.matchAll(/INDEX:\s*(\d+)\s*\|\s*REASON:\s*(.+)/g)]
+          .map(m => ({ item: indexed[parseInt(m[1])], reason: m[2].trim() }))
+          .filter(m => m.item);
+        if(matches.length===0) setFeelBoxMatch({ none:true, noFit:true });
+        else setFeelBoxMatch({ matches });
+      }
+    } catch(e) {
+      setFeelBoxMatch({ none:true });
+    } finally { setLoadingFeelMatch(false); }
+  };
+
   const toolAction = (toolName) => {
     const map = {
-      "Courtroom":      ()=>onSetTab("court"),
-      "Distortions":    ()=>onSetTab("court"),
-      "ACT Matrix":     ()=>onSetTab("act"),
-      "Defusion":       ()=>onSetTab("act"),
-      "Bea Chat":       ()=>onSetTab("bea"),
-      "Release to Sea": ()=>setReleasing(viewItem?.id || "direct"),
+      "Courtroom":              ()=>onSetTab("court"),
+      "ACT Matrix":             ()=>onSetTab("act"),
+      "Defusion Board":         ()=>onSetTab("act"),
+      "Defusion":               ()=>onSetTab("act"),
+      "Limited Reparenting":    ()=>onSetTab("values"),
+      "Imagery Rescripting":    ()=>onSetTab("values"),
+      "Mode Check-In":          ()=>onSetTab("values"),
+      "Compassionate Self Practice": ()=>onSetTab("values"),
+      "Three Circles Check-In": ()=>onSetTab("values"),
+      "Behavioural Activation": ()=>onSetTab("activate"),
+      "Willingness Meter":      ()=>onSetTab("act"),
+      "Grief Box":              ()=>onSetTab("values"),
+      "Emotional Eating Support": ()=>onSetTab("values"),
+      "Loop Interrupt":           ()=>onSetTab("values"),
+      "Bea Chat":               ()=>onSetTab("bea"),
+      "Release to Sea":         ()=>setReleasing(viewItem?.id || "direct"),
     };
     (map[toolName] || (()=>onSetTab("bea")))();
     setViewItem(null);
@@ -1002,7 +1300,7 @@ REASON: [one warm sentence explaining why this tool fits this problem]`
           onDone={()=>{ onRelease(viewItem.id); setReleasing(null); setViewItem(null); }}
         />
       )}
-      <button onClick={()=>{ setViewItem(null); setBeaSuggestion(null); setLoadingSuggest(false); }}
+      <button onClick={()=>{ setViewItem(null); setBeaSuggestion(null); setLoadingSuggest(false); setFeelBoxMatch(null); setLoadingFeelMatch(false); }}
         style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>
         ← Back to Box
       </button>
@@ -1068,18 +1366,76 @@ REASON: [one warm sentence explaining why this tool fits this problem]`
         </div>
       )}
 
+      {/* Feel Better Box match */}
+      {!feelBoxMatch && !loadingFeelMatch && (
+        <button onClick={()=>getFeelBoxMatch(viewItem.text)}
+          style={{
+            width:"100%",marginBottom:16,padding:"12px 16px",
+            background:`linear-gradient(135deg,#F5C842,#F5A623)`,
+            border:"none",borderRadius:12,cursor:"pointer",
+            display:"flex",alignItems:"center",gap:10,
+          }}>
+          <span style={{fontSize:26}}>💛</span>
+          <div style={{textAlign:"left"}}>
+            <div style={{color:"white",fontWeight:700,fontSize:14}}>Check my Feel Better Box</div>
+            <div style={{color:"rgba(255,255,255,0.85)",fontSize:12}}>Does anything that's helped before fit this?</div>
+          </div>
+        </button>
+      )}
+      {loadingFeelMatch && (
+        <div style={{...card,marginBottom:16,textAlign:"center",padding:16}}>
+          <p style={{color:PALETTE.mid,fontSize:13,margin:0,fontStyle:"italic"}}>💛 Checking your Feel Better Box…</p>
+        </div>
+      )}
+      {feelBoxMatch && (
+        <div style={{...card,marginBottom:16,background:"#F5A6230D",border:"1.5px solid #F5A62344"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontSize:22}}>💛</span>
+            <span style={{fontWeight:700,color:PALETTE.amber,fontSize:14}}>From your Feel Better Box:</span>
+          </div>
+          {feelBoxMatch.none ? (
+            <p style={{margin:0,fontSize:13,color:PALETTE.mid,lineHeight:1.6}}>
+              {feelBoxMatch.noFit
+                ? "Nothing in your box quite fits this one — that's okay, a therapy tool below might be the better path right now."
+                : "Your Feel Better Box is empty right now. As you add things that lift you, Bea will be able to match them to problems like this one."}
+            </p>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {feelBoxMatch.matches.map((m,idx)=>{
+                const typeEmojis = {moment:"✨",activity:"🎯",thought:"💭",quote:"📖",song:"🎵",joy:"🌸"};
+                return (
+                  <div key={idx} style={{background:"white",borderRadius:10,padding:"10px 12px",border:"1px solid #F5A62333"}}>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:4}}>
+                      <span style={{fontSize:16}}>{typeEmojis[m.item.type]||"💛"}</span>
+                      <span style={{fontWeight:700,color:PALETTE.dark,fontSize:13,flex:1}}>{m.item.text}</span>
+                    </div>
+                    <p style={{margin:0,fontSize:12,color:PALETTE.mid,fontStyle:"italic",lineHeight:1.5}}>{m.reason}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* All options */}
       <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:10}}>
         OR CHOOSE YOUR OWN
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {[
-          {label:"⚖️ Thought Courtroom",  sub:"Put this thought on trial",              tab:"court",   grad:"linear-gradient(135deg,#8B6A2A,#D4AF37)"},
-
-          {label:"🌀 ACT Matrix",         sub:"Map your toward and away moves",         tab:"act",     grad:"linear-gradient(135deg,#2A7A5C,#5BAA8C)"},
-          {label:"🐝 Talk to Bea",        sub:"Process this with your bee therapist",   tab:"bea",     grad:"linear-gradient(135deg,#F5A623,#E8891A)"},
-          {label:"📦 Put back in box",    sub:"Not ready yet — save for another day",   tab:null,      grad:"linear-gradient(135deg,#6B5744,#8B7355)"},
-          {label:"🌊 Release to the Sea", sub:"Let it go — send it to the waves",       tab:"sea",     grad:"linear-gradient(135deg,#1A6B9B,#5B9BD5)"},
+          {label:"⚖️ Thought Courtroom",   sub:"Put this thought on trial",                  tab:"court",   grad:"linear-gradient(135deg,#8B6A2A,#D4AF37)"},
+          {label:"🌀 ACT Matrix",          sub:"Map your toward and away moves",             tab:"act",     grad:"linear-gradient(135deg,#2A7A5C,#5BAA8C)"},
+          {label:"🧸 Limited Reparenting", sub:"If this connects to an old childhood pattern", tab:"values", grad:"linear-gradient(135deg,#6B3A4A,#9B6B7A)"},
+          {label:"🌸 Compassionate Self",  sub:"If self-criticism is the real issue",        tab:"values",  grad:"linear-gradient(135deg,#7BB369,#5C8B3A)"},
+          {label:"🎭 Mode Check-In",       sub:"Quickly identify what part of you is active", tab:"values", grad:"linear-gradient(135deg,#5B9BD5,#7B6BD5)"},
+          {label:"🌱 Behavioural Activation", sub:"If you need a small concrete step",       tab:"activate",grad:"linear-gradient(135deg,#7BB369,#5C9B6B)"},
+          {label:"🕊️ Grief Box",           sub:"If this is about a loss of any kind",        tab:"values",  grad:"linear-gradient(135deg,#5B7B9B,#7B9BBB)"},
+          {label:"🍽️ Emotional Eating",    sub:"If food is part of how this feels",          tab:"values",  grad:"linear-gradient(135deg,#E8891A,#F5A623)"},
+          {label:"🌀 Loop Interrupt",       sub:"If this keeps replaying on a loop",          tab:"values",  grad:"linear-gradient(135deg,#3A6B8B,#5B9BD5)"},
+          {label:"🐝 Talk to Bea",         sub:"Process this with your bee therapist",       tab:"bea",     grad:"linear-gradient(135deg,#F5A623,#E8891A)"},
+          {label:"📦 Put back in box",     sub:"Not ready yet — save for another day",       tab:null,      grad:"linear-gradient(135deg,#6B5744,#8B7355)"},
+          {label:"🌊 Release to the Sea",  sub:"Let it go — send it to the waves",           tab:"sea",     grad:"linear-gradient(135deg,#1A6B9B,#5B9BD5)"},
         ].map(opt=>(
           <button key={opt.label}
             onClick={()=>{
@@ -1177,7 +1533,7 @@ REASON: [one warm sentence explaining why this tool fits this problem]`
                     style={{...btnStyle(PALETTE.lavender,true),flex:1}}>
                     📦 Put in box for later
                   </button>
-                  <button onClick={()=>{ setViewItem(item); }}
+                  <button onClick={()=>{ setViewItem(item); setBeaSuggestion(null); setFeelBoxMatch(null); }}
                     style={{...btnStyle(PALETTE.honey,true),flex:1}}>
                     🐝 Work through it now
                   </button>
@@ -1199,7 +1555,7 @@ REASON: [one warm sentence explaining why this tool fits this problem]`
             IN YOUR BOX — TAP TO WORK THROUGH
           </div>
           {stored.map(item=>(
-            <div key={item.id} onClick={()=>{ setViewItem(item); setBeaSuggestion(null); }}
+            <div key={item.id} onClick={()=>{ setViewItem(item); setBeaSuggestion(null); setFeelBoxMatch(null); }}
               style={{
                 ...card,cursor:"pointer",marginBottom:8,
                 borderLeft:`3px solid ${PALETTE.lavender}`,
@@ -1270,7 +1626,7 @@ const courtroomBg = (imgUrl) => ({
   backgroundPosition:"center top",
 });
 
-function Courtroom({ cases, onSave, valuesProfile=null, dasProfile=null }) {
+function Courtroom({ cases, onSave, valuesProfile=null, dasProfile=null, ysqProfile=null }) {
   const [view, setView]           = useState("list");   // list | trial | detail | upload
   const [gavel, setGavel]   = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1494,7 +1850,8 @@ ACTION: [One concrete, small, observable thing the person can do in the next 24 
 
 Start with: "ORDER IN COURT. 🔨"
 ${valuesProfile ? `\nNote: This person's core values are ${valuesProfile.top3?.map(v=>v.label).join(", ")}. Where relevant, note if this thought conflicts with or undermines these values.` : ""}
-${dasProfile?.highest?.length>0 ? `\nNote: This person's core belief assessment shows vulnerability in: ${dasProfile.highest.map(d=>d.label).join(", ")}. If this thought reflects one of these patterns, gently name it in the DISTORTION section.` : ""}`
+${dasProfile?.highest?.length>0 ? `\nNote: This person's core belief assessment shows vulnerability in: ${dasProfile.highest.map(d=>d.label).join(", ")}. If this thought reflects one of these patterns, gently name it in the DISTORTION section.` : ""}
+${ysqProfile?.top3?.length>0 ? `\nNote: This person's childhood schema assessment shows elevated patterns in: ${ysqProfile.top3.map(s=>s.label).join(", ")}. If this thought connects to one of these early patterns, gently note that connection too.` : ""}`
       );
       const rulingMatch = verdictReply.match(/RULING:\s*(.+)/);
       setVerdictText(verdictReply);
@@ -2718,8 +3075,455 @@ const worryLevel = (score) => {
   return               {label:"High Worry Tendency", color:"#8B1A1A"};
 };
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary }) {
+// ── Young Schema Questionnaire (YSQ) — 18 Early Maladaptive Schemas ─────────
+// Organised into 5 domains per Young's original model. 3 items per schema (54 total),
+// rated 1-6 (Completely Untrue of Me → Describes Me Perfectly), per the original YSQ format.
+
+const YSQ_SCALE = [
+  {val:1, label:"Completely Untrue of Me"},
+  {val:2, label:"Mostly Untrue of Me"},
+  {val:3, label:"Slightly More True Than Untrue"},
+  {val:4, label:"Moderately True of Me"},
+  {val:5, label:"Mostly True of Me"},
+  {val:6, label:"Describes Me Perfectly"},
+];
+
+const YSQ_DOMAINS = [
+  {id:"disconnection", label:"Disconnection & Rejection", color:"#8B1A1A",
+   desc:"The expectation that needs for security, safety, stability, nurturance, love and belonging will not be met."},
+  {id:"autonomy",      label:"Impaired Autonomy & Performance", color:"#D4AF37",
+   desc:"Beliefs about oneself and the environment that interfere with the ability to separate and function independently."},
+  {id:"limits",        label:"Impaired Limits", color:"#7B4A8B",
+   desc:"Difficulty respecting the rights of others, cooperating, committing, or setting realistic personal goals."},
+  {id:"otherdirected",  label:"Other-Directedness", color:"#5B9BD5",
+   desc:"Excessive focus on the desires, feelings and responses of others, at the expense of one's own needs."},
+  {id:"overvigilance",  label:"Overvigilance & Inhibition", color:"#2A7A5C",
+   desc:"Excessive emphasis on suppressing spontaneous feelings, impulses and choices, or on meeting rigid rules."},
+];
+
+const YSQ_SCHEMAS = [
+  // ── Disconnection & Rejection ──
+  { id:"deprivation", domain:"disconnection", label:"Emotional Deprivation", emoji:"💔",
+    desc:"The belief that your need for love, nurturance, empathy and care will never be adequately met by others.",
+    items:[
+      "I haven't had someone to nurture me, share him/herself with me, or care deeply about everything that happens to me.",
+      "For much of my life, I haven't felt that I am special to someone.",
+      "For the most part, I have not had someone who really listens to me, understands me, or is tuned into my true needs and feelings.",
+    ]},
+  { id:"abandonment", domain:"disconnection", label:"Abandonment / Instability", emoji:"🌪️",
+    desc:"The belief that significant others will not be able to continue providing support, connection or protection — that they will leave or be unpredictable.",
+    items:[
+      "I worry that the people I feel close to will leave me or abandon me.",
+      "I need other people so much that I worry about losing them.",
+      "I find myself clinging to people I feel close to, because I'm afraid they'll leave me.",
+    ]},
+  { id:"mistrust", domain:"disconnection", label:"Mistrust / Abuse", emoji:"🛡️",
+    desc:"The expectation that others will hurt, abuse, humiliate, cheat, lie, manipulate or take advantage.",
+    items:[
+      "I feel that I cannot let my guard down in the presence of other people, or else they will intentionally hurt me.",
+      "I am quite suspicious of other people's motives.",
+      "I feel that people will take advantage of me if I let them know too much about me.",
+    ]},
+  { id:"isolation", domain:"disconnection", label:"Social Isolation / Alienation", emoji:"🏝️",
+    desc:"The feeling that you are isolated from the rest of the world, different from other people, and/or not part of any group or community.",
+    items:[
+      "I feel isolated and alone, like I don't fit in.",
+      "I feel alienated from other people.",
+      "I don't belong; I'm a loner.",
+    ]},
+  { id:"defectiveness", domain:"disconnection", label:"Defectiveness / Shame", emoji:"🫥",
+    desc:"The feeling that you are flawed, bad, unwanted or inferior in important respects, or that you would be unlovable if exposed.",
+    items:[
+      "No man/woman I desire could love me once he/she saw my defects.",
+      "I feel that I'm not lovable.",
+      "I am too unacceptable in very basic ways to reveal myself to other people.",
+    ]},
+  // ── Impaired Autonomy & Performance ──
+  { id:"failure", domain:"autonomy", label:"Failure", emoji:"📉",
+    desc:"The belief that you have failed, will fail, or are fundamentally inadequate relative to your peers in areas of achievement.",
+    items:[
+      "Most other people are more capable than I am in areas of work and achievement.",
+      "I am not as talented as most people are at their work.",
+      "I feel I don't perform as well as others at work/school.",
+    ]},
+  { id:"dependence", domain:"autonomy", label:"Dependence / Incompetence", emoji:"🤲",
+    desc:"The belief that you are unable to handle everyday responsibilities competently, without considerable help from others.",
+    items:[
+      "I do not feel confident about my ability to solve everyday problems that come up.",
+      "I really don't know what I want for myself, so I look to others to set my course in life.",
+      "I think of myself as a dependent person, when it comes to everyday functioning.",
+    ]},
+  { id:"vulnerability", domain:"autonomy", label:"Vulnerability to Harm", emoji:"⚠️",
+    desc:"Exaggerated fear that disaster — financial, medical, criminal or otherwise — is about to strike at any time.",
+    items:[
+      "I feel that a disaster (natural, criminal, financial or medical) could strike at any moment.",
+      "I worry about being attacked.",
+      "I worry that I'll lose all of my money and become destitute or impoverished.",
+    ]},
+  { id:"enmeshment", domain:"autonomy", label:"Enmeshment / Undeveloped Self", emoji:"🪢",
+    desc:"Excessive emotional involvement with one or more significant others, at the expense of full individuation or normal social development.",
+    items:[
+      "My parent(s) and I tend to be overinvolved in each other's lives and problems.",
+      "It is hard for me to have my own opinions and feelings about things, when I am with my family or partner.",
+      "I often feel as if I do not have a separate identity from my parents or partner.",
+    ]},
+  // ── Impaired Limits ──
+  { id:"entitlement", domain:"limits", label:"Entitlement / Grandiosity", emoji:"👑",
+    desc:"The belief that you are superior to others, entitled to special rights, or not bound by the rules of reciprocity that guide normal social interaction.",
+    items:[
+      "I feel that I shouldn't have to follow the normal rules and conventions other people do.",
+      "I feel that what I have to offer is of greater value than the contributions of others.",
+      "I feel that I'm special and shouldn't have to accept many of the restrictions placed on other people.",
+    ]},
+  { id:"selfcontrol", domain:"limits", label:"Insufficient Self-Control", emoji:"🎯",
+    desc:"Difficulty or refusal to exercise sufficient self-control to achieve personal goals, or to restrain excessive expression of emotions and impulses.",
+    items:[
+      "I can't seem to discipline myself to complete routine or boring tasks.",
+      "I have a hard time accepting 'no' for an answer when I want something from other people.",
+      "I have rarely been able to stick to my resolutions.",
+    ]},
+  // ── Other-Directedness ──
+  { id:"subjugation", domain:"otherdirected", label:"Subjugation", emoji:"⛓️",
+    desc:"Excessive surrendering of control to others because you feel coerced — usually to avoid anger, retaliation or abandonment.",
+    items:[
+      "I feel that I have no choice but to give in to other people's wishes, or else they will retaliate or reject me in some way.",
+      "In relationships, I let the other person have the upper hand.",
+      "I've always let other people make choices for me, so I really don't know what I want for myself.",
+    ]},
+  { id:"selfsacrifice", domain:"otherdirected", label:"Self-Sacrifice", emoji:"🕊️",
+    desc:"Excessive focus on voluntarily meeting the needs of others at the expense of your own gratification.",
+    items:[
+      "I'm the one who usually ends up taking care of the people I'm close to.",
+      "I am a good person because I think of others more than of myself.",
+      "I find myself giving up my own life goals to take care of other people.",
+    ]},
+  { id:"approval", domain:"otherdirected", label:"Approval-Seeking / Recognition-Seeking", emoji:"👏",
+    desc:"Excessive emphasis on gaining approval, recognition or attention from others, at the expense of authentic, secure self-development.",
+    items:[
+      "I seek approval, recognition or attention so much that I lose my true self in the process.",
+      "I find it imperative to be liked, well-regarded and admired by other people.",
+      "My self-esteem is mainly based on how others view me.",
+    ]},
+  // ── Overvigilance & Inhibition ──
+  { id:"negativity", domain:"overvigilance", label:"Negativity / Pessimism", emoji:"☁️",
+    desc:"A pervasive, lifelong focus on the negative aspects of life, while minimising or neglecting the positive.",
+    items:[
+      "No matter how hard I try, I expect things will go wrong.",
+      "I spend a great deal of time dwelling on the negative aspects of life.",
+      "I tend to focus on the negative side of things.",
+    ]},
+  { id:"inhibition", domain:"overvigilance", label:"Emotional Inhibition", emoji:"🔒",
+    desc:"Excessive inhibition of spontaneous action, feeling or communication — usually to avoid disapproval, shame, or losing control.",
+    items:[
+      "I control myself so much that people think I am unemotional.",
+      "I find it embarrassing to express my feelings to others.",
+      "I find it hard to be warm and spontaneous.",
+    ]},
+  { id:"standards", domain:"overvigilance", label:"Unrelenting Standards", emoji:"📏",
+    desc:"The belief that you must strive to meet very high internalised standards, usually to avoid criticism — at the cost of pleasure, health or relationships.",
+    items:[
+      "I feel that there's constant pressure for me to achieve and get things done.",
+      "I must be the best at most of what I do; I can't accept second best.",
+      "I try to do my best; I can't settle for 'good enough'.",
+    ]},
+  { id:"punitiveness", domain:"overvigilance", label:"Punitiveness", emoji:"⚡",
+    desc:"The belief that people, including yourself, should be harshly punished for mistakes — intolerance of human imperfection.",
+    items:[
+      "If I make a mistake, I deserve to be blamed.",
+      "I can't let myself off the hook easily, or excuse my mistakes.",
+      "I am a fairly critical person towards myself and others.",
+    ]},
+];
+
+// ── Schema Modes (Schema Therapy mode model) ────────────────────────────────
+const SCHEMA_MODES = [
+  { id:"vulnerable_child", label:"Vulnerable Child", emoji:"🧸", color:"#5B9BD5",
+    desc:"The part of you carrying the original pain — the hurt, lonely, frightened child who needed protection, love or comfort and didn't fully receive it.",
+    triggeredBy:["deprivation","abandonment","isolation","defectiveness","mistrust"] },
+  { id:"punitive_parent", label:"Punitive / Demanding Parent", emoji:"⚡", color:"#8B1A1A",
+    desc:"The internalised harsh, critical voice — often absorbing the cruelty, criticism, or neglect a child experienced and turning it inward.",
+    triggeredBy:["punitiveness","standards","defectiveness","failure"] },
+  { id:"detached_protector", label:"Detached Protector", emoji:"🛡️", color:"#7B4A8B",
+    desc:"The part that copes by numbing, withdrawing, or avoiding — protecting the Vulnerable Child by shutting feelings down entirely.",
+    triggeredBy:["isolation","inhibition","mistrust","subjugation"] },
+  { id:"healthy_adult", label:"Healthy Adult", emoji:"🌱", color:"#7BB369",
+    desc:"The part being built — the wise, grounded self that can soothe the Vulnerable Child, set limits with the Punitive Parent, and meet needs directly rather than avoiding them.",
+    triggeredBy:[] },
+];
+
+const ysqDomainFor = (schemaId) => {
+  const schema = YSQ_SCHEMAS.find(s=>s.id===schemaId);
+  return YSQ_DOMAINS.find(d=>d.id===schema?.domain);
+};
+
+// ── Fears of Compassion Scales (FCS, Gilbert et al. 2011) ────────────────────
+// Three subscales: Fear of Compassion for Others (10), Fear of Compassion from
+// Others (13), Fear of Compassion for Self (15). Rated 0-4 (Don't agree at all → Completely agree).
+
+const FCS_SCALE = [
+  {val:0, label:"Don't agree at all"},
+  {val:1, label:"Slightly agree"},
+  {val:2, label:"Moderately agree"},
+  {val:3, label:"Quite a lot"},
+  {val:4, label:"Completely agree"},
+];
+
+const FCS_SUBSCALES = {
+  forOthers:  {label:"Fear of Compassion FOR Others",  emoji:"🤝", color:"#5B9BD5", max:40,
+    desc:"Discomfort or apprehension about expressing kindness and warmth toward other people."},
+  fromOthers: {label:"Fear of Compassion FROM Others", emoji:"🛡️", color:"#7B4A8B", max:52,
+    desc:"Difficulty trusting, accepting, or feeling safe receiving care and kindness from other people."},
+  forSelf:    {label:"Fear of Compassion FOR Self",    emoji:"🪞", color:"#8B1A1A", max:60,
+    desc:"Resistance, discomfort, or fear around being kind, warm and forgiving toward yourself."},
+};
+
+const FCS_QUESTIONS = [
+  // Fear of Compassion FOR Others (10 items)
+  {sub:"forOthers", text:"Being too compassionate makes people soft and easy to take advantage of."},
+  {sub:"forOthers", text:"I fear that if I am compassionate to others they will become dependent on me."},
+  {sub:"forOthers", text:"I find it embarrassing to express my compassionate side to others."},
+  {sub:"forOthers", text:"I would rather be seen as tough than warm and caring."},
+  {sub:"forOthers", text:"I worry that being too compassionate to others will exhaust me."},
+  {sub:"forOthers", text:"Expressing compassion to others makes me feel vulnerable."},
+  {sub:"forOthers", text:"People might think I'm weak if I am too compassionate to them."},
+  {sub:"forOthers", text:"I'm not sure I can trust my compassionate feelings towards other people."},
+  {sub:"forOthers", text:"I have to be careful not to be too kind to people."},
+  {sub:"forOthers", text:"My compassion for others has, in the past, been taken advantage of."},
+  // Fear of Compassion FROM Others (13 items)
+  {sub:"fromOthers", text:"I try to keep my distance from others even if I know they are kind."},
+  {sub:"fromOthers", text:"I don't think I deserve compassion from others."},
+  {sub:"fromOthers", text:"I am uncomfortable receiving compassion from others."},
+  {sub:"fromOthers", text:"I find it hard to trust other people's care or kindness towards me."},
+  {sub:"fromOthers", text:"When someone is kind and caring towards me, I feel uneasy."},
+  {sub:"fromOthers", text:"Feelings of kindness from others are somehow frightening."},
+  {sub:"fromOthers", text:"If I think someone is being kind and caring towards me, I put a stop to it."},
+  {sub:"fromOthers", text:"I block feelings of warmth and kindness from other people."},
+  {sub:"fromOthers", text:"I worry that others' compassion towards me depends on me being a certain way."},
+  {sub:"fromOthers", text:"When people are kind to me I think they must want something from me."},
+  {sub:"fromOthers", text:"I find it hard to let people get close to me emotionally."},
+  {sub:"fromOthers", text:"I cut off from people's expressions of warmth and care."},
+  {sub:"fromOthers", text:"I would rather not need other people's kindness or support."},
+  // Fear of Compassion FOR Self (15 items)
+  {sub:"forSelf", text:"I worry that if I start to develop compassion for myself I will become dependent on it."},
+  {sub:"forSelf", text:"I fear that if I am too compassionate towards myself, things will get out of control."},
+  {sub:"forSelf", text:"I fear that if I become too compassionate to myself I will lose my self-criticism altogether and feel out of control."},
+  {sub:"forSelf", text:"I fear that if I am too compassionate to myself, bad things will happen."},
+  {sub:"forSelf", text:"I find it easier to be critical towards myself rather than compassionate."},
+  {sub:"forSelf", text:"I'm afraid that being kind and forgiving to myself will mean I won't try as hard to improve."},
+  {sub:"forSelf", text:"I have never felt deserving of self-compassion or kindness."},
+  {sub:"forSelf", text:"I feel I don't deserve to be kind and forgiving to myself."},
+  {sub:"forSelf", text:"I distrust the kind, supportive voice in my head."},
+  {sub:"forSelf", text:"I think that if I am too caring towards myself, others will reject me."},
+  {sub:"forSelf", text:"I fear that if I become too compassionate towards myself, I will be vulnerable to other people's exploitation."},
+  {sub:"forSelf", text:"My self-criticism feels like the only thing keeping me functioning."},
+  {sub:"forSelf", text:"Self-compassion feels alien and unfamiliar to me."},
+  {sub:"forSelf", text:"I worry that if I am kind to myself, bad things from my past will resurface."},
+  {sub:"forSelf", text:"When I try to feel warmth and kindness towards myself, I just feel emptiness or sadness instead."},
+];
+
+const fcsSeverity = (pct) => {
+  if(pct<25) return {label:"Low Fear", color:"#7BB369"};
+  if(pct<50) return {label:"Moderate Fear", color:"#D4AF37"};
+  if(pct<75) return {label:"High Fear", color:"#E8891A"};
+  return             {label:"Very High Fear", color:"#8B1A1A"};
+};
+
+// ── CFT — Three Circles of Emotion Regulation (Gilbert) ─────────────────────
+const CFT_CIRCLES = [
+  {id:"threat", label:"Threat System", emoji:"🚨", color:"#8B1A1A",
+   desc:"Detects danger and triggers protection — anger, anxiety, disgust. Fast, reactive, designed to keep you safe, but can become overactive and chronically switched on.",
+   feelings:["Anxious","Angry","On guard","Defensive","Panicked"]},
+  {id:"drive", label:"Drive System", emoji:"🎯", color:"#D4AF37",
+   desc:"Motivates pursuing resources and achievement — wanting, striving, achieving. Healthy in balance, but can become relentless when used to outrun threat or shame.",
+   feelings:["Driven","Restless","Competitive","Wanting more","Never satisfied"]},
+  {id:"soothe", label:"Soothing System", emoji:"🤲", color:"#5B9BD5",
+   desc:"The system of safeness, contentment and connection — calm, warmth, being soothed by and soothing others. Often the most underdeveloped system for people who experienced early neglect or criticism.",
+   feelings:["Calm","Safe","Connected","Content","At peace"]},
+];
+
+// ── PCL-5 (PTSD Checklist for DSM-5) — trauma screening ─────────────────────
+const PCL5_QUESTIONS = [
+  {cluster:"intrusion",  text:"Repeated, disturbing, and unwanted memories of a stressful experience?"},
+  {cluster:"intrusion",  text:"Repeated, disturbing dreams of a stressful experience?"},
+  {cluster:"intrusion",  text:"Suddenly feeling or acting as if a stressful experience were actually happening again?"},
+  {cluster:"intrusion",  text:"Feeling very upset when something reminded you of a stressful experience?"},
+  {cluster:"intrusion",  text:"Having strong physical reactions when something reminded you of a stressful experience (e.g. heart racing, trouble breathing, sweating)?"},
+  {cluster:"avoidance",  text:"Avoiding memories, thoughts, or feelings related to a stressful experience?"},
+  {cluster:"avoidance",  text:"Avoiding external reminders of a stressful experience (people, places, conversations, activities, objects, situations)?"},
+  {cluster:"cognition",  text:"Trouble remembering important parts of a stressful experience?"},
+  {cluster:"cognition",  text:"Having strong negative beliefs about yourself, other people, or the world (e.g. 'I am bad,' 'no one can be trusted,' 'the world is dangerous')?"},
+  {cluster:"cognition",  text:"Blaming yourself or someone else for a stressful experience or what happened after it?"},
+  {cluster:"cognition",  text:"Having strong negative feelings such as fear, horror, anger, guilt, or shame?"},
+  {cluster:"cognition",  text:"Loss of interest in activities that you used to enjoy?"},
+  {cluster:"cognition",  text:"Feeling distant or cut off from other people?"},
+  {cluster:"cognition",  text:"Trouble experiencing positive feelings (e.g. unable to feel happiness or love for those close to you)?"},
+  {cluster:"arousal",    text:"Irritable behaviour, angry outbursts, or acting aggressively?"},
+  {cluster:"arousal",    text:"Taking too many risks or doing things that could cause you harm?"},
+  {cluster:"arousal",    text:"Being 'superalert,' watchful, or on guard?"},
+  {cluster:"arousal",    text:"Feeling jumpy or easily startled?"},
+  {cluster:"arousal",    text:"Having difficulty concentrating?"},
+  {cluster:"arousal",    text:"Trouble falling or staying asleep?"},
+];
+const PCL5_SCALE = [
+  {val:0, label:"Not at all"},
+  {val:1, label:"A little bit"},
+  {val:2, label:"Moderately"},
+  {val:3, label:"Quite a bit"},
+  {val:4, label:"Extremely"},
+];
+const pcl5Severity = (score) => {
+  if(score<33) return {label:"Below Clinical Threshold", color:"#7BB369"};
+  return               {label:"At or Above Clinical Threshold", color:"#8B1A1A"};
+};
+
+// ── Grief — Worden's Four Tasks of Mourning ─────────────────────────────────
+const GRIEF_TASKS = [
+  {id:"accept", label:"Accepting the Reality of the Loss", emoji:"🕊️", color:"#5B9BD5",
+   desc:"Coming to terms with the fact that the person, relationship, or thing is truly gone — not yet, but over time."},
+  {id:"process", label:"Processing the Pain of Grief", emoji:"💧", color:"#7B4A8B",
+   desc:"Allowing the emotional weight of the loss to be felt, rather than suppressed or rushed through."},
+  {id:"adjust", label:"Adjusting to a World Without Them", emoji:"🧭", color:"#D4AF37",
+   desc:"Learning to navigate daily life, roles, and identity in a world that has been changed by this loss."},
+  {id:"continue", label:"Finding an Ongoing Connection", emoji:"🌟", color:"#7BB369",
+   desc:"Discovering a way to carry the relationship forward in memory, without it requiring their physical presence."},
+];
+
+const GRIEF_INVENTORY_QUESTIONS = [
+  {field:"who",       label:"Who or What",        question:"Who or what have you lost? You can name a person, a relationship, a role, a version of your life, or anything else that grief applies to.",
+   placeholder:"Write freely — grief applies to more than death."},
+  {field:"meaning",   label:"What They Meant",     question:"What did this person, relationship, or thing mean to you? What role did they play in your life?",
+   placeholder:"Take your time with this…"},
+  {field:"hardest",   label:"The Hardest Part",    question:"What has been the hardest part of this loss for you?",
+   placeholder:"There's no right answer — whatever is true for you."},
+  {field:"unsaid",    label:"Unsaid or Unfinished", question:"Is there anything left unsaid, unresolved, or unfinished connected to this loss?",
+   placeholder:"Sometimes grief carries things we never got to say or do."},
+  {field:"keepalive", label:"Keeping Connection",   question:"Is there a way you would like to keep this person or thing present in your life going forward — a memory, ritual, or way of honouring them?",
+   placeholder:"This doesn't need an answer yet if you're not ready."},
+];
+
+// ── Emotional Eating — CBT-E informed ────────────────────────────────────────
+const EATING_TRIGGER_EMOTIONS = [
+  {id:"sad",        emoji:"😢", label:"Sadness"},
+  {id:"lonely",     emoji:"🏝️", label:"Loneliness"},
+  {id:"bored",      emoji:"😐", label:"Boredom"},
+  {id:"anxious",    emoji:"😰", label:"Anxiety"},
+  {id:"angry",      emoji:"😠", label:"Anger/Frustration"},
+  {id:"overwhelmed",emoji:"😵", label:"Overwhelm"},
+  {id:"unseen",     emoji:"👻", label:"Feeling Unseen/Invisible"},
+  {id:"empty",      emoji:"🕳️", label:"Emptiness"},
+];
+
+const EATING_DIARY_QUESTIONS = [
+  {field:"feeling",   label:"The Feeling",     question:"What were you feeling right before you wanted to eat?",
+   placeholder:"Name it as precisely as you can…"},
+  {field:"trigger",   label:"What Triggered It", question:"What happened just before this feeling came up?",
+   placeholder:"A thought, an event, a memory, silence, being alone…"},
+  {field:"hunger",    label:"Physical Hunger",  question:"On a scale of your own sense, were you physically hungry, or was this an emotional pull to eat?",
+   placeholder:"Be honest — there's no judgment here either way."},
+  {field:"needed",    label:"What Was Actually Needed", question:"Looking at the feeling underneath — what did you actually need in that moment, if not food?",
+   placeholder:"e.g. comfort, distraction, to feel less alone, to feel something pleasurable, to feel in control"},
+];
+
+// ── Rumination Scale — adapted from Sukhodolsky's Anger Rumination Scale ────
+// 19 items, 4 subscales: Angry Afterthoughts, Thoughts of Revenge, Angry Memories,
+// Understanding of Causes. Broadened in framing to cover rumination about ANY
+// distressing external content (people, conflict, news, witnessed events), not
+// only personal anger episodes — since loops can fix on things never directed at you.
+const RUMINATION_SCALE = [
+  {val:1, label:"Almost Never"},
+  {val:2, label:"Sometimes"},
+  {val:3, label:"Often"},
+  {val:4, label:"Almost Always"},
+];
+
+const RUMINATION_SUBSCALES = {
+  afterthoughts: {label:"Afterthoughts",        emoji:"🔁", color:"#5B9BD5", range:[0,6],
+    desc:"Replaying a recent distressing event or interaction over and over after it's already over."},
+  revenge:       {label:"Thoughts of Revenge",  emoji:"⚔️", color:"#8B1A1A", range:[6,10],
+    desc:"Imagining confrontation, retaliation, or 'winning' an argument that already happened."},
+  memories:      {label:"Intrusive Memories",   emoji:"🧠", color:"#7B4A8B", range:[10,15],
+    desc:"Distant or even unrelated distressing events resurfacing uninvited, hard to stop once triggered."},
+  causes:        {label:"Understanding Causes", emoji:"🔍", color:"#2A7A5C", range:[15,19],
+    desc:"Spending a lot of mental energy trying to work out why something happened or why someone acted that way."},
+};
+
+const RUMINATION_QUESTIONS = [
+  // Afterthoughts (0-5)
+  {sub:"afterthoughts", text:"When something upsets or disturbs me, I repeatedly turn the issue over in my mind."},
+  {sub:"afterthoughts", text:"I keep thinking about events that have upset me for a long time afterward."},
+  {sub:"afterthoughts", text:"I keep asking myself why this thing happened or why this person did this."},
+  {sub:"afterthoughts", text:"I have feelings that I can't get rid of, even hours or days later."},
+  {sub:"afterthoughts", text:"I think about the situations that upset me over and over."},
+  {sub:"afterthoughts", text:"I ruminate about my distress."},
+  // Thoughts of Revenge (6-9)
+  {sub:"revenge", text:"When someone makes me angry I can't stop thinking about how to get back at this person."},
+  {sub:"revenge", text:"I have long-lasting thoughts of how I could respond to or confront the person who upset me."},
+  {sub:"revenge", text:"I think about ways to get even after I have had a disagreement with someone."},
+  {sub:"revenge", text:"I imagine myself getting my own way or winning the argument long after it's over."},
+  // Intrusive Memories (10-14)
+  {sub:"memories", text:"I have had imaginary or replayed conversations with the person who upset me, even though it's already over."},
+  {sub:"memories", text:"Old memories of conflicts, cruelty, or upsetting events keep coming back to me unprompted."},
+  {sub:"memories", text:"Things I've seen or heard about — even when they didn't happen to me directly — get stuck in my head."},
+  {sub:"memories", text:"Once a distressing image or scene gets into my mind, it's very hard to get it out."},
+  {sub:"memories", text:"I find myself thinking about disturbing events long after there's any reason to."},
+  // Understanding Causes (15-18)
+  {sub:"causes", text:"I analyse events that anger or disturb me over and over in my head."},
+  {sub:"causes", text:"I spend a lot of time trying to understand why something bad happened."},
+  {sub:"causes", text:"I try to understand why I am feeling angry or disturbed about something before I am able to let go of it."},
+  {sub:"causes", text:"My mind keeps generating reasons or explanations for someone's behaviour, even when I know I can't change it."},
+];
+
+const ruminationLevel = (total) => {
+  if(total<=38) return {label:"Lower Rumination Tendency", color:"#7BB369"};
+  if(total<=57) return {label:"Moderate Rumination Tendency", color:"#D4AF37"};
+  return                {label:"High Rumination Tendency", color:"#8B1A1A"};
+};
+
+// ── Loop Interrupt — for external/other-directed thought loops ──────────────
+// Distinct from Defusion Board: those frame self-critical thoughts ("I am a failure").
+// This is specifically for loops about something OUTSIDE yourself — another person's
+// actions, conflict, distressing things witnessed or heard about — which don't
+// respond to "is this thought true" since the content may be entirely real.
+const LOOP_TRIGGERS = [
+  {id:"person",    emoji:"😠", label:"Someone's actions or words"},
+  {id:"conflict",   emoji:"⚔️", label:"An argument or confrontation"},
+  {id:"news",       emoji:"📰", label:"News, war, or conflict I saw/heard about"},
+  {id:"injustice",  emoji:"⚖️", label:"Something unfair I witnessed"},
+  {id:"memory",     emoji:"🧠", label:"An old memory that resurfaced"},
+  {id:"other",      emoji:"🌀", label:"Something else entirely"},
+];
+
+const LOOP_INTERRUPT_STEPS = [
+  {field:"loop",   label:"Name the Loop",   question:"What is looping right now? Describe it plainly — what keeps replaying.",
+   placeholder:"Be as specific as you can — the exact thought, image, or scene."},
+  {field:"realness", label:"What's Actually True", question:"Separate from how much it's looping — what part of this is something you can verify is real and current, right now, in this room?",
+   placeholder:"e.g. 'I am safe right now' or 'this already happened and is not happening again right now'"},
+  {field:"control", label:"What's In Your Control", question:"Of everything connected to this loop, what — if anything — is actually within your control to act on?",
+   placeholder:"Sometimes the honest answer is 'nothing,' and that's okay to write."},
+];
+
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop }) {
+
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
+
+  // Handle a deep-link request from outside (e.g. quick-access eating button on home screen)
+  useEffect(() => {
+    if(jumpToView === "eating_q") {
+      setEatingEmotion(null);
+      setEatingAnswers({});
+      setEatingStep(0);
+      setEatingAiSuggest("");
+      setView("eating_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "loop_q") {
+      setLoopTrigger(null);
+      setLoopAnswers({});
+      setLoopStep(0);
+      setLoopAiScript("");
+      setView("loop_q");
+      onJumpHandled?.();
+    }
+  }, [jumpToView]);
 
   // PHQ-9 / GAD-7 / SCS / Worry state
   const [phqAnswers, setPhqAnswers] = useState({});
@@ -2731,6 +3535,75 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [worryAnswers, setWorryAnswers] = useState({});
   const [worryStep, setWorryStep]   = useState(0);
   const [masterLoading, setMasterLoading] = useState(false);
+
+  // YSQ state
+  const [ysqAnswers, setYsqAnswers] = useState({}); // {itemGlobalIndex: 1-6}
+  const [ysqStep, setYsqStep]       = useState(0);  // global item index (0-53)
+  const [ysqLoading, setYsqLoading] = useState(false);
+  const [modeWorkSchema, setModeWorkSchema] = useState(null); // selected schema for reparenting practice
+  const [reparentStep, setReparentStep] = useState(0);
+  const [reparentAnswers, setReparentAnswers] = useState({});
+  const [reparentAiScript, setReparentAiScript] = useState("");
+  const [reparentLoading, setReparentLoading] = useState(false);
+
+  // Imagery Rescripting state
+  const [rescriptStep, setRescriptStep] = useState(0);
+  const [rescriptAnswers, setRescriptAnswers] = useState({});
+  const [rescriptAiScript, setRescriptAiScript] = useState("");
+  const [rescriptLoading, setRescriptLoading] = useState(false);
+
+  // Mode Check-In state
+  const [modeCheckAnswer, setModeCheckAnswer] = useState(null);
+  const [modeCheckResult, setModeCheckResult] = useState(null);
+  const [modeCheckLoading, setModeCheckLoading] = useState(false);
+
+  // Fears of Compassion Scale state
+  const [fcsAnswers, setFcsAnswers] = useState({});
+  const [fcsStep, setFcsStep]       = useState(0);
+  const [fcsLoading, setFcsLoading] = useState(false);
+
+  // Three Circles practice state
+  const [circlesAnswers, setCirclesAnswers] = useState({threat:"", drive:"", soothe:""});
+  const [circlesAiReflection, setCirclesAiReflection] = useState("");
+  const [circlesLoading, setCirclesLoading] = useState(false);
+
+  // Compassionate Self practice state
+  const [compSelfStep, setCompSelfStep] = useState(0);
+  const [compSelfAnswers, setCompSelfAnswers] = useState({});
+  const [compSelfScript, setCompSelfScript] = useState("");
+  const [compSelfLoading, setCompSelfLoading] = useState(false);
+
+  // PCL-5 trauma screening state
+  const [pcl5Answers, setPcl5Answers] = useState({});
+  const [pcl5Step, setPcl5Step]       = useState(0);
+  const [pcl5Loading, setPcl5Loading] = useState(false);
+
+  // Grief Inventory state
+  const [griefAnswers, setGriefAnswers] = useState({});
+  const [griefStep, setGriefStep]       = useState(0);
+  const [griefAiReflection, setGriefAiReflection] = useState("");
+  const [griefLoading, setGriefLoading] = useState(false);
+  const [griefBoxOpen, setGriefBoxOpen] = useState(false);
+  const [viewGriefEntry, setViewGriefEntry] = useState(null);
+
+  // Emotional Eating diary state
+  const [eatingEmotion, setEatingEmotion]   = useState(null);
+  const [eatingAnswers, setEatingAnswers]   = useState({});
+  const [eatingStep, setEatingStep]         = useState(0);
+  const [eatingAiSuggest, setEatingAiSuggest] = useState("");
+  const [eatingLoading, setEatingLoading]   = useState(false);
+
+  // Rumination Scale state
+  const [ruminationAnswers, setRuminationAnswers] = useState({});
+  const [ruminationStep, setRuminationStep] = useState(0);
+  const [ruminationLoading, setRuminationLoading] = useState(false);
+
+  // Loop Interrupt state
+  const [loopTrigger, setLoopTrigger]   = useState(null);
+  const [loopAnswers, setLoopAnswers]   = useState({});
+  const [loopStep, setLoopStep]         = useState(0);
+  const [loopAiScript, setLoopAiScript] = useState("");
+  const [loopLoading, setLoopLoading]   = useState(false);
 
   // Goals questionnaire state
   const [goalsList, setGoalsList]     = useState(goalsProfile?.goals?.map(g=>g.text) || [""]);
@@ -3017,7 +3890,7 @@ Be specific to their actual goals and ratings. No preamble.`}]);
   };
 
   // ── Master Summary — combine ALL assessments ─────────────────────────
-  const completedCount = [valuesProfile, dasProfile, goalsProfile, phq9Profile, gad7Profile, scsProfile, worryProfile].filter(Boolean).length;
+  const completedCount = [valuesProfile, dasProfile, goalsProfile, phq9Profile, gad7Profile, scsProfile, worryProfile, ysqProfile, fcsProfile, pcl5Profile, ruminationProfile].filter(Boolean).length;
 
   const generateMasterSummary = async () => {
     setMasterLoading(true);
@@ -3030,6 +3903,10 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity.label} (score ${gad7Profile.total}/21).`);
     if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level.label} (avg ${scsProfile.avg}/5).`);
     if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level.label} (score ${worryProfile.total}/40).`);
+    if(ysqProfile) parts.push(`CHILDHOOD SCHEMAS (YSQ): Most elevated patterns: ${ysqProfile.top3?.map(s=>s.label).join(", ")}. Likely active schema mode: ${ysqProfile.activeModes?.[0]?.label||"Healthy Adult"}.`);
+    if(fcsProfile) parts.push(`FEARS OF COMPASSION: Highest fear is ${fcsProfile.highest.label} (${fcsProfile.subtotals[Object.keys(fcsProfile.subtotals).find(k=>fcsProfile.subtotals[k].label===fcsProfile.highest.label)]?.pct}%).`);
+    if(pcl5Profile) parts.push(`TRAUMA SCREENING (PCL-5): ${pcl5Profile.severity.label} (score ${pcl5Profile.total}/80).`);
+    if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level.label}. Strongest pattern: ${ruminationProfile.highest.label}.`);
 
     try {
       const reply = await askBee([{role:"user", content:
@@ -3051,6 +3928,443 @@ Be specific to THEIR actual results, not generic. No preamble, no bullet points 
       onSaveMasterSummary({ id:uid(), date:today(), summary:"Bea couldn't generate a summary right now — please try again.", basedOn:completedCount });
       setView("master_summary");
     } finally { setMasterLoading(false); }
+  };
+
+  // ── Score YSQ ─────────────────────────────────────────────────────────
+  // Flatten all 54 items into a global index for stepping through
+  const ysqFlatItems = YSQ_SCHEMAS.flatMap(s => s.items.map((text,i) => ({ schemaId:s.id, itemIndex:i, text })));
+
+  const scoreYsq = async () => {
+    setYsqLoading(true);
+    let globalIdx = 0;
+    const schemaScores = YSQ_SCHEMAS.map(schema => {
+      const itemVals = schema.items.map(() => {
+        const v = ysqAnswers[globalIdx] || 1;
+        globalIdx++;
+        return v;
+      });
+      const avg = itemVals.reduce((s,v)=>s+v,0) / itemVals.length;
+      const domain = YSQ_DOMAINS.find(d=>d.id===schema.domain);
+      return { ...schema, avg: Math.round(avg*100)/100, domain };
+    });
+    const sorted = [...schemaScores].sort((a,b)=>b.avg-a.avg);
+    const elevated = sorted.filter(s=>s.avg>=4); // 4+ on 1-6 scale = clinically notable
+    const top3 = sorted.slice(0,3);
+
+    // Determine most likely active schema modes based on elevated schemas
+    const modeScores = SCHEMA_MODES.map(mode => {
+      const relevantSchemas = elevated.filter(s => mode.triggeredBy.includes(s.id));
+      return { ...mode, activation: relevantSchemas.length, relevantSchemas };
+    });
+    const activeModes = modeScores.filter(m=>m.activation>0).sort((a,b)=>b.activation-a.activation);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a Schema Therapy-informed therapist. A person has completed the Young Schema Questionnaire (YSQ).
+
+Their TOP 3 most elevated schemas (scale 1-6, 4+ is clinically notable): ${top3.map(s=>`${s.label} (${s.avg}/6) — ${s.desc}`).join(" | ")}
+
+All elevated schemas (4+): ${elevated.length>0 ? elevated.map(s=>s.label).join(", ") : "none strongly elevated"}
+
+Likely active schema modes based on these schemas: ${activeModes.length>0 ? activeModes.map(m=>m.label).join(", ") : "Healthy Adult appears relatively strong"}
+
+Write a warm, clinically-grounded summary (5-6 sentences):
+1. Name their most elevated schema(s) and gently explain, in plain language, what early experiences typically create this pattern (e.g. emotional neglect, isolation, criticism)
+2. Connect this to a likely active schema mode (Vulnerable Child, Punitive Parent, Detached Protector) and explain what that mode tends to feel like day-to-day
+3. Affirm that schemas formed in childhood as understandable adaptations, not personal failures
+4. One specific, practical next step using Schema Therapy's "Limited Reparenting" approach — what would help most right now
+5. End with one grounding, hopeful sentence
+
+Be specific and warm, never clinical-cold. No preamble.`}]);
+
+      const profile = {
+        id: uid(), date: today(),
+        schemaScores, top3, elevated, activeModes,
+        summary: reply,
+        answers: {...ysqAnswers},
+      };
+      onSaveYsq(profile);
+      setView("ysq_profile");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), schemaScores, top3, elevated, activeModes, summary:"", answers:{...ysqAnswers} };
+      onSaveYsq(profile);
+      setView("ysq_profile");
+    } finally { setYsqLoading(false); }
+  };
+
+  // ── Generate Limited Reparenting script for a chosen schema ────────────
+  const getReparentingScript = async (schema, answers) => {
+    setReparentLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, practising Schema Therapy's Limited Reparenting technique.
+
+The person is working with this schema: ${schema.label} — ${schema.desc}
+
+They shared:
+What the Vulnerable Child needed but didn't get: "${answers.need||"not stated"}"
+What the Punitive/Critical voice tends to say: "${answers.criticVoice||"not stated"}"
+A memory connected to this: "${answers.memory||"not stated"}"
+
+Write THREE distinct parts, clearly separated:
+
+PART 1 — CHALLENGE THE PUNITIVE VOICE: Write 2-3 firm, direct sentences confronting and weakening the punitive/critical voice they described. Be assertive, not soft — Schema Therapy actively fights back against this voice rather than just soothing around it. Use language like "That voice is wrong" or "That was never true."
+
+PART 2 — VALIDATE THE VULNERABLE CHILD: Write 2-3 warm sentences speaking directly to the younger self, naming exactly what they needed and didn't get, and affirming it was not their fault.
+
+PART 3 — HEALTHY ADULT STATEMENT: Write one clear, practical statement the person can say to themselves now, as their own Healthy Adult voice, when this schema gets triggered in daily life.
+
+Be specific to what they shared. No preamble.`}]);
+      setReparentAiScript(reply);
+    } catch(e) {
+      setReparentAiScript("Bea couldn't generate this right now — please try again.");
+    } finally { setReparentLoading(false); }
+  };
+
+  // ── Imagery Rescripting ──────────────────────────────────────────────────
+  const getRescriptScript = async (answers) => {
+    setRescriptLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a Schema Therapist guiding a gentle, simplified Imagery Rescripting exercise.
+
+The person described this childhood memory: "${answers.scene}"
+What they needed in that moment but didn't get: "${answers.needed}"
+Who or what they wish had shown up to help: "${answers.helper||"their own adult self"}"
+
+Write a guided imagery script in second person ("you"), structured in 4 short parts, each clearly labelled:
+
+SCENE: Briefly and gently re-describe the scene back to them in 2 sentences, grounding it in time and place, without adding invented details.
+
+ENTRANCE: Describe — in 2-3 sentences — their chosen helper (or their adult Healthy Adult self) entering the scene now, calm and capable, noticed by the child.
+
+INTERVENTION: Describe in 3-4 sentences exactly what the helper says and does to address the unmet need directly — protecting, comforting, or standing up for the child in the way that was needed. Be specific and concrete, not vague.
+
+NEW ENDING: Describe in 2 sentences how the scene now ends differently — the child feeling what they needed to feel.
+
+Keep language gentle, slow-paced, and concrete. No preamble before SCENE.`}]);
+      setRescriptAiScript(reply);
+    } catch(e) {
+      setRescriptAiScript("Bea couldn't generate this right now — please try again.");
+    } finally { setRescriptLoading(false); }
+  };
+
+  const saveRescript = () => {
+    const entry = { id:uid(), date:today(), answers:{...rescriptAnswers}, script:rescriptAiScript };
+    onSaveRescripts(rs=>[entry,...rs]);
+    setRescriptAnswers({});
+    setRescriptStep(0);
+    setRescriptAiScript("");
+    setView("home");
+  };
+
+  // ── Mode Check-In ────────────────────────────────────────────────────────
+  const MODE_CHECK_PROMPTS = [
+    { mode:"vulnerable_child", text:"I feel small, hurt, scared, or like I just need someone to take care of me right now." },
+    { mode:"punitive_parent",  text:"I'm being harsh with myself — telling myself I'm stupid, a failure, or that I deserve to feel bad." },
+    { mode:"detached_protector", text:"I feel numb, distant, or like I just want to switch off and not feel anything at all." },
+    { mode:"healthy_adult",    text:"I feel steady, capable, and able to meet what's happening with some perspective." },
+  ];
+
+  const doModeCheckIn = async (selectedMode) => {
+    setModeCheckLoading(true);
+    const mode = SCHEMA_MODES.find(m=>m.id===selectedMode);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a Schema Therapist. A person just identified that their "${mode.label}" mode feels active right now.
+Mode description: ${mode.desc}
+
+Write a brief, warm, practical response (3-4 sentences):
+1. Validate that noticing this mode is itself a Healthy Adult skill
+2. Give ONE specific, concrete thing to do right now for this particular mode (e.g. for Vulnerable Child: a self-soothing action; for Punitive Parent: a direct counter-statement; for Detached Protector: a gentle grounding action; for Healthy Adult: an affirmation to anchor it)
+3. If relevant, name which BeeWell tool would help most right now (Limited Reparenting, Defusion Board, Grounding, Willingness Meter)
+
+No preamble.`}]);
+      const entry = { id:uid(), date:today(), time:new Date().toISOString(), mode:mode.id, modeLabel:mode.label, response:reply };
+      onSaveModeCheckIns(cs=>[entry,...cs].slice(0,50)); // keep last 50
+      setModeCheckResult({ mode, response:reply });
+    } catch(e) {
+      setModeCheckResult({ mode, response:"Bea couldn't respond right now — please try again." });
+    } finally { setModeCheckLoading(false); }
+  };
+
+  // ── Score Fears of Compassion Scale ──────────────────────────────────────
+  const scoreFcs = async () => {
+    setFcsLoading(true);
+    const subtotals = {};
+    Object.keys(FCS_SUBSCALES).forEach(key => {
+      const items = FCS_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.sub===key);
+      const total = items.reduce((s,{i})=>s+(fcsAnswers[i]||0),0);
+      const pct = Math.round((total / FCS_SUBSCALES[key].max) * 100);
+      subtotals[key] = { ...FCS_SUBSCALES[key], total, pct, severity: fcsSeverity(pct) };
+    });
+    const highest = Object.entries(subtotals).sort((a,b)=>b[1].pct-a[1].pct)[0];
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a Compassion-Focused Therapist (CFT, Paul Gilbert's model). A person completed the Fears of Compassion Scale.
+
+Fear of Compassion FOR Others: ${subtotals.forOthers.pct}% (${subtotals.forOthers.severity.label})
+Fear of Compassion FROM Others: ${subtotals.fromOthers.pct}% (${subtotals.fromOthers.severity.label})
+Fear of Compassion FOR Self: ${subtotals.forSelf.pct}% (${subtotals.forSelf.severity.label})
+
+Write a warm, clinically-grounded 4-5 sentence summary:
+1. Name their highest fear subscale and explain in CFT terms what this typically means and where it often originates (e.g. fear of self-compassion often develops when self-criticism became a survival strategy in childhood; fear of receiving compassion often develops after experiences where care wasn't safe or reliable)
+2. Explain gently why this fear made adaptive sense given likely past experience — frame it as protective, not broken
+3. Note that CFT specifically targets the Soothing System (one of the three emotion regulation systems) which tends to be underdeveloped when these fears are high
+4. One specific next step using BeeWell's compassion tools (Three Circles practice, Compassionate Self practice)
+5. End with one grounding sentence
+
+Be specific and warm. No preamble.`}]);
+
+      const profile = { id:uid(), date:today(), subtotals, highest:highest[0], summary:reply, answers:{...fcsAnswers} };
+      onSaveFcs(profile);
+      setView("fcs_profile");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), subtotals, highest:highest[0], summary:"", answers:{...fcsAnswers} };
+      onSaveFcs(profile);
+      setView("fcs_profile");
+    } finally { setFcsLoading(false); }
+  };
+
+  // ── Three Circles reflection ─────────────────────────────────────────────
+  const getCirclesReflection = async (answers) => {
+    setCirclesLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a Compassion-Focused Therapist. A person mapped their current emotional balance across Gilbert's Three Circles model.
+
+Threat system (anxiety, anger, defensiveness) — what they described: "${answers.threat||"nothing notable"}"
+Drive system (striving, achieving, wanting) — what they described: "${answers.drive||"nothing notable"}"
+Soothing system (calm, safe, connected) — what they described: "${answers.soothe||"nothing notable"}"
+
+Write a brief, warm 3-4 sentence reflection:
+1. Note which system seems most dominant right now and what that suggests
+2. If the Soothing system seems underactive compared to Threat or Drive, gently name that imbalance
+3. Suggest ONE concrete, small action right now to activate the Soothing system specifically (e.g. slow breathing, a self-compassionate phrase, physical warmth, a calming image)
+
+No preamble.`}]);
+      setCirclesAiReflection(reply);
+    } catch(e) {
+      setCirclesAiReflection("Bea couldn't respond right now — please try again.");
+    } finally { setCirclesLoading(false); }
+  };
+
+  const saveCirclesEntry = () => {
+    const entry = { id:uid(), date:today(), answers:{...circlesAnswers}, reflection:circlesAiReflection };
+    onSaveCircles(cs=>[entry,...cs].slice(0,30));
+    setCirclesAnswers({threat:"",drive:"",soothe:""});
+    setCirclesAiReflection("");
+    setView("home");
+  };
+
+  // ── Compassionate Self practice ──────────────────────────────────────────
+  const getCompassionateSelfScript = async (answers) => {
+    setCompSelfLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, guiding a CFT "Compassionate Self" practice (Gilbert's model) — building an imagined compassionate presence with specific qualities: wisdom, strength, warmth, and non-judgment.
+
+The person described:
+What they're struggling with right now: "${answers.struggle}"
+Qualities their ideal compassionate figure would have: "${answers.qualities||"wise, warm, strong, non-judgmental"}"
+
+Write a short guided practice in 3 parts, clearly labelled:
+
+QUALITIES: 2 sentences describing this compassionate self embodying wisdom, strength and warmth — written so the person can imagine becoming this figure, not just receiving from one (this is the key CFT distinction from inner-child work).
+
+VOICE: Write 2-3 sentences AS this compassionate self would speak, addressing the person's specific struggle directly with warmth and wisdom — using "I" as if the person's own compassionate self is speaking.
+
+PRACTICE: One simple instruction for embodying this — posture, breath, or tone of voice — that helps access this compassionate self again in future.
+
+No preamble.`}]);
+      setCompSelfScript(reply);
+    } catch(e) {
+      setCompSelfScript("Bea couldn't generate this right now — please try again.");
+    } finally { setCompSelfLoading(false); }
+  };
+
+  // ── Score PCL-5 ───────────────────────────────────────────────────────
+  const scorePcl5 = async () => {
+    setPcl5Loading(true);
+    const total = PCL5_QUESTIONS.reduce((s,_,i)=>s+(pcl5Answers[i]||0),0);
+    const severity = pcl5Severity(total);
+    const clusterTotals = {};
+    ["intrusion","avoidance","cognition","arousal"].forEach(cl=>{
+      const items = PCL5_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.cluster===cl);
+      clusterTotals[cl] = items.reduce((s,{i})=>s+(pcl5Answers[i]||0),0);
+    });
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, trauma-informed but NOT a trauma processing therapist. A person completed the PCL-5 trauma screening tool.
+Total score: ${total}/80. Clinical threshold is typically 33+.
+Result: ${severity.label}.
+Cluster breakdown — Intrusion: ${clusterTotals.intrusion}, Avoidance: ${clusterTotals.avoidance}, Negative cognitions/mood: ${clusterTotals.cognition}, Arousal/reactivity: ${clusterTotals.arousal}.
+
+Write a careful, warm 4-sentence response:
+1. State the result honestly without alarming language
+2. If at/above threshold, gently and clearly recommend they discuss this with a GP or trauma-specialist therapist — be direct about this, not vague
+3. Explain that this app can offer grounding/stabilisation support but is NOT a substitute for trauma-specific treatment (like EMDR or trauma-focused CBT) which needs a trained clinician
+4. End with one validating, non-alarming sentence
+
+Be honest and clear, never minimise, never catastrophise. No preamble.`}]);
+      const profile = { id:uid(), date:today(), total, severity, clusterTotals, summary:reply, answers:{...pcl5Answers} };
+      onSavePcl5(profile);
+      setView("pcl5_profile");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), total, severity, clusterTotals, summary:"", answers:{...pcl5Answers} };
+      onSavePcl5(profile);
+      setView("pcl5_profile");
+    } finally { setPcl5Loading(false); }
+  };
+
+  // ── Grief Inventory reflection ───────────────────────────────────────────
+  const getGriefReflection = async (answers) => {
+    setGriefLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, grief-informed using Worden's Four Tasks of Mourning model. A person shared:
+
+What/who they lost: "${answers.who}"
+What it meant to them: "${answers.meaning}"
+The hardest part: "${answers.hardest}"
+Anything unsaid/unfinished: "${answers.unsaid||"nothing mentioned"}"
+How they'd like to keep connection: "${answers.keepalive||"not yet decided"}"
+
+Write a warm, gentle 4-5 sentence reflection:
+1. Acknowledge the specific loss they named, using their own words where possible
+2. Gently identify which of Worden's Four Tasks (Accepting the Reality, Processing the Pain, Adjusting to a World Without Them, Finding Ongoing Connection) seems most present in what they shared
+3. Validate that grief has no timeline and isn't something to "get over"
+4. If they mentioned something unfinished, acknowledge that gently without trying to resolve it for them
+5. End with one warm, grounding sentence
+
+Never rush them toward "moving on." No preamble.`}]);
+      setGriefAiReflection(reply);
+    } catch(e) {
+      setGriefAiReflection("Bea couldn't respond right now — please try again.");
+    } finally { setGriefLoading(false); }
+  };
+
+  const saveGriefEntry = () => {
+    const entry = { id:uid(), date:today(), answers:{...griefAnswers}, reflection:griefAiReflection };
+    onSaveGrief(gs=>[entry,...gs]);
+    setGriefAnswers({});
+    setGriefStep(0);
+    setGriefAiReflection("");
+    setView("home");
+  };
+
+  // ── Emotional Eating diary ───────────────────────────────────────────────
+  const getEatingSuggestion = async (emotion, answers) => {
+    setEatingLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, using CBT-E informed emotional eating support. A person noticed an urge to eat when not physically hungry.
+
+The feeling: ${emotion?.label}
+What triggered it: "${answers.trigger||"not specified"}"
+Physical hunger vs emotional pull: "${answers.hunger||"not specified"}"
+What they identified as actually needed: "${answers.needed||"not specified"}"
+
+Write a warm, non-judgmental 4-sentence response:
+1. Validate that using food to cope with ${emotion?.label?.toLowerCase()} makes complete sense as a learned pattern — never frame this as a failure or lack of willpower
+2. Reflect back what they identified as the real underlying need
+3. Suggest 2-3 SPECIFIC non-food actions that could meet that specific need right now (not generic "go for a walk" — tailored to what they actually need, e.g. if they need comfort suggest something soothing, if they need distraction suggest something absorbing, if they need to feel less alone suggest connection)
+4. End with one accepting, non-restrictive sentence — this is not about willpower or restriction
+
+Never mention weight, calories, or diet. No preamble.`}]);
+      setEatingAiSuggest(reply);
+    } catch(e) {
+      setEatingAiSuggest("Bea couldn't respond right now — please try again.");
+    } finally { setEatingLoading(false); }
+  };
+
+  const saveEatingEntry = () => {
+    const entry = { id:uid(), date:today(), emotion:eatingEmotion?.id, emotionLabel:eatingEmotion?.label,
+      answers:{...eatingAnswers}, suggestion:eatingAiSuggest };
+    onSaveEating(es=>[entry,...es]);
+    setEatingEmotion(null);
+    setEatingAnswers({});
+    setEatingStep(0);
+    setEatingAiSuggest("");
+    setView("home");
+  };
+
+  // ── Score Rumination Scale ────────────────────────────────────────────────
+  const scoreRumination = async () => {
+    setRuminationLoading(true);
+    const total = RUMINATION_QUESTIONS.reduce((s,_,i)=>s+(ruminationAnswers[i]||1),0);
+    const level = ruminationLevel(total);
+    const subtotals = {};
+    Object.keys(RUMINATION_SUBSCALES).forEach(key => {
+      const [start,end] = RUMINATION_SUBSCALES[key].range;
+      let sum = 0;
+      for(let i=start;i<end;i++) sum += (ruminationAnswers[i]||1);
+      subtotals[key] = { ...RUMINATION_SUBSCALES[key], total:sum };
+    });
+    const highest = Object.entries(subtotals).sort((a,b)=>b[1].total-a[1].total)[0];
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, supporting someone who has described frequent thought loops, particularly connected to autism, that get stuck on distressing external content — another person's actions, conflict, or things witnessed like news of war — not self-critical thoughts.
+
+They completed a rumination scale (broadened from anger rumination to cover this wider pattern).
+Total score: ${total}/76. Result: ${level.label}.
+Highest subscale: ${highest[1].label} (${highest[1].desc})
+
+Write a warm, validating 4-sentence response:
+1. Reflect the result honestly without pathologising it — for many autistic people, this kind of loop intensity is a genuine cognitive difference, not a flaw to fix
+2. Name what the highest subscale suggests about the SPECIFIC flavour of their loops (e.g. replaying recent events vs old intrusive memories vs needing to understand causes)
+3. Note that this is different from self-critical rumination — these loops fix on something external, real, and outside their control, which is why typical "challenge the thought" techniques don't usually help
+4. Point them toward the Loop Interrupt tool as the practical next step, and mention that brief screen/news limits can genuinely help if conflict footage is a trigger
+
+No preamble.`}]);
+      const profile = { id:uid(), date:today(), total, level, subtotals, highest:highest[1], summary:reply, answers:{...ruminationAnswers} };
+      onSaveRumination(profile);
+      setView("rumination_profile");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), total, level, subtotals, highest:highest[1], summary:"", answers:{...ruminationAnswers} };
+      onSaveRumination(profile);
+      setView("rumination_profile");
+    } finally { setRuminationLoading(false); }
+  };
+
+  // ── Loop Interrupt ────────────────────────────────────────────────────────
+  const getLoopInterruptScript = async (trigger, answers) => {
+    setLoopLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, helping someone interrupt a repetitive thought loop. This person has described autism-related thought loops that get stuck on external distressing content (other people's actions, conflict, news/war footage) — NOT self-critical thoughts. This means typical "challenge the thought" CBT techniques don't apply well, since the content may be entirely real and valid.
+
+What's looping: "${answers.loop}"
+Trigger type: ${trigger.label}
+What they identified as actually true/current: "${answers.realness||"not specified"}"
+What's in their control: "${answers.control||"not specified"}"
+
+Write a short, practical response in 3 clearly labelled parts:
+
+ACKNOWLEDGE: 1-2 sentences acknowledging that the loop is real and the content may genuinely be disturbing — do not minimise or suggest the thought is wrong or distorted.
+
+EXTERNALISE: 1-2 sentences helping them name the loop as separate from them — e.g. "the loop is running again" rather than "I am thinking this" — language that creates distance without denying the content.
+
+REDIRECT: One specific, concrete action to give their mind something else to actively do right now (not "stop thinking about it" — something engaging enough to interrupt it, e.g. a specific counting task, a physical action, a sensory focus point).
+
+No preamble.`}]);
+      setLoopAiScript(reply);
+    } catch(e) {
+      setLoopAiScript("Bea couldn't generate this right now — please try again.");
+    } finally { setLoopLoading(false); }
+  };
+
+  const saveLoopEntry = () => {
+    const entry = { id:uid(), date:today(), trigger:loopTrigger?.id, triggerLabel:loopTrigger?.label,
+      answers:{...loopAnswers}, script:loopAiScript };
+    onSaveLoop(ls=>[entry,...ls].slice(0,50));
+    setLoopTrigger(null);
+    setLoopAnswers({});
+    setLoopStep(0);
+    setLoopAiScript("");
+    setView("home");
   };
 
   // ── HOME ───────────────────────────────────────────────────────────────
@@ -3239,7 +4553,7 @@ Be specific to THEIR actual results, not generic. No preamble, no bullet points 
       </div>
 
       {/* Worry/Rumination Tendency */}
-      <div style={{...card,borderTop:`3px solid #7B4A8B`}}>
+      <div style={{...card,marginBottom:12,borderTop:`3px solid #7B4A8B`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
           <span style={{fontSize:24}}>🌪️</span>
           <div>
@@ -3256,6 +4570,243 @@ Be specific to THEIR actual results, not generic. No preamble, no bullet points 
           </button>
           {worryProfile && <button onClick={()=>setView("worry_profile")}
             style={{...btnStyle("#7B4A8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Young Schema Questionnaire — childhood schemas & reparenting */}
+      <div style={{...card,borderTop:"3px solid #6B3A4A"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🧸</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Childhood Schemas (YSQ)</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {ysqProfile ? `${fmtDate(ysqProfile.date)} · Top: ${ysqProfile.top3?.[0]?.label||"—"}` : "54 items · 18 patterns formed in childhood · Reparenting practice"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          This goes deeper than the other assessments — it looks at patterns that may have formed from childhood experiences. Take your time with it.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setYsqAnswers({});setYsqStep(0);setView("ysq_q");}}
+            style={{...btnStyle("#6B3A4A"),flex:1,color:"white"}}>
+            {ysqProfile ? "Redo Assessment" : "Begin Assessment"}
+          </button>
+          {ysqProfile && <button onClick={()=>setView("ysq_profile")}
+            style={{...btnStyle("#6B3A4A",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Mode Check-In — quick daily tool */}
+      <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🎭</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Which Mode Is Active Right Now?</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {modeCheckIns?.length>0 ? `${modeCheckIns.length} check-in${modeCheckIns.length===1?"":"s"} logged · Last: ${modeCheckIns[0]?.modeLabel}` : "A 30-second check-in — quicker than the full YSQ"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setModeCheckAnswer(null);setModeCheckResult(null);setView("mode_check");}}
+            style={{...btnStyle("#5B9BD5"),flex:1}}>
+            Check In Now
+          </button>
+          {modeCheckIns?.length>0 && <button onClick={()=>setView("mode_history")}
+            style={{...btnStyle("#5B9BD5",true),flex:1}}>View History</button>}
+        </div>
+      </div>
+
+      {/* Imagery Rescripting */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #9B6BA0"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🎬</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Imagery Rescripting</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {rescripts?.length>0 ? `${rescripts.length} rescript${rescripts.length===1?"":"s"} saved` : "Revisit a memory with the support you needed"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          This is the most emotionally intense tool in BeeWell. Schema Therapy normally does this work with a therapist present. Go gently, and stop any time if it feels like too much.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setRescriptAnswers({});setRescriptStep(0);setRescriptAiScript("");setView("rescript_q");}}
+            style={{...btnStyle("#9B6BA0"),flex:1,color:"white"}}>
+            Begin Rescripting
+          </button>
+          {rescripts?.length>0 && <button onClick={()=>setView("rescript_list")}
+            style={{...btnStyle("#9B6BA0",true),flex:1}}>View Saved</button>}
+        </div>
+      </div>
+
+      {/* Fears of Compassion Scale */}
+      <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #C45B8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🪞</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Fears of Compassion Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {fcsProfile ? `${fmtDate(fcsProfile.date)} · Highest: ${fcsProfile.highest.label}` : "38 items · What blocks you from accepting kindness?"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setFcsAnswers({});setFcsStep(0);setView("fcs_q");}}
+            style={{...btnStyle("#C45B8B"),flex:1,color:"white"}}>
+            {fcsProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {fcsProfile && <button onClick={()=>setView("fcs_profile")}
+            style={{...btnStyle("#C45B8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Three Circles practice */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>⭕</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Three Circles Check-In</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {circlesEntries?.length>0 ? `${circlesEntries.length} check-in${circlesEntries.length===1?"":"s"} logged` : "Threat · Drive · Soothe — which system is active?"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setCirclesAnswers({threat:"",drive:"",soothe:""});setCirclesAiReflection("");setView("circles_q");}}
+            style={{...btnStyle("#5B9BD5"),flex:1}}>
+            Check In Now
+          </button>
+          {circlesEntries?.length>0 && <button onClick={()=>setView("circles_history")}
+            style={{...btnStyle("#5B9BD5",true),flex:1}}>View History</button>}
+        </div>
+      </div>
+
+      {/* Compassionate Self practice */}
+      <div style={{...card,borderTop:"3px solid #7BB369"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌸</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Compassionate Self Practice</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>Build an inner voice of wisdom, strength and warmth</div>
+          </div>
+        </div>
+        <button onClick={()=>{setCompSelfStep(0);setCompSelfAnswers({});setCompSelfScript("");setView("compself_q");}}
+          style={{...btnStyle("#7BB369"),width:"100%"}}>
+          Begin Practice
+        </button>
+      </div>
+
+      {/* PCL-5 Trauma Screening */}
+      <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #5A1A1A"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🛡️</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Trauma Screening (PCL-5)</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {pcl5Profile ? `${fmtDate(pcl5Profile.date)} · ${pcl5Profile.severity.label}` : "20 items · Standard PTSD screening tool"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          This screens for trauma symptoms. It cannot treat trauma — that needs a trained specialist. This is about understanding, not processing.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setPcl5Answers({});setPcl5Step(0);setView("pcl5_q");}}
+            style={{...btnStyle("#5A1A1A"),flex:1,color:"white"}}>
+            {pcl5Profile ? "Redo Screening" : "Start Screening"}
+          </button>
+          {pcl5Profile && <button onClick={()=>setView("pcl5_profile")}
+            style={{...btnStyle("#5A1A1A",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Grief Box */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #5B7B9B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🕊️</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Grief Box</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {griefEntries?.length>0 ? `${griefEntries.length} entr${griefEntries.length===1?"y":"ies"} · Worden's Four Tasks of Mourning` : "A space for loss — any kind, any size"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setGriefAnswers({});setGriefStep(0);setGriefAiReflection("");setView("grief_q");}}
+            style={{...btnStyle("#5B7B9B"),flex:1,color:"white"}}>
+            + New Entry
+          </button>
+          {griefEntries?.length>0 && <button onClick={()=>setView("grief_box")}
+            style={{...btnStyle("#5B7B9B",true),flex:1}}>Open Grief Box</button>}
+        </div>
+      </div>
+
+      {/* Emotional Eating */}
+      <div style={{...card,borderTop:"3px solid #E8891A"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🍽️</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Emotional Eating Support</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {eatingEntries?.length>0 ? `${eatingEntries.length} entr${eatingEntries.length===1?"y":"ies"} logged` : "When you want to eat but aren't hungry"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setEatingEmotion(null);setEatingAnswers({});setEatingStep(0);setEatingAiSuggest("");setView("eating_q");}}
+            style={{...btnStyle("#E8891A"),flex:1,color:"white"}}>
+            Log This Moment
+          </button>
+          {eatingEntries?.length>0 && <button onClick={()=>setView("eating_list")}
+            style={{...btnStyle("#E8891A",true),flex:1}}>View History</button>}
+        </div>
+      </div>
+
+      {/* Rumination Scale */}
+      <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #6B4A8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🔁</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Thought Loop Tendency</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {ruminationProfile ? `${fmtDate(ruminationProfile.date)} · ${ruminationProfile.level.label}` : "19 items · How stuck do loops about others/events get?"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          For loops about other people, conflict, or distressing things witnessed — not self-critical thoughts.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setRuminationAnswers({});setRuminationStep(0);setView("rumination_q");}}
+            style={{...btnStyle("#6B4A8B"),flex:1,color:"white"}}>
+            {ruminationProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {ruminationProfile && <button onClick={()=>setView("rumination_profile")}
+            style={{...btnStyle("#6B4A8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Loop Interrupt */}
+      <div style={{...card,borderTop:"3px solid #3A6B8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌀</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Loop Interrupt</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {loopEntries?.length>0 ? `${loopEntries.length} time${loopEntries.length===1?"":"s"} used` : "Stuck on something right now? Use this in the moment"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setLoopTrigger(null);setLoopAnswers({});setLoopStep(0);setLoopAiScript("");setView("loop_q");}}
+            style={{...btnStyle("#3A6B8B"),flex:1,color:"white"}}>
+            Interrupt This Loop
+          </button>
+          {loopEntries?.length>0 && <button onClick={()=>setView("loop_list")}
+            style={{...btnStyle("#3A6B8B",true),flex:1}}>View History</button>}
         </div>
       </div>
 
@@ -4427,11 +5978,1277 @@ Be specific to THEIR actual results, not generic. No preamble, no bullet points 
       </div>
       <div style={{...card,background:`${PALETTE.lavender}0D`,marginBottom:12}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
-          If this score is high, the Defusion Board in your ACT Toolkit was built exactly for this pattern — try "Clouds Passing" or "Leaves on a Stream" next time worry takes hold.
+          If this score is high, the Defusion Board in Inner Work was built exactly for this pattern — try "Clouds Passing" or "Leaves on a Stream" next time worry takes hold.
         </p>
       </div>
       <button onClick={()=>{setWorryAnswers({});setWorryStep(0);setView("worry_q");}}
         style={{...btnStyle("#7B4A8B",true),width:"100%"}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── YSQ QUESTIONNAIRE ────────────────────────────────────────────────────
+  if(view==="ysq_q") {
+    const i = ysqStep;
+    const total = ysqFlatItems.length;
+    const item = ysqFlatItems[i];
+    const schema = YSQ_SCHEMAS.find(s=>s.id===item.schemaId);
+    const domain = YSQ_DOMAINS.find(d=>d.id===schema.domain);
+    const progress = Math.round((i/total)*100);
+    const allAnswered = ysqFlatItems.every((_,idx)=>ysqAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🧸 Childhood Schemas (YSQ)</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how true each statement is of you generally. There are no right or wrong answers — go at whatever pace feels okay.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Statement {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:domain.color,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{fontSize:10,fontWeight:700,color:domain.color,letterSpacing:1,marginBottom:8}}>
+          {domain.label.toUpperCase()} · {schema.emoji} {schema.label.toUpperCase()}
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:`3px solid ${domain.color}`}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{item.text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+          {YSQ_SCALE.map(opt=>{
+            const sel = ysqAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setYsqAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setYsqStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"11px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?domain.color:"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:13,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?`0 3px 10px ${domain.color}66`:"none"}}>
+                {opt.val}. {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setYsqStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>ysqAnswers[i]!==undefined&&setYsqStep(s=>s+1)} disabled={ysqAnswers[i]===undefined}
+              style={{...btnStyle(domain.color),flex:1,opacity:ysqAnswers[i]!==undefined?1:0.4}}>Next →</button>
+          ) : (
+            <button onClick={scoreYsq} disabled={!allAnswered||ysqLoading}
+              style={{...btnStyle("#6B3A4A"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {ysqLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+        {!allAnswered && i===total-1 && (
+          <p style={{fontSize:11,color:PALETTE.soft,textAlign:"center",marginTop:8}}>
+            Answer all statements to see your results — use ← Prev to go back
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── YSQ RESULTS ──────────────────────────────────────────────────────────
+  if(view==="ysq_profile" && ysqProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🧸 My Schema Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(ysqProfile.date)}</p>
+
+      {/* Top elevated schemas */}
+      <h4 style={{color:PALETTE.blush,fontSize:12,fontWeight:700,letterSpacing:1,marginBottom:8}}>
+        🔍 YOUR MOST ELEVATED PATTERNS
+      </h4>
+      {ysqProfile.top3?.map((s,i)=>(
+        <div key={s.id} style={{...card,marginBottom:8,borderLeft:`4px solid ${s.domain.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+            <span style={{fontSize:22}}>{s.emoji}</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{s.label}</div>
+              <div style={{fontSize:10,color:s.domain.color}}>{s.domain.label}</div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:18,fontWeight:800,color:s.domain.color}}>{s.avg}</div>
+              <div style={{fontSize:9,color:PALETTE.soft}}>/6</div>
+            </div>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{s.desc}</p>
+          <button onClick={()=>{
+              setModeWorkSchema(s);
+              setReparentAnswers({});
+              setReparentStep(0);
+              setReparentAiScript("");
+              setView("reparent_work");
+            }}
+            style={{...btnStyle(s.domain.color,true),width:"100%",marginTop:10,fontSize:12}}>
+            🌱 Work with this pattern
+          </button>
+        </div>
+      ))}
+
+      {/* Active schema modes */}
+      {ysqProfile.activeModes?.length>0 && <>
+        <h4 style={{color:PALETTE.mid,fontSize:12,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
+          🎭 LIKELY ACTIVE SCHEMA MODES
+        </h4>
+        {ysqProfile.activeModes.map(m=>(
+          <div key={m.id} style={{...card,marginBottom:8,borderLeft:`3px solid ${m.color}`,background:`${m.color}0D`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontSize:20}}>{m.emoji}</span>
+              <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{m.label}</div>
+            </div>
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{m.desc}</p>
+          </div>
+        ))}
+      </>}
+
+      {/* Full breakdown by domain */}
+      <h4 style={{color:PALETTE.mid,fontSize:12,fontWeight:700,letterSpacing:1,margin:"16px 0 8px"}}>
+        📊 ALL 18 SCHEMAS BY DOMAIN
+      </h4>
+      {YSQ_DOMAINS.map(domain=>{
+        const schemasInDomain = ysqProfile.schemaScores?.filter(s=>s.domain.id===domain.id) || [];
+        return (
+          <div key={domain.id} style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:domain.color,letterSpacing:1,marginBottom:6}}>{domain.label.toUpperCase()}</div>
+            {schemasInDomain.map(s=>(
+              <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{fontSize:14,width:20}}>{s.emoji}</span>
+                <span style={{fontSize:12,color:PALETTE.dark,flex:1}}>{s.label}</span>
+                <div style={{width:60,height:6,background:"#EEE",borderRadius:3}}>
+                  <div style={{height:"100%",width:`${(s.avg/6)*100}%`,background:s.avg>=4?domain.color:"#CCC",borderRadius:3}}/>
+                </div>
+                <span style={{fontSize:11,color:PALETTE.soft,width:24,textAlign:"right"}}>{s.avg}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      {/* Bea's summary */}
+      {ysqProfile.summary && (
+        <div style={{...card,marginTop:8,background:"#6B3A4A0D",border:"1.5px solid #6B3A4A33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#6B3A4A",fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{ysqProfile.summary}</p>
+        </div>
+      )}
+
+      <button onClick={()=>{setYsqAnswers({});setYsqStep(0);setView("ysq_q");}}
+        style={{...btnStyle("#6B3A4A",true),width:"100%",marginTop:16}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── LIMITED REPARENTING PRACTICE ─────────────────────────────────────────
+  if(view==="reparent_work" && modeWorkSchema) {
+    const steps = [
+      {field:"memory",      label:"A Memory",          question:"Bring to mind a specific memory connected to this pattern — a moment when you felt this most clearly.",
+       placeholder:"Describe what happened, as much or as little detail as feels okay…"},
+      {field:"need",        label:"The Unmet Need",    question:"In that memory, what did your younger self actually need — but didn't get?",
+       placeholder:"e.g. To be noticed. To be comforted. To be protected. To be told it wasn't their fault."},
+      {field:"criticVoice", label:"The Critical Voice", question:"Is there a harsh inner voice connected to this pattern? What does it tend to say to you?",
+       placeholder:"Write the actual words, as harsh as they really are…"},
+    ];
+    const currentStep = steps[reparentStep];
+    const isLast = reparentStep === steps.length - 1;
+    const allDone = steps.every(s=>reparentAnswers[s.field]?.trim());
+
+    return (
+      <div>
+        <button onClick={()=>{setModeWorkSchema(null);setView("ysq_profile");}}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌱 Limited Reparenting</h3>
+        <div style={{...card,marginBottom:16,borderLeft:`4px solid ${modeWorkSchema.domain.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span style={{fontSize:22}}>{modeWorkSchema.emoji}</span>
+            <span style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{modeWorkSchema.label}</span>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{modeWorkSchema.desc}</p>
+        </div>
+
+        {!reparentAiScript ? (
+          <div>
+            <div style={{display:"flex",gap:4,marginBottom:16}}>
+              {steps.map((_,idx)=>(
+                <div key={idx} style={{flex:1,height:4,borderRadius:2,
+                  background:idx<=reparentStep?modeWorkSchema.domain.color:"#EEE",transition:"background .3s"}}/>
+              ))}
+            </div>
+            <div style={{...card,marginBottom:14,padding:18,borderLeft:`3px solid ${modeWorkSchema.domain.color}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:modeWorkSchema.domain.color,letterSpacing:1,marginBottom:6}}>
+                {currentStep.label.toUpperCase()}
+              </div>
+              <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{currentStep.question}</p>
+            </div>
+            <textarea value={reparentAnswers[currentStep.field]||""}
+              onChange={e=>setReparentAnswers(a=>({...a,[currentStep.field]:e.target.value}))}
+              placeholder={currentStep.placeholder}
+              style={{...textareaStyle,minHeight:100,marginBottom:14}}/>
+            <div style={{display:"flex",gap:8}}>
+              {reparentStep>0 && <button onClick={()=>setReparentStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+              {!isLast ? (
+                <button onClick={()=>reparentAnswers[currentStep.field]?.trim()&&setReparentStep(s=>s+1)}
+                  disabled={!reparentAnswers[currentStep.field]?.trim()}
+                  style={{...btnStyle(modeWorkSchema.domain.color),flex:1,opacity:reparentAnswers[currentStep.field]?.trim()?1:0.4}}>
+                  Next →
+                </button>
+              ) : (
+                <button onClick={()=>getReparentingScript(modeWorkSchema, reparentAnswers)}
+                  disabled={!allDone||reparentLoading}
+                  style={{...btnStyle("#6B3A4A"),flex:1,opacity:allDone?1:0.4,color:"white"}}>
+                  {reparentLoading?"🐝 Bea is working on this…":"Begin Reparenting →"}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            {reparentAiScript.split(/PART \d+[^:]*:/).filter(p=>p.trim()).map((part, idx) => {
+              const labels = ["⚡ Challenging the Punitive Voice", "🧸 Validating the Vulnerable Child", "🌱 Your Healthy Adult Voice"];
+              const colors = ["#8B1A1A", "#5B9BD5", "#7BB369"];
+              return (
+                <div key={idx} style={{...card,marginBottom:12,borderLeft:`4px solid ${colors[idx]}`,background:`${colors[idx]}0D`}}>
+                  <div style={{fontSize:11,fontWeight:700,color:colors[idx],letterSpacing:1,marginBottom:8}}>
+                    {labels[idx]?.toUpperCase()}
+                  </div>
+                  <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.8}}>{part.trim()}</p>
+                </div>
+              );
+            })}
+            <div style={{...card,background:"#FFF8F0",border:"1px solid #E8891A33",marginTop:8}}>
+              <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
+                💛 This kind of work can bring up a lot. If it feels too big to hold alone, that is exactly the sign to bring it to a real trauma-informed therapist — not a sign you are doing it wrong.
+              </p>
+            </div>
+            <button onClick={()=>{setModeWorkSchema(null);setReparentAiScript("");setView("ysq_profile");}}
+              style={{...btnStyle("#6B3A4A",true),width:"100%",marginTop:14,color:"#6B3A4A"}}>
+              Done for now
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── MODE CHECK-IN ────────────────────────────────────────────────────────
+  if(view==="mode_check") {
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🎭 Which Mode Is Active?</h3>
+
+        {!modeCheckResult ? (
+          <div>
+            <p style={{fontSize:13,color:PALETTE.soft,marginBottom:16,lineHeight:1.6}}>
+              Read each statement and pick the one that feels most true for you right now, in this moment.
+            </p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {MODE_CHECK_PROMPTS.map(p=>{
+                const mode = SCHEMA_MODES.find(m=>m.id===p.mode);
+                return (
+                  <button key={p.mode} onClick={()=>doModeCheckIn(p.mode)}
+                    disabled={modeCheckLoading}
+                    style={{
+                      ...card,border:`2px solid ${mode.color}33`,cursor:"pointer",textAlign:"left",
+                      padding:"14px 16px",background:`${mode.color}0A`,
+                    }}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                      <span style={{fontSize:22}}>{mode.emoji}</span>
+                      <span style={{fontWeight:700,color:mode.color,fontSize:14}}>{mode.label}</span>
+                    </div>
+                    <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.5}}>{p.text}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {modeCheckLoading && (
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:16,justifyContent:"center"}}>
+                <BeeMascot size={28} animated/>
+                <p style={{margin:0,fontSize:13,color:PALETTE.mid,fontStyle:"italic"}}>Bea is thinking…</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div style={{...card,marginBottom:16,borderLeft:`4px solid ${modeCheckResult.mode.color}`,
+              background:`${modeCheckResult.mode.color}0D`}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <span style={{fontSize:28}}>{modeCheckResult.mode.emoji}</span>
+                <span style={{fontWeight:800,color:modeCheckResult.mode.color,fontSize:16}}>{modeCheckResult.mode.label}</span>
+              </div>
+              <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{modeCheckResult.mode.desc}</p>
+            </div>
+            <div style={{...card,background:`${PALETTE.honey}0D`,border:`1.5px solid ${PALETTE.honey}33`}}>
+              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                <BeeMascot size={28}/>
+                <span style={{fontWeight:700,color:PALETTE.amber,fontSize:13}}>Bea</span>
+              </div>
+              <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{modeCheckResult.response}</p>
+            </div>
+            <button onClick={()=>{setModeCheckAnswer(null);setModeCheckResult(null);setView("home");}}
+              style={{...btnStyle(modeCheckResult.mode.color,true),width:"100%",marginTop:16}}>
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── MODE CHECK-IN HISTORY ────────────────────────────────────────────────
+  if(view==="mode_history") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🎭 Mode Check-In History</h3>
+      <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16}}>Your last {modeCheckIns?.length||0} check-ins, most recent first.</p>
+      {modeCheckIns?.map(c=>{
+        const mode = SCHEMA_MODES.find(m=>m.id===c.mode);
+        return (
+          <div key={c.id} style={{...card,marginBottom:10,borderLeft:`3px solid ${mode?.color}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <span style={{fontSize:18}}>{mode?.emoji}</span>
+              <span style={{fontWeight:700,color:mode?.color,fontSize:13}}>{c.modeLabel}</span>
+              <span style={{fontSize:11,color:PALETTE.soft,marginLeft:"auto"}}>{fmtDate(c.date)}</span>
+            </div>
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>{c.response}</p>
+          </div>
+        );
+      })}
+      {(!modeCheckIns || modeCheckIns.length===0) && <div style={emptyState}>No check-ins yet.</div>}
+      <button onClick={()=>{setModeCheckAnswer(null);setModeCheckResult(null);setView("mode_check");}}
+        style={{...btnStyle("#5B9BD5"),width:"100%",marginTop:8}}>
+        + New Check-In
+      </button>
+    </div>
+  );
+
+  // ── IMAGERY RESCRIPTING QUESTIONNAIRE ────────────────────────────────────
+  if(view==="rescript_q") {
+    const steps = [
+      {field:"scene",  label:"The Scene",        question:"Bring to mind a specific childhood memory connected to feeling unseen, neglected, or hurt. Describe what happened, where you were, how old you were.",
+       placeholder:"Take your time. As much or as little detail as feels okay…"},
+      {field:"needed", label:"What Was Needed",  question:"In that exact moment, what did you need to happen — to be said, to be done — that didn't happen?",
+       placeholder:"e.g. Someone to notice I was upset. Someone to step in and protect me. Someone to tell me it wasn't my fault."},
+      {field:"helper", label:"Who Shows Up",     question:"Now imagine someone capable and caring stepping into that scene to help. Who is it? It could be your adult self, Bea, a protective figure, or anyone who feels right.",
+       placeholder:"e.g. My adult self now. A wise protector. Someone who simply stays."},
+    ];
+    const currentStep = steps[rescriptStep];
+    const isLast = rescriptStep === steps.length - 1;
+    const allDone = steps.every(s=>rescriptAnswers[s.field]?.trim());
+
+    if(rescriptAiScript) {
+      const parts = rescriptAiScript.split(/(?=SCENE:|ENTRANCE:|INTERVENTION:|NEW ENDING:)/).filter(p=>p.trim());
+      const labels = {SCENE:"📍 The Scene", ENTRANCE:"🚪 They Arrive", INTERVENTION:"🤲 What Happens", "NEW ENDING":"🌅 The New Ending"};
+      const colors = ["#6B5744","#5B9BD5","#9B6BA0","#7BB369"];
+      return (
+        <div>
+          <button onClick={()=>{setRescriptAiScript("");}} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit Answers</button>
+          <h3 style={sectionTitle}>🎬 Your Rescripted Memory</h3>
+          <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.6}}>
+            Read this slowly. You can pause, breathe, or stop at any point.
+          </p>
+          {parts.map((part, idx) => {
+            const key = Object.keys(labels).find(k=>part.startsWith(k));
+            const label = labels[key] || `Part ${idx+1}`;
+            const text = part.replace(/^(SCENE|ENTRANCE|INTERVENTION|NEW ENDING):/,"").trim();
+            return (
+              <div key={idx} style={{...card,marginBottom:12,borderLeft:`4px solid ${colors[idx%colors.length]}`,
+                background:`${colors[idx%colors.length]}0D`}}>
+                <div style={{fontSize:11,fontWeight:700,color:colors[idx%colors.length],letterSpacing:1,marginBottom:8}}>
+                  {label.toUpperCase()}
+                </div>
+                <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.9}}>{text}</p>
+              </div>
+            );
+          })}
+          <div style={{...card,background:"#FFF8F0",border:"1px solid #E8891A33",marginTop:8,marginBottom:14}}>
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
+              💛 If this brought up strong feelings, that is completely normal. Be gentle with yourself for the rest of today, and consider sharing this with a real therapist if it feels important to.
+            </p>
+          </div>
+          <button onClick={saveRescript} style={{...btnStyle("#9B6BA0"),width:"100%",color:"white"}}>
+            Save This Rescript
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🎬 Imagery Rescripting</h3>
+        <div style={{...card,marginBottom:16,background:"#FFF0F0",border:"1.5px solid #8B1A1A33"}}>
+          <p style={{margin:0,fontSize:12,color:PALETTE.dark,lineHeight:1.6}}>
+            💛 This revisits a real memory. Go at your own pace — there is no rush, and you can stop at any time. If you are not feeling steady today, this can wait for another day.
+          </p>
+        </div>
+        <div style={{display:"flex",gap:4,marginBottom:16}}>
+          {steps.map((_,idx)=>(
+            <div key={idx} style={{flex:1,height:4,borderRadius:2,
+              background:idx<=rescriptStep?"#9B6BA0":"#EEE",transition:"background .3s"}}/>
+          ))}
+        </div>
+        <div style={{...card,marginBottom:14,padding:18,borderLeft:"3px solid #9B6BA0"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#9B6BA0",letterSpacing:1,marginBottom:6}}>
+            {currentStep.label.toUpperCase()}
+          </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{currentStep.question}</p>
+        </div>
+        <textarea value={rescriptAnswers[currentStep.field]||""}
+          onChange={e=>setRescriptAnswers(a=>({...a,[currentStep.field]:e.target.value}))}
+          placeholder={currentStep.placeholder}
+          style={{...textareaStyle,minHeight:110,marginBottom:14}}/>
+        <div style={{display:"flex",gap:8}}>
+          {rescriptStep>0 && <button onClick={()=>setRescriptStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+          {!isLast ? (
+            <button onClick={()=>rescriptAnswers[currentStep.field]?.trim()&&setRescriptStep(s=>s+1)}
+              disabled={!rescriptAnswers[currentStep.field]?.trim()}
+              style={{...btnStyle("#9B6BA0"),flex:1,opacity:rescriptAnswers[currentStep.field]?.trim()?1:0.4,color:"white"}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={()=>getRescriptScript(rescriptAnswers)}
+              disabled={!allDone||rescriptLoading}
+              style={{...btnStyle("#9B6BA0"),flex:1,opacity:allDone?1:0.4,color:"white"}}>
+              {rescriptLoading?"🐝 Bea is preparing this gently…":"Begin Rescripting →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── SAVED RESCRIPTS LIST ─────────────────────────────────────────────────
+  if(view==="rescript_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🎬 Saved Rescripts</h3>
+      {rescripts?.map(r=>(
+        <div key={r.id} style={{...card,marginBottom:12,borderLeft:"3px solid #9B6BA0"}}>
+          <div style={{fontSize:11,color:PALETTE.soft,marginBottom:6}}>{fmtDate(r.date)}</div>
+          <p style={{margin:"0 0 8px",fontSize:13,color:PALETTE.dark,fontStyle:"italic"}}>
+            "{r.answers?.scene?.slice(0,80)}{r.answers?.scene?.length>80?"…":""}"
+          </p>
+          <button onClick={()=>{setRescriptAnswers(r.answers);setRescriptAiScript(r.script);setView("rescript_q");}}
+            style={{...btnStyle("#9B6BA0",true),width:"100%",fontSize:12}}>
+            Read Again
+          </button>
+        </div>
+      ))}
+      {(!rescripts || rescripts.length===0) && <div style={emptyState}>No rescripts saved yet.</div>}
+      <button onClick={()=>{setRescriptAnswers({});setRescriptStep(0);setRescriptAiScript("");setView("rescript_q");}}
+        style={{...btnStyle("#9B6BA0"),width:"100%",marginTop:8,color:"white"}}>
+        + New Rescripting
+      </button>
+    </div>
+  );
+
+  // ── FEARS OF COMPASSION QUESTIONNAIRE ────────────────────────────────────
+  if(view==="fcs_q") {
+    const i = fcsStep;
+    const total = FCS_QUESTIONS.length;
+    const q = FCS_QUESTIONS[i];
+    const sub = FCS_SUBSCALES[q.sub];
+    const progress = Math.round((i/total)*100);
+    const allAnswered = FCS_QUESTIONS.every((_,idx)=>fcsAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🪞 Fears of Compassion</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how much you agree with each statement.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Statement {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:sub.color,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{fontSize:10,fontWeight:700,color:sub.color,letterSpacing:1,marginBottom:8}}>
+          {sub.emoji} {sub.label.toUpperCase()}
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:`3px solid ${sub.color}`}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{q.text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {FCS_SCALE.map(opt=>{
+            const sel = fcsAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setFcsAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setFcsStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?sub.color:"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?`0 3px 10px ${sub.color}66`:"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setFcsStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>fcsAnswers[i]!==undefined&&setFcsStep(s=>s+1)} disabled={fcsAnswers[i]===undefined}
+              style={{...btnStyle(sub.color),flex:1,opacity:fcsAnswers[i]!==undefined?1:0.4}}>Next →</button>
+          ) : (
+            <button onClick={scoreFcs} disabled={!allAnswered||fcsLoading}
+              style={{...btnStyle("#C45B8B"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {fcsLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── FEARS OF COMPASSION RESULTS ──────────────────────────────────────────
+  if(view==="fcs_profile" && fcsProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🪞 My Fears of Compassion</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(fcsProfile.date)}</p>
+
+      {Object.entries(fcsProfile.subtotals).map(([key,s])=>(
+        <div key={key} style={{...card,marginBottom:10,borderTop:`4px solid ${s.color}`,padding:18}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontSize:22}}>{s.emoji}</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{s.label}</div>
+            </div>
+            <div style={{display:"inline-block",background:s.severity.color,color:"white",
+              borderRadius:999,padding:"4px 12px",fontWeight:700,fontSize:12}}>
+              {s.severity.label}
+            </div>
+          </div>
+          <div style={{height:8,background:"#EEE",borderRadius:4,marginBottom:6}}>
+            <div style={{height:"100%",width:`${s.pct}%`,background:s.color,borderRadius:4}}/>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{s.desc}</p>
+        </div>
+      ))}
+
+      {fcsProfile.summary && (
+        <div style={{...card,marginTop:8,background:"#C45B8B0D",border:"1.5px solid #C45B8B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#C45B8B",fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{fcsProfile.summary}</p>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:8,marginTop:16}}>
+        <button onClick={()=>{setCirclesAnswers({threat:"",drive:"",soothe:""});setCirclesAiReflection("");setView("circles_q");}}
+          style={{...btnStyle("#5B9BD5"),flex:1}}>⭕ Three Circles</button>
+        <button onClick={()=>{setCompSelfStep(0);setCompSelfAnswers({});setCompSelfScript("");setView("compself_q");}}
+          style={{...btnStyle("#7BB369"),flex:1}}>🌸 Compassionate Self</button>
+      </div>
+      <button onClick={()=>{setFcsAnswers({});setFcsStep(0);setView("fcs_q");}}
+        style={{...btnStyle("#C45B8B",true),width:"100%",marginTop:10}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── THREE CIRCLES CHECK-IN ───────────────────────────────────────────────
+  if(view==="circles_q") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>⭕ Three Circles Check-In</h3>
+      <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+        Gilbert's model of three emotion systems. Notice which is active for you right now.
+      </p>
+
+      {!circlesAiReflection ? (
+        <div>
+          {CFT_CIRCLES.map(circle=>(
+            <div key={circle.id} style={{...card,marginBottom:14,borderLeft:`4px solid ${circle.color}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{fontSize:22}}>{circle.emoji}</span>
+                <span style={{fontWeight:700,color:circle.color,fontSize:15}}>{circle.label}</span>
+              </div>
+              <p style={{margin:"0 0 8px",fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{circle.desc}</p>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                {circle.feelings.map(f=>(
+                  <span key={f} style={{fontSize:11,background:`${circle.color}11`,color:circle.color,
+                    padding:"3px 10px",borderRadius:999}}>{f}</span>
+                ))}
+              </div>
+              <textarea value={circlesAnswers[circle.id]} onChange={e=>setCirclesAnswers(a=>({...a,[circle.id]:e.target.value}))}
+                placeholder="What's showing up here for you right now, if anything?"
+                style={{...textareaStyle,minHeight:60}}/>
+            </div>
+          ))}
+          <button onClick={()=>getCirclesReflection(circlesAnswers)} disabled={circlesLoading}
+            style={{...btnStyle("#5B9BD5"),width:"100%"}}>
+            {circlesLoading?"🐝 Bea is reflecting…":"Get Bea's Reflection"}
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{...card,background:"#5B9BD50D",border:"1.5px solid #5B9BD533",marginBottom:14}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+              <BeeMascot size={28}/>
+              <span style={{fontWeight:700,color:"#5B9BD5",fontSize:13}}>Bea</span>
+            </div>
+            <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{circlesAiReflection}</p>
+          </div>
+          <button onClick={saveCirclesEntry} style={{...btnStyle("#5B9BD5"),width:"100%"}}>
+            Save This Check-In
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── THREE CIRCLES HISTORY ────────────────────────────────────────────────
+  if(view==="circles_history") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>⭕ Three Circles History</h3>
+      {circlesEntries?.map(c=>(
+        <div key={c.id} style={{...card,marginBottom:10,borderLeft:"3px solid #5B9BD5"}}>
+          <div style={{fontSize:11,color:PALETTE.soft,marginBottom:6}}>{fmtDate(c.date)}</div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>{c.reflection}</p>
+        </div>
+      ))}
+      {(!circlesEntries || circlesEntries.length===0) && <div style={emptyState}>No check-ins yet.</div>}
+      <button onClick={()=>{setCirclesAnswers({threat:"",drive:"",soothe:""});setCirclesAiReflection("");setView("circles_q");}}
+        style={{...btnStyle("#5B9BD5"),width:"100%",marginTop:8}}>+ New Check-In</button>
+    </div>
+  );
+
+  // ── COMPASSIONATE SELF PRACTICE ──────────────────────────────────────────
+  if(view==="compself_q") {
+    if(compSelfScript) {
+      const parts = compSelfScript.split(/(?=QUALITIES:|VOICE:|PRACTICE:)/).filter(p=>p.trim());
+      const labels = {QUALITIES:"🌸 Your Compassionate Self", VOICE:"🗣️ What It Says", PRACTICE:"🧘 How to Access It Again"};
+      const colors = ["#7BB369","#5B9BD5","#D4AF37"];
+      return (
+        <div>
+          <button onClick={()=>setCompSelfScript("")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit</button>
+          <h3 style={sectionTitle}>🌸 Your Compassionate Self</h3>
+          {parts.map((part,idx)=>{
+            const key = Object.keys(labels).find(k=>part.startsWith(k));
+            const label = labels[key] || `Part ${idx+1}`;
+            const text = part.replace(/^(QUALITIES|VOICE|PRACTICE):/,"").trim();
+            return (
+              <div key={idx} style={{...card,marginBottom:12,borderLeft:`4px solid ${colors[idx%colors.length]}`,
+                background:`${colors[idx%colors.length]}0D`}}>
+                <div style={{fontSize:11,fontWeight:700,color:colors[idx%colors.length],letterSpacing:1,marginBottom:8}}>
+                  {label.toUpperCase()}
+                </div>
+                <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.8}}>{text}</p>
+              </div>
+            );
+          })}
+          <button onClick={()=>setView("home")} style={{...btnStyle("#7BB369"),width:"100%",marginTop:8}}>Done</button>
+        </div>
+      );
+    }
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌸 Compassionate Self Practice</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          In CFT, you build and become a compassionate self with wisdom, strength and warmth — not just receiving compassion, but embodying it.
+        </p>
+        <label style={labelStyle}>What are you struggling with right now?</label>
+        <textarea value={compSelfAnswers.struggle||""} onChange={e=>setCompSelfAnswers(a=>({...a,struggle:e.target.value}))}
+          placeholder="Whatever is present for you right now…"
+          style={{...textareaStyle,minHeight:80,marginBottom:14}}/>
+        <label style={labelStyle}>What qualities would your ideal compassionate self have? (optional)</label>
+        <input value={compSelfAnswers.qualities||""} onChange={e=>setCompSelfAnswers(a=>({...a,qualities:e.target.value}))}
+          placeholder="e.g. patient, wise, unshakeable, warm"
+          style={{...inputStyle,width:"100%",boxSizing:"border-box",marginBottom:16}}/>
+        <button onClick={()=>getCompassionateSelfScript(compSelfAnswers)}
+          disabled={!compSelfAnswers.struggle?.trim()||compSelfLoading}
+          style={{...btnStyle("#7BB369"),width:"100%",opacity:compSelfAnswers.struggle?.trim()?1:0.4}}>
+          {compSelfLoading?"🐝 Bea is preparing this…":"Begin Practice →"}
+        </button>
+      </div>
+    );
+  }
+
+  // ── PCL-5 TRAUMA SCREENING ───────────────────────────────────────────────
+  if(view==="pcl5_q") {
+    const i = pcl5Step;
+    const total = PCL5_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = PCL5_QUESTIONS.every((_,idx)=>pcl5Answers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🛡️ Trauma Screening (PCL-5)</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          In the past month, how much were you bothered by each of the following?
+        </p>
+        <div style={{...card,marginBottom:16,background:"#FFF0F0",border:"1.5px solid #8B1A1A33"}}>
+          <p style={{margin:0,fontSize:12,color:PALETTE.dark,lineHeight:1.6}}>
+            💛 Go at your own pace. You can stop and come back to this any time.
+          </p>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#5A1A1A",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #5A1A1A"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{PCL5_QUESTIONS[i].text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {PCL5_SCALE.map(opt=>{
+            const sel = pcl5Answers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setPcl5Answers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setPcl5Step(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#5A1A1A":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #5A1A1A66":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setPcl5Step(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>pcl5Answers[i]!==undefined&&setPcl5Step(s=>s+1)} disabled={pcl5Answers[i]===undefined}
+              style={{...btnStyle("#5A1A1A"),flex:1,opacity:pcl5Answers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scorePcl5} disabled={!allAnswered||pcl5Loading}
+              style={{...btnStyle("#5A1A1A"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {pcl5Loading?"🐝 Bea is reviewing your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PCL-5 RESULTS ────────────────────────────────────────────────────────
+  if(view==="pcl5_profile" && pcl5Profile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🛡️ Trauma Screening Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(pcl5Profile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${pcl5Profile.severity.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:pcl5Profile.severity.color}}>{pcl5Profile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 80</div>
+        <div style={{display:"inline-block",background:pcl5Profile.severity.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {pcl5Profile.severity.label}
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+        {Object.entries({intrusion:"Intrusion",avoidance:"Avoidance",cognition:"Negative Mood",arousal:"Arousal"}).map(([key,label])=>(
+          <div key={key} style={{...card,padding:"10px 12px",textAlign:"center"}}>
+            <div style={{fontSize:11,color:PALETTE.soft}}>{label}</div>
+            <div style={{fontSize:18,fontWeight:700,color:PALETTE.dark}}>{pcl5Profile.clusterTotals[key]}</div>
+          </div>
+        ))}
+      </div>
+
+      {pcl5Profile.summary && (
+        <div style={{...card,marginBottom:16,background:"#5A1A1A0D",border:"1.5px solid #5A1A1A33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#5A1A1A",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{pcl5Profile.summary}</p>
+        </div>
+      )}
+
+      <div style={{...card,background:"#F8F8F8",marginBottom:16}}>
+        <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
+          This screens for trauma symptoms but cannot treat them. Trauma-focused therapy (such as trauma-focused CBT or EMDR) with a trained clinician is the appropriate next step if this score is elevated. BeeWell's grounding tools can support stabilisation but are not a substitute.
+        </p>
+      </div>
+
+      <button onClick={()=>{setPcl5Answers({});setPcl5Step(0);setView("pcl5_q");}}
+        style={{...btnStyle("#5A1A1A",true),width:"100%"}}>Redo Screening</button>
+    </div>
+  );
+
+  // ── GRIEF INVENTORY ───────────────────────────────────────────────────────
+  if(view==="grief_q") {
+    const steps = GRIEF_INVENTORY_QUESTIONS;
+    const currentStep = steps[griefStep];
+    const isLast = griefStep === steps.length - 1;
+    const allDone = steps.slice(0,3).every(s=>griefAnswers[s.field]?.trim()); // first 3 required, last 2 optional
+
+    if(griefAiReflection) {
+      return (
+        <div>
+          <button onClick={()=>setGriefAiReflection("")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit</button>
+          <h3 style={sectionTitle}>🕊️ Your Grief Entry</h3>
+          <div style={{...card,marginBottom:16,background:"#5B7B9B0D",border:"1.5px solid #5B7B9B33"}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+              <BeeMascot size={28}/>
+              <span style={{fontWeight:700,color:"#5B7B9B",fontSize:13}}>Bea</span>
+            </div>
+            <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{griefAiReflection}</p>
+          </div>
+          <button onClick={saveGriefEntry} style={{...btnStyle("#5B7B9B"),width:"100%",color:"white"}}>
+            Save to Grief Box
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🕊️ Grief Inventory</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          Grief applies to loss of any kind — a person, a relationship, a version of your life. There's no wrong way to do this.
+        </p>
+        <div style={{display:"flex",gap:4,marginBottom:16}}>
+          {steps.map((_,idx)=>(
+            <div key={idx} style={{flex:1,height:4,borderRadius:2,
+              background:idx<=griefStep?"#5B7B9B":"#EEE",transition:"background .3s"}}/>
+          ))}
+        </div>
+        <div style={{...card,marginBottom:14,padding:18,borderLeft:"3px solid #5B7B9B"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#5B7B9B",letterSpacing:1,marginBottom:6}}>
+            {currentStep.label.toUpperCase()}
+          </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{currentStep.question}</p>
+        </div>
+        <textarea value={griefAnswers[currentStep.field]||""}
+          onChange={e=>setGriefAnswers(a=>({...a,[currentStep.field]:e.target.value}))}
+          placeholder={currentStep.placeholder}
+          style={{...textareaStyle,minHeight:100,marginBottom:14}}/>
+        <div style={{display:"flex",gap:8}}>
+          {griefStep>0 && <button onClick={()=>setGriefStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+          {!isLast ? (
+            <button onClick={()=>setGriefStep(s=>s+1)}
+              style={{...btnStyle("#5B7B9B"),flex:1,color:"white"}}>
+              {griefStep<2 ? "Next →" : "Next (optional) →"}
+            </button>
+          ) : (
+            <button onClick={()=>getGriefReflection(griefAnswers)}
+              disabled={!allDone||griefLoading}
+              style={{...btnStyle("#5B7B9B"),flex:1,opacity:allDone?1:0.4,color:"white"}}>
+              {griefLoading?"🐝 Bea is reflecting…":"Get Bea's Reflection →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── GRIEF BOX ─────────────────────────────────────────────────────────────
+  if(view==="grief_box") {
+    if(viewGriefEntry) return (
+      <div>
+        <button onClick={()=>setViewGriefEntry(null)} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back to Box</button>
+        <h3 style={sectionTitle}>🕊️ {fmtDate(viewGriefEntry.date)}</h3>
+        {GRIEF_INVENTORY_QUESTIONS.map(q=>viewGriefEntry.answers[q.field] && (
+          <div key={q.field} style={{...card,marginBottom:10,borderLeft:"3px solid #5B7B9B"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#5B7B9B",letterSpacing:1,marginBottom:4}}>{q.label}</div>
+            <p style={{margin:0,color:PALETTE.dark,fontSize:13,lineHeight:1.6}}>{viewGriefEntry.answers[q.field]}</p>
+          </div>
+        ))}
+        {viewGriefEntry.reflection && (
+          <div style={{...card,background:"#5B7B9B0D",border:"1.5px solid #5B7B9B33",marginTop:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#5B7B9B",letterSpacing:1,marginBottom:6}}>🐝 BEA'S REFLECTION</div>
+            <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{viewGriefEntry.reflection}</p>
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🕊️ Grief Box</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          A private space to hold what you've lost. Worden's Four Tasks of Mourning — there's no order, and no deadline.
+        </p>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {GRIEF_TASKS.map(t=>(
+            <div key={t.id} style={{...card,borderLeft:`3px solid ${t.color}`,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{fontSize:18}}>{t.emoji}</span>
+                <span style={{fontWeight:700,color:t.color,fontSize:13}}>{t.label}</span>
+              </div>
+              <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{t.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:10}}>YOUR ENTRIES</div>
+        {griefEntries?.map(g=>(
+          <div key={g.id} onClick={()=>setViewGriefEntry(g)}
+            style={{...card,marginBottom:8,cursor:"pointer",borderLeft:"3px solid #5B7B9B"}}>
+            <p style={{margin:"0 0 4px",fontSize:13,fontWeight:600,color:PALETTE.dark}}>
+              {g.answers.who?.slice(0,60)}{g.answers.who?.length>60?"…":""}
+            </p>
+            <p style={{margin:0,fontSize:11,color:PALETTE.soft}}>{fmtDate(g.date)}</p>
+          </div>
+        ))}
+        {(!griefEntries || griefEntries.length===0) && <div style={emptyState}>No entries yet.</div>}
+        <button onClick={()=>{setGriefAnswers({});setGriefStep(0);setGriefAiReflection("");setView("grief_q");}}
+          style={{...btnStyle("#5B7B9B"),width:"100%",marginTop:8,color:"white"}}>
+          + New Entry
+        </button>
+      </div>
+    );
+  }
+
+  // ── EMOTIONAL EATING DIARY ───────────────────────────────────────────────
+  if(view==="eating_q") {
+    if(!eatingEmotion) return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🍽️ Emotional Eating Support</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          Wanting to eat when you're not hungry usually means a feeling needs attention. What are you feeling right now?
+        </p>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {EATING_TRIGGER_EMOTIONS.map(e=>(
+            <button key={e.id} onClick={()=>setEatingEmotion(e)}
+              style={{...card,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,padding:"12px 14px"}}>
+              <span style={{fontSize:22}}>{e.emoji}</span>
+              <span style={{fontWeight:600,color:PALETTE.dark,fontSize:14}}>{e.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+
+    if(eatingAiSuggest) return (
+      <div>
+        <button onClick={()=>setEatingAiSuggest("")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit</button>
+        <h3 style={sectionTitle}>🍽️ {eatingEmotion.emoji} {eatingEmotion.label}</h3>
+        <div style={{...card,marginBottom:16,background:"#E8891A0D",border:"1.5px solid #E8891A33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#E8891A",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{eatingAiSuggest}</p>
+        </div>
+        <button onClick={saveEatingEntry} style={{...btnStyle("#E8891A"),width:"100%",color:"white"}}>
+          Save This Entry
+        </button>
+      </div>
+    );
+
+    const steps = EATING_DIARY_QUESTIONS;
+    const currentStep = steps[eatingStep];
+    const isLast = eatingStep === steps.length - 1;
+
+    return (
+      <div>
+        <button onClick={()=>{ if(eatingStep===0) setEatingEmotion(null); else setEatingStep(s=>s-1); }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🍽️ {eatingEmotion.emoji} {eatingEmotion.label}</h3>
+        <div style={{display:"flex",gap:4,marginBottom:16}}>
+          {steps.map((_,idx)=>(
+            <div key={idx} style={{flex:1,height:4,borderRadius:2,
+              background:idx<=eatingStep?"#E8891A":"#EEE",transition:"background .3s"}}/>
+          ))}
+        </div>
+        <div style={{...card,marginBottom:14,padding:18,borderLeft:"3px solid #E8891A"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#E8891A",letterSpacing:1,marginBottom:6}}>
+            {currentStep.label.toUpperCase()}
+          </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{currentStep.question}</p>
+        </div>
+        <textarea value={eatingAnswers[currentStep.field]||""}
+          onChange={e=>setEatingAnswers(a=>({...a,[currentStep.field]:e.target.value}))}
+          placeholder={currentStep.placeholder}
+          style={{...textareaStyle,minHeight:90,marginBottom:14}}/>
+        <div style={{display:"flex",gap:8}}>
+          {!isLast ? (
+            <button onClick={()=>setEatingStep(s=>s+1)}
+              style={{...btnStyle("#E8891A"),flex:1,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={()=>getEatingSuggestion(eatingEmotion, eatingAnswers)} disabled={eatingLoading}
+              style={{...btnStyle("#E8891A"),flex:1,color:"white"}}>
+              {eatingLoading?"🐝 Bea is thinking…":"Get Bea's Support →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── EMOTIONAL EATING HISTORY ─────────────────────────────────────────────
+  if(view==="eating_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🍽️ Emotional Eating History</h3>
+      {eatingEntries?.map(e=>(
+        <div key={e.id} style={{...card,marginBottom:10,borderLeft:"3px solid #E8891A"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:18}}>{EATING_TRIGGER_EMOTIONS.find(t=>t.id===e.emotion)?.emoji}</span>
+            <span style={{fontWeight:700,color:"#E8891A",fontSize:13}}>{e.emotionLabel}</span>
+            <span style={{fontSize:11,color:PALETTE.soft,marginLeft:"auto"}}>{fmtDate(e.date)}</span>
+          </div>
+          {e.answers.needed && <p style={{margin:"0 0 6px",fontSize:12,color:PALETTE.mid,fontStyle:"italic"}}>Needed: {e.answers.needed}</p>}
+          <p style={{margin:0,fontSize:12,color:PALETTE.dark,lineHeight:1.5}}>{e.suggestion}</p>
+        </div>
+      ))}
+      {(!eatingEntries || eatingEntries.length===0) && <div style={emptyState}>No entries yet.</div>}
+      {eatingEntries?.length>=3 && (
+        <div style={{...card,background:"#E8891A0D",border:"1px solid #E8891A33",marginTop:8}}>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
+            💛 Patterns become visible over time. Notice which feelings come up most — that's useful information, not something to judge yourself for.
+          </p>
+        </div>
+      )}
+      <button onClick={()=>{setEatingEmotion(null);setEatingAnswers({});setEatingStep(0);setEatingAiSuggest("");setView("eating_q");}}
+        style={{...btnStyle("#E8891A"),width:"100%",marginTop:8,color:"white"}}>
+        + New Entry
+      </button>
+    </div>
+  );
+
+  // ── RUMINATION SCALE ──────────────────────────────────────────────────────
+  if(view==="rumination_q") {
+    const i = ruminationStep;
+    const total = RUMINATION_QUESTIONS.length;
+    const q = RUMINATION_QUESTIONS[i];
+    const sub = RUMINATION_SUBSCALES[q.sub];
+    const progress = Math.round((i/total)*100);
+    const allAnswered = RUMINATION_QUESTIONS.every((_,idx)=>ruminationAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🔁 Thought Loop Tendency</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          For loops about other people, conflict, or distressing things you've witnessed — not self-critical thoughts.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Statement {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:sub.color,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{fontSize:10,fontWeight:700,color:sub.color,letterSpacing:1,marginBottom:8}}>
+          {sub.emoji} {sub.label.toUpperCase()}
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:`3px solid ${sub.color}`}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{q.text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {RUMINATION_SCALE.map(opt=>{
+            const sel = ruminationAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setRuminationAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setRuminationStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?sub.color:"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?`0 3px 10px ${sub.color}66`:"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setRuminationStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>ruminationAnswers[i]!==undefined&&setRuminationStep(s=>s+1)} disabled={ruminationAnswers[i]===undefined}
+              style={{...btnStyle(sub.color),flex:1,opacity:ruminationAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreRumination} disabled={!allAnswered||ruminationLoading}
+              style={{...btnStyle("#6B4A8B"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {ruminationLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── RUMINATION SCALE RESULTS ─────────────────────────────────────────────
+  if(view==="rumination_profile" && ruminationProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🔁 My Thought Loop Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(ruminationProfile.date)}</p>
+
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${ruminationProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:ruminationProfile.level.color}}>{ruminationProfile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 76</div>
+        <div style={{display:"inline-block",background:ruminationProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {ruminationProfile.level.label}
+        </div>
+      </div>
+
+      <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:10}}>YOUR LOOP PATTERN</div>
+      {Object.entries(ruminationProfile.subtotals).map(([key,s])=>(
+        <div key={key} style={{...card,marginBottom:8,borderLeft:`3px solid ${s.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span style={{fontSize:18}}>{s.emoji}</span>
+            <span style={{fontWeight:700,color:s.color,fontSize:13,flex:1}}>{s.label}</span>
+            <span style={{fontWeight:800,color:s.color,fontSize:16}}>{s.total}</span>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{s.desc}</p>
+        </div>
+      ))}
+
+      {ruminationProfile.summary && (
+        <div style={{...card,marginTop:8,background:"#6B4A8B0D",border:"1.5px solid #6B4A8B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#6B4A8B",fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{ruminationProfile.summary}</p>
+        </div>
+      )}
+
+      <button onClick={()=>{setLoopTrigger(null);setLoopAnswers({});setLoopStep(0);setLoopAiScript("");setView("loop_q");}}
+        style={{...btnStyle("#3A6B8B"),width:"100%",marginTop:16,color:"white"}}>
+        🌀 Try Loop Interrupt
+      </button>
+      <button onClick={()=>{setRuminationAnswers({});setRuminationStep(0);setView("rumination_q");}}
+        style={{...btnStyle("#6B4A8B",true),width:"100%",marginTop:8}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── LOOP INTERRUPT ────────────────────────────────────────────────────────
+  if(view==="loop_q") {
+    if(!loopTrigger) return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌀 Loop Interrupt</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          What kind of thing is looping right now?
+        </p>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {LOOP_TRIGGERS.map(t=>(
+            <button key={t.id} onClick={()=>setLoopTrigger(t)}
+              style={{...card,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,padding:"12px 14px"}}>
+              <span style={{fontSize:22}}>{t.emoji}</span>
+              <span style={{fontWeight:600,color:PALETTE.dark,fontSize:14}}>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+
+    if(loopAiScript) {
+      const parts = loopAiScript.split(/(?=ACKNOWLEDGE:|EXTERNALISE:|REDIRECT:)/).filter(p=>p.trim());
+      const labels = {ACKNOWLEDGE:"💛 This Is Real", EXTERNALISE:"🌀 The Loop, Not You", REDIRECT:"🎯 Do This Now"};
+      const colors = ["#7B4A8B","#3A6B8B","#7BB369"];
+      return (
+        <div>
+          <button onClick={()=>setLoopAiScript("")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit</button>
+          <h3 style={sectionTitle}>🌀 {loopTrigger.emoji} Interrupting the Loop</h3>
+          {parts.map((part,idx)=>{
+            const key = Object.keys(labels).find(k=>part.startsWith(k));
+            const label = labels[key] || `Part ${idx+1}`;
+            const text = part.replace(/^(ACKNOWLEDGE|EXTERNALISE|REDIRECT):/,"").trim();
+            return (
+              <div key={idx} style={{...card,marginBottom:12,borderLeft:`4px solid ${colors[idx%colors.length]}`,
+                background:`${colors[idx%colors.length]}0D`}}>
+                <div style={{fontSize:11,fontWeight:700,color:colors[idx%colors.length],letterSpacing:1,marginBottom:8}}>
+                  {label.toUpperCase()}
+                </div>
+                <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.8}}>{text}</p>
+              </div>
+            );
+          })}
+          <button onClick={saveLoopEntry} style={{...btnStyle("#3A6B8B"),width:"100%",marginTop:8,color:"white"}}>
+            Done — Save This
+          </button>
+        </div>
+      );
+    }
+
+    const steps = LOOP_INTERRUPT_STEPS;
+    const currentStep = steps[loopStep];
+    const isLast = loopStep === steps.length - 1;
+
+    return (
+      <div>
+        <button onClick={()=>{ if(loopStep===0) setLoopTrigger(null); else setLoopStep(s=>s-1); }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌀 {loopTrigger.emoji} {loopTrigger.label}</h3>
+        <div style={{display:"flex",gap:4,marginBottom:16}}>
+          {steps.map((_,idx)=>(
+            <div key={idx} style={{flex:1,height:4,borderRadius:2,
+              background:idx<=loopStep?"#3A6B8B":"#EEE",transition:"background .3s"}}/>
+          ))}
+        </div>
+        <div style={{...card,marginBottom:14,padding:18,borderLeft:"3px solid #3A6B8B"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#3A6B8B",letterSpacing:1,marginBottom:6}}>
+            {currentStep.label.toUpperCase()}
+          </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{currentStep.question}</p>
+        </div>
+        <textarea value={loopAnswers[currentStep.field]||""}
+          onChange={e=>setLoopAnswers(a=>({...a,[currentStep.field]:e.target.value}))}
+          placeholder={currentStep.placeholder}
+          style={{...textareaStyle,minHeight:90,marginBottom:14}}/>
+        <div style={{display:"flex",gap:8}}>
+          {!isLast ? (
+            <button onClick={()=>loopAnswers[currentStep.field]?.trim()&&setLoopStep(s=>s+1)}
+              disabled={!loopAnswers[currentStep.field]?.trim()}
+              style={{...btnStyle("#3A6B8B"),flex:1,opacity:loopAnswers[currentStep.field]?.trim()?1:0.4,color:"white"}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={()=>getLoopInterruptScript(loopTrigger, loopAnswers)}
+              disabled={!loopAnswers.loop?.trim()||loopLoading}
+              style={{...btnStyle("#3A6B8B"),flex:1,opacity:loopAnswers.loop?.trim()?1:0.4,color:"white"}}>
+              {loopLoading?"🐝 Bea is working on this…":"Interrupt This Loop →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── LOOP INTERRUPT HISTORY ────────────────────────────────────────────────
+  if(view==="loop_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🌀 Loop Interrupt History</h3>
+      {loopEntries?.map(l=>(
+        <div key={l.id} style={{...card,marginBottom:10,borderLeft:"3px solid #3A6B8B"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:18}}>{LOOP_TRIGGERS.find(t=>t.id===l.trigger)?.emoji}</span>
+            <span style={{fontWeight:700,color:"#3A6B8B",fontSize:13}}>{l.triggerLabel}</span>
+            <span style={{fontSize:11,color:PALETTE.soft,marginLeft:"auto"}}>{fmtDate(l.date)}</span>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.dark,fontStyle:"italic"}}>"{l.answers.loop?.slice(0,80)}{l.answers.loop?.length>80?"…":""}"</p>
+        </div>
+      ))}
+      {(!loopEntries || loopEntries.length===0) && <div style={emptyState}>No entries yet.</div>}
+      <button onClick={()=>{setLoopTrigger(null);setLoopAnswers({});setLoopStep(0);setLoopAiScript("");setView("loop_q");}}
+        style={{...btnStyle("#3A6B8B"),width:"100%",marginTop:8,color:"white"}}>
+        + New Loop Interrupt
+      </button>
     </div>
   );
 
@@ -4486,6 +7303,12 @@ Be specific to THEIR actual results, not generic. No preamble, no bullet points 
           <div style={{...card,padding:"10px 12px"}}>
             <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>📋 BEST GOAL</div>
             <div style={{fontSize:13,fontWeight:700,color:PALETTE.dark}}>{goalsProfile.strongest?.[0]?.successScore}/100</div>
+          </div>
+        )}
+        {ysqProfile && (
+          <div style={{...card,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:PALETTE.soft,marginBottom:2}}>🧸 CHILDHOOD PATTERN</div>
+            <div style={{fontSize:13,fontWeight:700,color:PALETTE.dark}}>{ysqProfile.top3?.[0]?.label}</div>
           </div>
         )}
       </div>
@@ -4555,7 +7378,7 @@ const SMART_TEMPLATES = [
   {field:"timebound", label:"Time-bound", question:"When exactly will you do this? Give a specific day and time.", emoji:"⏰"},
 ];
 
-function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, goalsProfile=null }) {
+function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, goalsProfile=null, ysqProfile=null }) {
   const [tool, setTool]         = useState(null); // null | "hexaflex"|"compass"|"defusion"|"matrix"|"smart"|"willingness"
   const [compassRatings, setCompassRatings] = useState({}); // {area_id: {importance:0-10, living:0-10}}
   const [defTechnique, setDefTechnique]     = useState(null);
@@ -4580,9 +7403,9 @@ function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, g
   // ── Tool selector ──────────────────────────────────────────────────────────
   if(!tool) return (
     <div>
-      <h3 style={sectionTitle}>🌀 ACT Toolkit</h3>
+      <h3 style={sectionTitle}>🌀 Inner Work</h3>
       <p style={{color:PALETTE.soft,fontSize:13,marginBottom:8}}>
-        Acceptance & Commitment Therapy — a modern evolution of CBT. Instead of fighting difficult thoughts and feelings, ACT teaches you to hold them differently, clarify what truly matters, and take values-based action.
+        Your space for deeper psychological work — Acceptance & Commitment Therapy practices alongside tools for understanding patterns formed long before now.
       </p>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"8px 12px",
         background:`${PALETTE.sky}18`,borderRadius:10,border:`1px solid ${PALETTE.sky}44`}}>
@@ -4608,8 +7431,13 @@ function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, g
             </p>
           )}
           {goalsProfile?.strongest?.length>0 && (
-            <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>
+            <p style={{margin: ysqProfile?"0 0 6px":0,fontSize:12,color:PALETTE.mid}}>
               📋 Best-positioned goal: {goalsProfile.strongest[0].text} ({goalsProfile.strongest[0].successScore}/100)
+            </p>
+          )}
+          {ysqProfile?.top3?.length>0 && (
+            <p style={{margin:0,fontSize:12,color:PALETTE.mid}}>
+              🧸 Childhood pattern: {ysqProfile.top3.map(s=>`${s.emoji} ${s.label}`).join(" · ")}
             </p>
           )}
         </div>
@@ -4637,7 +7465,7 @@ function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, g
   );
 
   const backBtn = <button onClick={()=>{setTool(null);setAiText("");setDefTechnique(null);setDefText("");setDefRewrite("");setSmartStep(0);}}
-    style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← ACT Toolkit</button>;
+    style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Inner Work</button>;
 
   // ── HEXAFLEX ────────────────────────────────────────────────────────────────
   if(tool==="hexaflex") {
@@ -4898,6 +7726,26 @@ function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, g
                   textAlign:"left",cursor:"pointer",marginBottom:6,padding:"8px 10px",
                   fontSize:12,color:PALETTE.dark,display:"block"}}>
                 {d.emoji} {d.label}: "{d.desc}"
+              </button>
+            ))}
+          </div>
+        )}
+        {ysqProfile?.top3?.length>0 && !defTechnique && (
+          <div style={{...card,marginBottom:14,background:"#6B3A4A0D",
+            border:"1px solid #6B3A4A22",padding:"10px 12px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#6B3A4A",letterSpacing:1,marginBottom:6}}>
+              🧸 FROM YOUR CHILDHOOD SCHEMAS
+            </div>
+            <p style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>
+              Patterns formed early — defusing from them can loosen their grip:
+            </p>
+            {ysqProfile.top3.map(s=>(
+              <button key={s.id}
+                onClick={()=>{ setDefTechnique(DEFUSION_TECHNIQUES[0]); setDefText(s.desc); }}
+                style={{...card,border:"1px solid #6B3A4A22",width:"100%",
+                  textAlign:"left",cursor:"pointer",marginBottom:6,padding:"8px 10px",
+                  fontSize:12,color:PALETTE.dark,display:"block"}}>
+                {s.emoji} {s.label}: "{s.desc}"
               </button>
             ))}
           </div>
@@ -5400,6 +8248,8 @@ const labelStyle = { display:"block", fontSize:12, fontWeight:700, color:PALETTE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function BeeWell() {
   const [onboarded, setOnboarded] = usePersistedState("onboarded", false);
+  const [userName, setUserName] = usePersistedState("userName", "");
+  useEffect(() => { setBeeUserName(userName); }, [userName]);
   const [tab, setTab] = useState("mood"); // current tab — no need to persist
   const [moodLogs, setMoodLogs]     = usePersistedState("moodLogs", []);
   const [feelItems, setFeelItems]       = usePersistedState("feelItems", []);
@@ -5422,7 +8272,19 @@ export default function BeeWell() {
   const [scsProfile, setScsProfile]   = usePersistedState("scsProfile", null);
   const [worryProfile, setWorryProfile] = usePersistedState("worryProfile", null);
   const [masterSummary, setMasterSummary] = usePersistedState("masterSummary", null);
+  const [ysqProfile, setYsqProfile] = usePersistedState("ysqProfile", null);
+  const [rescripts, setRescripts] = usePersistedState("rescripts", []);
+  const [modeCheckIns, setModeCheckIns] = usePersistedState("modeCheckIns", []);
+  const [fcsProfile, setFcsProfile] = usePersistedState("fcsProfile", null);
+  const [circlesEntries, setCirclesEntries] = usePersistedState("circlesEntries", []);
+  const [pcl5Profile, setPcl5Profile] = usePersistedState("pcl5Profile", null);
+  const [griefEntries, setGriefEntries] = usePersistedState("griefEntries", []);
+  const [eatingEntries, setEatingEntries] = usePersistedState("eatingEntries", []);
+  const [ruminationProfile, setRuminationProfile] = usePersistedState("ruminationProfile", null);
+  const [loopEntries, setLoopEntries] = usePersistedState("loopEntries", []);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [valuesJump, setValuesJump] = useState(null); // deep-link request into ValuesGoals
+  const [lastCheckedInId, setLastCheckedInId] = usePersistedState("lastCheckedInId", null); // avoid re-asking about the same problem
 
   const handleResetAll = () => {
     clearAllPersisted();
@@ -5446,7 +8308,17 @@ export default function BeeWell() {
 
   const themeAccent = { honey:PALETTE.honey, sage:PALETTE.sage, lavender:PALETTE.lavender, sky:PALETTE.sky }[theme] || PALETTE.honey;
 
-  if(!onboarded) return <Onboarding onDone={()=>setOnboarded(true)}/>;
+  // Most recent unresolved problem, used for the "are you feeling better?" home check-in.
+  // difficultItems is always prepended to (newest first), so index 0 is the most recent.
+  // Skipped if already checked in about this exact item, or if it's already been released.
+  const mostRecentProblem = difficultItems.find(i => i.status !== "released" && i.id !== lastCheckedInId) || null;
+  const lastProblemForCheckIn = mostRecentProblem ? {
+    id: mostRecentProblem.id,
+    text: mostRecentProblem.text,
+    emotionLabel: mostRecentProblem.emotion,
+  } : null;
+
+  if(!onboarded) return <Onboarding onDone={()=>setOnboarded(true)} onSaveName={setUserName} userName={userName}/>;
 
   const tabs = [
     {id:"mood",      label:"Mood",        emoji:"📊"},
@@ -5455,7 +8327,7 @@ export default function BeeWell() {
     {id:"court",     label:"Courtroom",   emoji:"⚖️"},
     {id:"activate",  label:"Activate",    emoji:"🌱"},
     {id:"values",    label:"Values",      emoji:"🌟"},
-    {id:"act",       label:"ACT",         emoji:"🌀"},
+    {id:"act",       label:"Inner Work",  emoji:"🌀"},
     {id:"ground",    label:"Ground",      emoji:"🍃"},
     {id:"progress",  label:"Progress",    emoji:"📈"},
     {id:"bea",       label:"Bea",         emoji:"🐝"},
@@ -5482,7 +8354,9 @@ export default function BeeWell() {
           <BeeMascot size={40} outfit={outfit}/>
           <div>
             <div style={{fontFamily:"Georgia,serif",fontSize:20,color:"white",fontWeight:700,lineHeight:1}}>BeeWell</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>Your private hive 🍯</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>
+              {userName ? `${userName}'s private hive 🍯` : "Your private hive 🍯"}
+            </div>
           </div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -5506,6 +8380,12 @@ export default function BeeWell() {
       {showSettings && (
         <div style={{background:"white",padding:20,boxShadow:"0 4px 16px rgba(0,0,0,0.1)"}}>
           <h4 style={{margin:"0 0 12px",color:PALETTE.mid}}>🎨 Customise Your Hive</h4>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>YOUR NAME</div>
+            <input value={userName} onChange={e=>setUserName(e.target.value)}
+              placeholder="What should Bea call you?"
+              style={{...inputStyle,width:"100%",boxSizing:"border-box"}}/>
+          </div>
           <div style={{marginBottom:12}}>
             <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>COLOUR THEME</div>
             <div style={{display:"flex",gap:8}}>
@@ -5573,6 +8453,21 @@ export default function BeeWell() {
           onSaveMood={e=>setMoodLogs(l=>[e,...l])}
           onAddFeel={e=>setFeelItems(l=>[e,...l])}
           onAddDifficult={e=>setDifficultItems(l=>[e,...l])}
+          onSetTab={setTab}
+          valuesProfile={valuesProfile}
+          dasProfile={dasProfile}
+          ysqProfile={ysqProfile}
+          fcsProfile={fcsProfile}
+          phq9Profile={phq9Profile}
+          gad7Profile={gad7Profile}
+          pcl5Profile={pcl5Profile}
+          masterSummary={masterSummary}
+          problemCount={difficultItems.filter(i=>i.status==="pending"||i.status==="stored").length}
+          onQuickEating={()=>{ setTab("values"); setValuesJump("eating_q"); }}
+          onQuickLoop={()=>{ setTab("values"); setValuesJump("loop_q"); }}
+          lastProblem={lastProblemForCheckIn}
+          onDismissCheckIn={()=>mostRecentProblem && setLastCheckedInId(mostRecentProblem.id)}
+          userName={userName}
         />}
         {tab==="feel"     && <FeelBetterBox items={feelItems} onAdd={e=>setFeelItems(l=>[e,...l])} onDelete={id=>setFeelItems(l=>l.filter(i=>i.id!==id))} valuesProfile={valuesProfile}/>}
         {tab==="difficult" && <ProblemBox
@@ -5581,8 +8476,18 @@ export default function BeeWell() {
           onUpdate={(id,changes)=>setDifficultItems(ts=>ts.map(t=>t.id===id?{...t,...changes}:t))}
           onRelease={id=>setDifficultItems(ts=>ts.map(t=>t.id===id?{...t,status:"released"}:t))}
           onSetTab={setTab}
+          feelItems={feelItems}
+          valuesProfile={valuesProfile}
+          dasProfile={dasProfile}
+          ysqProfile={ysqProfile}
+          fcsProfile={fcsProfile}
+          phq9Profile={phq9Profile}
+          gad7Profile={gad7Profile}
+          pcl5Profile={pcl5Profile}
+          griefEntries={griefEntries}
+          eatingEntries={eatingEntries}
         />}
-        {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])} valuesProfile={valuesProfile} dasProfile={dasProfile}/>}
+        {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])} valuesProfile={valuesProfile} dasProfile={dasProfile} ysqProfile={ysqProfile}/>}
         {tab==="activate" && <BehaviouralActivation feelItems={feelItems} valuesProfile={valuesProfile} dasProfile={dasProfile}/>}
         {tab==="values"   && <ValuesGoals
           valuesProfile={valuesProfile}
@@ -5605,8 +8510,30 @@ export default function BeeWell() {
           onSaveWorry={setWorryProfile}
           masterSummary={masterSummary}
           onSaveMasterSummary={setMasterSummary}
+          ysqProfile={ysqProfile}
+          onSaveYsq={setYsqProfile}
+          rescripts={rescripts}
+          onSaveRescripts={setRescripts}
+          modeCheckIns={modeCheckIns}
+          onSaveModeCheckIns={setModeCheckIns}
+          fcsProfile={fcsProfile}
+          onSaveFcs={setFcsProfile}
+          circlesEntries={circlesEntries}
+          onSaveCircles={setCirclesEntries}
+          pcl5Profile={pcl5Profile}
+          onSavePcl5={setPcl5Profile}
+          griefEntries={griefEntries}
+          onSaveGrief={setGriefEntries}
+          eatingEntries={eatingEntries}
+          onSaveEating={setEatingEntries}
+          ruminationProfile={ruminationProfile}
+          onSaveRumination={setRuminationProfile}
+          loopEntries={loopEntries}
+          onSaveLoop={setLoopEntries}
+          jumpToView={valuesJump}
+          onJumpHandled={()=>setValuesJump(null)}
         />}
-        {tab==="act"      && <ACTToolkit valuesProfile={valuesProfile} limitingBeliefs={limitingBeliefs} dasProfile={dasProfile} goalsProfile={goalsProfile}/>}
+        {tab==="act"      && <ACTToolkit valuesProfile={valuesProfile} limitingBeliefs={limitingBeliefs} dasProfile={dasProfile} goalsProfile={goalsProfile} ysqProfile={ysqProfile}/>}
         {tab==="ground"   && <Grounding/>}
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}
         {tab==="bea"      && <BeaChat/>}

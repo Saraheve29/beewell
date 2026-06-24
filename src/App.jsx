@@ -5256,7 +5256,6 @@ No preamble.`}]);
             <div style={{background:`${PALETTE.blush}0D`,borderRadius:8,padding:"8px 10px",
               fontSize:12,color:PALETTE.mid,marginBottom:10,lineHeight:1.6}}>
               {b.aiReframe.includes("REFRAME:") ? b.aiReframe.split("REFRAME:")[1].trim().slice(0,100) : b.aiReframe.slice(0,100)}
-').find(l=>l.startsWith('REFRAME:'))?.replace('REFRAME:','').trim() || b.aiReframe.slice(0,120)+"…"}
             </div>
           )}
           <div style={{display:"flex",gap:8}}>

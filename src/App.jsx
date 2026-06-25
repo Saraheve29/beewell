@@ -2940,12 +2940,12 @@ const LIMITING_BELIEF_QUESTIONS = [
 ];
 
 const SMART_QUESTIONS = [
-  {field:"goal",        emoji:"🎯", label:"The Goal",         question:"What do you want to achieve? Be as specific as possible.",             placeholder:"e.g. Build a daily creative practice"},
+  {field:"goal",        emoji:"🎯", label:"The Goal",         question:"What do you want to achieve, and by when? Name the goal AND a specific target date or deadline.",             placeholder:"e.g. Build a daily creative practice, starting Monday and reviewed in 4 weeks"},
   {field:"value",       emoji:"💎", label:"Meaningful — Why", question:"Which of your core values does this connect to? Why does it matter to you personally?", placeholder:"e.g. Creativity — it makes me feel alive and like myself"},
   {field:"specific",    emoji:"📍", label:"Specific",         question:"What exactly will you do? Who, what, where — no vague language.",       placeholder:"e.g. Spend 20 minutes drawing in my sketchbook"},
   {field:"achievable",  emoji:"✅", label:"Achievable",       question:"Is this genuinely doable right now, given your real current situation?", placeholder:"e.g. Yes — I have 20 minutes each morning before the kids wake"},
   {field:"realistic",   emoji:"🔍", label:"Realistic",        question:"What might get in the way? How will you handle it if it does?",         placeholder:"e.g. Tiredness — I will do 5 minutes minimum on hard days"},
-  {field:"timebound",   emoji:"⏰", label:"Time-bound",       question:"When exactly will you do this? Give a specific day, time or frequency.", placeholder:"e.g. Every morning at 7am, starting Monday"},
+  {field:"timebound",   emoji:"⏰", label:"Time-bound",       question:"Give the exact day, time of day, and how often — e.g. every day, 3x a week, or a single deadline date.", placeholder:"e.g. Every morning at 7am, starting Monday 30th June"},
   {field:"experiment",  emoji:"🧪", label:"What happened",    question:"After trying this — what actually happened? What did you learn?",       placeholder:"Fill this in after you have tried it…"},
 ];
 
@@ -3649,6 +3649,7 @@ function InnerWork(props) {
 function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
+  const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
 
   // Handle a deep-link request from outside (e.g. quick-access eating button on home screen,
   // or Bea's tool recommendation in Problem Box jumping straight to the right sub-screen)
@@ -4548,8 +4549,8 @@ No preamble.`}]);
   // ── HOME ───────────────────────────────────────────────────────────────
   if(view==="home") return (
     <div>
-      <h3 style={sectionTitle}>🌟 Values & Goals</h3>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:20,padding:"10px 12px",
+      <h3 style={sectionTitle}>{homeSection==="tools" ? "🌱 Inner Work — Active Tools" : "🌟 Inner Work — Assessments"}</h3>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"10px 12px",
         background:`${PALETTE.lavender}18`,borderRadius:10}}>
         <BeeMascot size={28}/>
         <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
@@ -4557,6 +4558,27 @@ No preamble.`}]);
         </p>
       </div>
 
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        <button onClick={()=>setHomeSection("assessments")}
+          style={{...btnStyle(homeSection==="assessments"?PALETTE.lavender:"#EEE",true),
+            flex:1,color:homeSection==="assessments"?"white":PALETTE.mid,fontSize:13}}>
+          📋 Assessments
+        </button>
+        <button onClick={()=>setHomeSection("tools")}
+          style={{...btnStyle(homeSection==="tools"?PALETTE.sage:"#EEE",true),
+            flex:1,color:homeSection==="tools"?"white":PALETTE.mid,fontSize:13}}>
+          🌱 Active Tools
+        </button>
+      </div>
+
+      {homeSection==="assessments" && <p style={{fontSize:11,color:PALETTE.soft,marginBottom:14,lineHeight:1.5}}>
+        Validated questionnaires that build your psychological profile — Bea uses these to give better-matched recommendations everywhere in the app.
+      </p>}
+      {homeSection==="tools" && <p style={{fontSize:11,color:PALETTE.soft,marginBottom:14,lineHeight:1.5}}>
+        Active practices you can use any time — these draw on your assessment results where relevant.
+      </p>}
+
+      {homeSection==="assessments" && <>
       {/* Values Assessment */}
       <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.lavender}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4577,7 +4599,9 @@ No preamble.`}]);
             style={{...btnStyle(PALETTE.lavender,true),flex:1}}>View My Values</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="tools" && <>
       {/* Limiting Beliefs */}
       <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.blush}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4619,7 +4643,9 @@ No preamble.`}]);
             style={{...btnStyle(PALETTE.honey,true),flex:1}}>View Plans</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="assessments" && <>
       {/* Dysfunctional Attitude Scale */}
       <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.dark}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4774,7 +4800,9 @@ No preamble.`}]);
             style={{...btnStyle("#6B3A4A",true),flex:1}}>View Results</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="tools" && <>
       {/* Mode Check-In — quick daily tool */}
       <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4819,7 +4847,9 @@ No preamble.`}]);
             style={{...btnStyle("#9B6BA0",true),flex:1}}>View Saved</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="assessments" && <>
       {/* Fears of Compassion Scale */}
       <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #C45B8B"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4840,7 +4870,9 @@ No preamble.`}]);
             style={{...btnStyle("#C45B8B",true),flex:1}}>View Results</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="tools" && <>
       {/* Three Circles practice */}
       <div style={{...card,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4876,7 +4908,9 @@ No preamble.`}]);
           Begin Practice
         </button>
       </div>
+      </>}
 
+      {homeSection==="assessments" && <>
       {/* PCL-5 Trauma Screening */}
       <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #5A1A1A"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4900,7 +4934,9 @@ No preamble.`}]);
             style={{...btnStyle("#5A1A1A",true),flex:1}}>View Results</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="tools" && <>
       {/* Grief Box */}
       <div style={{...card,marginBottom:12,borderTop:"3px solid #5B7B9B"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4942,7 +4978,9 @@ No preamble.`}]);
             style={{...btnStyle("#E8891A",true),flex:1}}>View History</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="assessments" && <>
       {/* Rumination Scale */}
       <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #6B4A8B"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4966,9 +5004,11 @@ No preamble.`}]);
             style={{...btnStyle("#6B4A8B",true),flex:1}}>View Results</button>}
         </div>
       </div>
+      </>}
 
+      {homeSection==="tools" && <>
       {/* Loop Interrupt */}
-      <div style={{...card,borderTop:"3px solid #3A6B8B"}}>
+      <div style={{borderTop:"3px solid #3A6B8B",...card}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
           <span style={{fontSize:24}}>🌀</span>
           <div>
@@ -4987,8 +5027,9 @@ No preamble.`}]);
             style={{...btnStyle("#3A6B8B",true),flex:1}}>View History</button>}
         </div>
       </div>
+      </>}
 
-      {/* Master Summary */}
+      {/* Master Summary — shown regardless of which sub-section is active */}
       {completedCount>=2 && (
         <div style={{...card,marginTop:12,background:`linear-gradient(135deg,${PALETTE.honey}15,${PALETTE.lavender}15)`,
           border:`2px solid ${PALETTE.honey}55`}}>
@@ -5393,9 +5434,27 @@ No preamble.`}]);
             💛 Your top values: {valuesProfile.top3.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
           </div>
         )}
-        {goalsProfile?.strongest?.length>0 && smartStep===0 && (
-          <div style={{background:`${PALETTE.sage}11`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:PALETTE.mid}}>
-            📋 Your best-positioned goal from the questionnaire: "{goalsProfile.strongest[0].text}"
+        {goalsProfile?.goals?.length>0 && smartStep===0 && !smartAnswers.goal && (
+          <div style={{...card,marginBottom:12,background:`${PALETTE.sage}0D`,border:`1px solid ${PALETTE.sage}33`}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.sage,letterSpacing:1,marginBottom:8}}>
+              📋 USE A GOAL FROM YOUR QUESTIONNAIRE
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {[...goalsProfile.goals].sort((a,b)=>b.successScore-a.successScore).map((g,i)=>(
+                <button key={i} onClick={()=>setSmartAnswers(a=>({...a,goal:g.text}))}
+                  style={{
+                    textAlign:"left",border:"none",borderRadius:8,cursor:"pointer",
+                    padding:"8px 10px",background:"white",
+                    display:"flex",alignItems:"center",gap:8,
+                  }}>
+                  <span style={{fontSize:11,fontWeight:700,
+                    color:g.successScore>=70?PALETTE.sage:g.successScore>=50?PALETTE.honey:PALETTE.blush}}>
+                    {g.successScore}
+                  </span>
+                  <span style={{fontSize:12,color:PALETTE.dark,flex:1}}>{g.text}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -5793,7 +5852,7 @@ No preamble.`}]);
             <div style={{height:6,background:"#EEE",borderRadius:3,marginBottom:8}}>
               <div style={{height:"100%",width:`${g.successScore}%`,background:color,borderRadius:3}}/>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4,fontSize:10,textAlign:"center"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4,fontSize:10,textAlign:"center",marginBottom:10}}>
               {GOAL_RATING_DIMENSIONS.map(d=>(
                 <div key={d.id}>
                   <div>{d.emoji}</div>
@@ -5801,6 +5860,15 @@ No preamble.`}]);
                 </div>
               ))}
             </div>
+            <button onClick={()=>{
+                setSmartAnswers({goal:g.text});
+                setSmartStep(0);
+                setEditingPlan(null);
+                setView("smart_q");
+              }}
+              style={{...btnStyle(PALETTE.honey,true),width:"100%",fontSize:12}}>
+              🧪 Build a SMART Plan for this goal
+            </button>
           </div>
         );
       })}

@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 
+// ── Fonts — matching Personal PA Pro's font system ──────────────────────────
+// FD = display/serif (headings, titles), FB = body/sans-serif, FM = mono (small uppercase labels)
+const FD = "'Cormorant Garamond', Didot, 'Big Caslon', Georgia, serif";
+const FB = "'Tenor Sans', Optima, 'Gill Sans', 'Century Gothic', sans-serif";
+const FM = "'Courier Prime', 'Courier New', monospace";
+
 // ── Persistence helper ───────────────────────────────────────────────────────
 // Saves/loads state to localStorage under a "beewell:" prefix so everything
 // survives refreshes and reopening the app, without needing manual save buttons.
@@ -532,7 +538,7 @@ function Onboarding({ onDone, onSaveName, userName }) {
         <div style={{marginBottom:16}}>
           {s.bee ? <BeeMascot size={100} outfit="therapist" animated/> : s.nameStep ? <BeeMascot size={80} outfit="therapist"/> : <div style={{fontSize:72}}>{s.emoji}</div>}
         </div>
-        <h2 style={{fontFamily:"Georgia,serif",fontSize:24,color:PALETTE.dark,marginBottom:12}}>{s.title}</h2>
+        <h2 style={{fontFamily:FD,fontSize:24,color:PALETTE.dark,marginBottom:12}}>{s.title}</h2>
         {s.nameStep ? (
           <div style={{marginBottom:32}}>
             <p style={{color:PALETTE.mid,fontSize:15,lineHeight:1.6,marginBottom:14}}>
@@ -839,12 +845,12 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
 
               <div style={{display:"flex",gap:8}}>
                 {completedAny>=2 && masterSummary ? (
-                  <button onClick={()=>onSetTab?.("values")}
+                  <button onClick={()=>onSetTab?.("act")}
                     style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>
                     🐝 View Full Picture
                   </button>
                 ) : (
-                  <button onClick={()=>onSetTab?.("values")}
+                  <button onClick={()=>onSetTab?.("act")}
                     style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>
                     {completedAny>0 ? "More Assessments" : "Start an Assessment"}
                   </button>
@@ -1509,13 +1515,13 @@ If nothing fits well, reply only: NONE_FIT`
         {[
           {label:"⚖️ Thought Courtroom",   sub:"Put this thought on trial",                  tab:"court",   grad:"linear-gradient(135deg,#8B6A2A,#D4AF37)"},
           {label:"🌀 ACT Matrix",          sub:"Map your toward and away moves",             tab:"act",     grad:"linear-gradient(135deg,#2A7A5C,#5BAA8C)"},
-          {label:"🧸 Limited Reparenting", sub:"If this connects to an old childhood pattern", tab:"values", grad:"linear-gradient(135deg,#6B3A4A,#9B6B7A)"},
-          {label:"🌸 Compassionate Self",  sub:"If self-criticism is the real issue",        tab:"values",  grad:"linear-gradient(135deg,#7BB369,#5C8B3A)"},
-          {label:"🎭 Mode Check-In",       sub:"Quickly identify what part of you is active", tab:"values", grad:"linear-gradient(135deg,#5B9BD5,#7B6BD5)"},
+          {label:"🧸 Limited Reparenting", sub:"If this connects to an old childhood pattern", jump:"reparent_intro", grad:"linear-gradient(135deg,#6B3A4A,#9B6B7A)"},
+          {label:"🌸 Compassionate Self",  sub:"If self-criticism is the real issue",        jump:"compself_q",  grad:"linear-gradient(135deg,#7BB369,#5C8B3A)"},
+          {label:"🎭 Mode Check-In",       sub:"Quickly identify what part of you is active", jump:"mode_check", grad:"linear-gradient(135deg,#5B9BD5,#7B6BD5)"},
           {label:"🌱 Behavioural Activation", sub:"If you need a small concrete step",       tab:"activate",grad:"linear-gradient(135deg,#7BB369,#5C9B6B)"},
-          {label:"🕊️ Grief Box",           sub:"If this is about a loss of any kind",        tab:"values",  grad:"linear-gradient(135deg,#5B7B9B,#7B9BBB)"},
-          {label:"🍽️ Emotional Eating",    sub:"If food is part of how this feels",          tab:"values",  grad:"linear-gradient(135deg,#E8891A,#F5A623)"},
-          {label:"🌀 Loop Interrupt",       sub:"If this keeps replaying on a loop",          tab:"values",  grad:"linear-gradient(135deg,#3A6B8B,#5B9BD5)"},
+          {label:"🕊️ Grief Box",           sub:"If this is about a loss of any kind",        jump:"grief_q",  grad:"linear-gradient(135deg,#5B7B9B,#7B9BBB)"},
+          {label:"🍽️ Emotional Eating",    sub:"If food is part of how this feels",          jump:"eating_q",  grad:"linear-gradient(135deg,#E8891A,#F5A623)"},
+          {label:"🌀 Loop Interrupt",       sub:"If this keeps replaying on a loop",          jump:"loop_q",  grad:"linear-gradient(135deg,#3A6B8B,#5B9BD5)"},
           {label:"🐝 Talk to Bea",         sub:"Process this with your bee therapist",       tab:"bea",     grad:"linear-gradient(135deg,#F5A623,#E8891A)"},
           {label:"📦 Put back in box",     sub:"Not ready yet — save for another day",       tab:null,      grad:"linear-gradient(135deg,#6B5744,#8B7355)"},
           {label:"🌊 Release to the Sea",  sub:"Let it go — send it to the waves",           tab:"sea",     grad:"linear-gradient(135deg,#1A6B9B,#5B9BD5)"},
@@ -1524,6 +1530,7 @@ If nothing fits well, reply only: NONE_FIT`
             onClick={()=>{
               if(opt.tab==="sea")  { setReleasing(viewItem.id); }
               else if(opt.tab===null) { setViewItem(null); setBeaSuggestion(null); setBeaClarifyQ(null); setClarifyAnswer(""); }
+              else if(opt.jump) { onSetValuesJump?.(opt.jump); setViewItem(null); setBeaSuggestion(null); setBeaClarifyQ(null); setClarifyAnswer(""); }
               else { onSetTab(opt.tab); setViewItem(null); setBeaSuggestion(null); setBeaClarifyQ(null); setClarifyAnswer(""); }
             }}
             style={{
@@ -3585,6 +3592,59 @@ const LOOP_INTERRUPT_STEPS = [
   {field:"control", label:"What's In Your Control", question:"Of everything connected to this loop, what — if anything — is actually within your control to act on?",
    placeholder:"Sometimes the honest answer is 'nothing,' and that's okay to write."},
 ];
+
+// ── Inner Work — combined hub for assessments + ACT practices ──────────────
+function InnerWork(props) {
+  const [section, setSection] = useState("assessments"); // assessments | act
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <button onClick={()=>setSection("assessments")}
+          style={{...btnStyle(section==="assessments"?PALETTE.lavender:"#EEE",true),
+            flex:1,color:section==="assessments"?"white":PALETTE.mid}}>
+          🌟 Assessments
+        </button>
+        <button onClick={()=>setSection("act")}
+          style={{...btnStyle(section==="act"?PALETTE.sage:"#EEE",true),
+            flex:1,color:section==="act"?"white":PALETTE.mid}}>
+          🌀 ACT Practices
+        </button>
+      </div>
+      {section==="assessments" ? (
+        <ValuesGoals
+          valuesProfile={props.valuesProfile} onSaveProfile={props.onSaveProfile}
+          limitingBeliefs={props.limitingBeliefs} onSaveBeliefs={props.onSaveBeliefs}
+          smartPlans={props.smartPlans} onSavePlans={props.onSavePlans}
+          dasProfile={props.dasProfile} onSaveDas={props.onSaveDas}
+          goalsProfile={props.goalsProfile} onSaveGoals={props.onSaveGoals}
+          phq9Profile={props.phq9Profile} onSavePhq9={props.onSavePhq9}
+          gad7Profile={props.gad7Profile} onSaveGad7={props.onSaveGad7}
+          scsProfile={props.scsProfile} onSaveScs={props.onSaveScs}
+          worryProfile={props.worryProfile} onSaveWorry={props.onSaveWorry}
+          masterSummary={props.masterSummary} onSaveMasterSummary={props.onSaveMasterSummary}
+          ysqProfile={props.ysqProfile} onSaveYsq={props.onSaveYsq}
+          rescripts={props.rescripts} onSaveRescripts={props.onSaveRescripts}
+          modeCheckIns={props.modeCheckIns} onSaveModeCheckIns={props.onSaveModeCheckIns}
+          fcsProfile={props.fcsProfile} onSaveFcs={props.onSaveFcs}
+          circlesEntries={props.circlesEntries} onSaveCircles={props.onSaveCircles}
+          pcl5Profile={props.pcl5Profile} onSavePcl5={props.onSavePcl5}
+          griefEntries={props.griefEntries} onSaveGrief={props.onSaveGrief}
+          eatingEntries={props.eatingEntries} onSaveEating={props.onSaveEating}
+          jumpToView={props.jumpToView} onJumpHandled={props.onJumpHandled}
+          ruminationProfile={props.ruminationProfile} onSaveRumination={props.onSaveRumination}
+          loopEntries={props.loopEntries} onSaveLoop={props.onSaveLoop}
+        />
+      ) : (
+        <ACTToolkit
+          valuesProfile={props.valuesProfile} limitingBeliefs={props.limitingBeliefs}
+          dasProfile={props.dasProfile} goalsProfile={props.goalsProfile}
+          ysqProfile={props.ysqProfile}
+        />
+      )}
+    </div>
+  );
+}
 
 function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop }) {
 
@@ -7631,7 +7691,7 @@ function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, g
             {processes.map((p,i)=>{
               const nodeAngle=(-90+i*60)*Math.PI/180;
               const r=85, cx=150, cy=128;
-              const x=cx+r*Math.cos(nodeAngle2), y=cy+r*Math.sin(nodeAngle2);
+              const x=cx+r*Math.cos(nodeAngle), y=cy+r*Math.sin(nodeAngle);
               const active=activeP===i;
               return (
                 <g key={i} onClick={()=>setActiveP(active?null:i)} style={{cursor:"pointer"}}>
@@ -7727,9 +7787,9 @@ function ACTToolkit({ valuesProfile=null, limitingBeliefs=[], dasProfile=null, g
               const r=compassRatings[area.id]||{};
               const imp=(r.importance||0)/10, liv=(r.living||0)/10;
               const cx=150, cy=150, maxR=100;
-              const ix=cx+maxR*imp*Math.cos(nodeAngle), iy=cy+maxR*imp*Math.sin(nodeAngle);
-              const lx=cx+maxR*liv*Math.cos(nodeAngle), ly=cy+maxR*liv*Math.sin(nodeAngle);
-              const labelX=cx+(maxR+20)*Math.cos(nodeAngle), labelY=cy+(maxR+20)*Math.sin(nodeAngle);
+              const ix=cx+maxR*imp*Math.cos(angle), iy=cy+maxR*imp*Math.sin(angle);
+              const lx=cx+maxR*liv*Math.cos(angle), ly=cy+maxR*liv*Math.sin(angle);
+              const labelX=cx+(maxR+20)*Math.cos(angle), labelY=cy+(maxR+20)*Math.sin(angle);
               return (
                 <g key={area.id}>
                   <line x1={cx} y1={cy} x2={cx+maxR*Math.cos(angle)} y2={cy+maxR*Math.sin(angle)}
@@ -8353,7 +8413,7 @@ function BeaChat() {
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
-const sectionTitle = { fontFamily:"Georgia,serif", fontSize:20, color:PALETTE.dark, margin:"0 0 12px" };
+const sectionTitle = { fontFamily:FD, fontSize:20, color:PALETTE.dark, margin:"0 0 12px" };
 const card = { background:"white", borderRadius:12, padding:14, boxShadow:"0 1px 6px rgba(0,0,0,0.07)" };
 const emptyState = { textAlign:"center", color:PALETTE.soft, fontSize:14, padding:"32px 16px", background:PALETTE.pollen, borderRadius:12 };
 const inputStyle = { padding:"10px 14px", borderRadius:999, border:`1.5px solid #DDD`, fontSize:14, color:PALETTE.dark, outline:"none", background:"white" };
@@ -8426,9 +8486,11 @@ export default function BeeWell() {
   const themeAccent = { honey:PALETTE.honey, sage:PALETTE.sage, lavender:PALETTE.lavender, sky:PALETTE.sky }[theme] || PALETTE.honey;
 
   // Most recent unresolved problem, used for the "are you feeling better?" home check-in.
-  // difficultItems is always prepended to (newest first), so index 0 is the most recent.
-  // Skipped if already checked in about this exact item, or if it's already been released.
-  const mostRecentProblem = difficultItems.find(i => i.status !== "released" && i.id !== lastCheckedInId) || null;
+  // Strictly the newest item only — if it's released or already checked in about, no
+  // check-in shows at all (we never fall back to an older problem).
+  const newestProblem = difficultItems[0] || null;
+  const mostRecentProblem = (newestProblem && newestProblem.status !== "released" && newestProblem.id !== lastCheckedInId)
+    ? newestProblem : null;
   const lastProblemForCheckIn = mostRecentProblem ? {
     id: mostRecentProblem.id,
     text: mostRecentProblem.text,
@@ -8443,7 +8505,6 @@ export default function BeeWell() {
     {id:"difficult", label:"Problem Box", emoji:"📦"},
     {id:"court",     label:"Courtroom",   emoji:"⚖️"},
     {id:"activate",  label:"Activate",    emoji:"🌱"},
-    {id:"values",    label:"Values",      emoji:"🌟"},
     {id:"act",       label:"Inner Work",  emoji:"🌀"},
     {id:"ground",    label:"Ground",      emoji:"🍃"},
     {id:"progress",  label:"Progress",    emoji:"📈"},
@@ -8458,7 +8519,7 @@ export default function BeeWell() {
     <div style={{
       minHeight:"100vh",
       background:`linear-gradient(160deg, ${PALETTE.comb} 0%, #FFF8EE 100%)`,
-      fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily:FB,
     }}>
       {/* Header */}
       <div style={{
@@ -8470,7 +8531,7 @@ export default function BeeWell() {
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <BeeMascot size={40} outfit={outfit}/>
           <div>
-            <div style={{fontFamily:"Georgia,serif",fontSize:20,color:"white",fontWeight:700,lineHeight:1}}>BeeWell</div>
+            <div style={{fontFamily:FD,fontSize:20,color:"white",fontWeight:700,lineHeight:1}}>BeeWell</div>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>
               {userName ? `${userName}'s private hive 🍯` : "Your private hive 🍯"}
             </div>
@@ -8580,8 +8641,8 @@ export default function BeeWell() {
           pcl5Profile={pcl5Profile}
           masterSummary={masterSummary}
           problemCount={difficultItems.filter(i=>i.status==="pending"||i.status==="stored").length}
-          onQuickEating={()=>{ setTab("values"); setValuesJump("eating_q"); }}
-          onQuickLoop={()=>{ setTab("values"); setValuesJump("loop_q"); }}
+          onQuickEating={()=>{ setTab("act"); setValuesJump("eating_q"); }}
+          onQuickLoop={()=>{ setTab("act"); setValuesJump("loop_q"); }}
           lastProblem={lastProblemForCheckIn}
           onDismissCheckIn={()=>mostRecentProblem && setLastCheckedInId(mostRecentProblem.id)}
           userName={userName}
@@ -8603,11 +8664,11 @@ export default function BeeWell() {
           pcl5Profile={pcl5Profile}
           griefEntries={griefEntries}
           eatingEntries={eatingEntries}
-          onSetValuesJump={(target)=>{ setTab("values"); setValuesJump(target); }}
+          onSetValuesJump={(target)=>{ setTab("act"); setValuesJump(target); }}
         />}
         {tab==="court"    && <Courtroom cases={cases} onSave={c=>setCases(l=>[c,...l])} valuesProfile={valuesProfile} dasProfile={dasProfile} ysqProfile={ysqProfile}/>}
         {tab==="activate" && <BehaviouralActivation feelItems={feelItems} valuesProfile={valuesProfile} dasProfile={dasProfile}/>}
-        {tab==="values"   && <ValuesGoals
+        {tab==="act"      && <InnerWork
           valuesProfile={valuesProfile}
           onSaveProfile={setValuesProfile}
           limitingBeliefs={limitingBeliefs}
@@ -8651,7 +8712,6 @@ export default function BeeWell() {
           jumpToView={valuesJump}
           onJumpHandled={()=>setValuesJump(null)}
         />}
-        {tab==="act"      && <ACTToolkit valuesProfile={valuesProfile} limitingBeliefs={limitingBeliefs} dasProfile={dasProfile} goalsProfile={goalsProfile} ysqProfile={ysqProfile}/>}
         {tab==="ground"   && <Grounding/>}
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}
         {tab==="bea"      && <BeaChat/>}

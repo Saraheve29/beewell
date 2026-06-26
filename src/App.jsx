@@ -4623,6 +4623,32 @@ No preamble.`}]);
         </div>
       </div>
 
+      {/* Personal Goals Questionnaire */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.sage}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>📋</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Personal Goals Questionnaire</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {goalsProfile ? `${goalsProfile.goals?.length||0} goal${goalsProfile.goals?.length===1?"":"s"} rated · Top: ${goalsProfile.strongest?.[0]?.text?.slice(0,30)||"—"}` : "List your goals · Rate them like a professional assessment"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{
+              setGoalsList(goalsProfile?.goals?.map(g=>g.text) || [""]);
+              setGoalRatings({});
+              setGoalsStep(0);
+              setView("goals_list");
+            }}
+            style={{...btnStyle(PALETTE.sage),flex:1}}>
+            {goalsProfile ? "Redo Assessment" : "List My Goals"}
+          </button>
+          {goalsProfile && <button onClick={()=>setView("goals_profile")}
+            style={{...btnStyle(PALETTE.sage,true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
       {/* SMART Plans */}
       <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.honey}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -4664,32 +4690,6 @@ No preamble.`}]);
           </button>
           {dasProfile && <button onClick={()=>setView("das_profile")}
             style={{...btnStyle("#EEE",true),flex:1}}>View Results</button>}
-        </div>
-      </div>
-
-      {/* Personal Goals Questionnaire */}
-      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.sage}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-          <span style={{fontSize:24}}>📋</span>
-          <div>
-            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Personal Goals Questionnaire</div>
-            <div style={{fontSize:12,color:PALETTE.soft}}>
-              {goalsProfile ? `${goalsProfile.goals?.length||0} goal${goalsProfile.goals?.length===1?"":"s"} rated · Top: ${goalsProfile.strongest?.[0]?.text?.slice(0,30)||"—"}` : "List your goals · Rate them like a professional assessment"}
-            </div>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{
-              setGoalsList(goalsProfile?.goals?.map(g=>g.text) || [""]);
-              setGoalRatings({});
-              setGoalsStep(0);
-              setView("goals_list");
-            }}
-            style={{...btnStyle(PALETTE.sage),flex:1}}>
-            {goalsProfile ? "Redo Assessment" : "List My Goals"}
-          </button>
-          {goalsProfile && <button onClick={()=>setView("goals_profile")}
-            style={{...btnStyle(PALETTE.sage,true),flex:1}}>View Results</button>}
         </div>
       </div>
 

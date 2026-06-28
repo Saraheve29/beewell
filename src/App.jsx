@@ -1186,6 +1186,9 @@ function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab, feelItems=[],
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [feelBoxMatch, setFeelBoxMatch] = useState(null);
   const [loadingFeelMatch, setLoadingFeelMatch] = useState(false);
+  const [beaFollowupThread, setBeaFollowupThread] = useState([]); // [{from:"user"|"bea", text}]
+  const [beaFollowupInput, setBeaFollowupInput] = useState("");
+  const [loadingFollowup, setLoadingFollowup] = useState(false);
 
   const stored  = items.filter(i=>i.status==="stored");
   const pending = items.filter(i=>i.status==="pending");
@@ -1225,6 +1228,8 @@ function ProblemBox({ items, onAdd, onUpdate, onRelease, onSetTab, feelItems=[],
     setLoadingSuggest(true);
     setBeaSuggestion(null);
     setBeaClarifyQ(null);
+    setBeaFollowupThread([]);
+    setBeaFollowupInput("");
     const profileContext = buildProfileContext();
     const combinedText = clarification ? `${text}\n\nAdditional context they shared: ${clarification}` : text;
     try {
@@ -1258,6 +1263,7 @@ The problem as written may be too brief or factual (e.g. "I have a meeting today
 If you have ENOUGH information to make a genuinely well-matched recommendation, reply in this exact format:
 TOOL: [tool name exactly as listed above]
 REASON: [one warm, SPECIFIC sentence explaining why this tool fits — reference their actual pattern if relevant, not generically]
+SCHEMA: [ONLY include this line if TOOL is "Limited Reparenting" — write the exact schema label from their childhood schema patterns above that this connects to, e.g. "Emotional Deprivation". Omit this line entirely for any other tool.]
 
 If the problem is too brief, factual, or ambiguous to confidently match (most tools could technically apply, or none clearly fit), instead ask ONE short, warm clarifying question that would let you make a real recommendation. Reply in this exact format:
 CLARIFY: [one specific question, e.g. "What about this meeting feels hardest — is it the people, the topic, or something else?"]`
@@ -1272,9 +1278,24 @@ CLARIFY: [one specific question, e.g. "What about this meeting feels hardest —
 
       const toolMatch   = reply.match(/TOOL:\s*(.+)/);
       const reasonMatch = reply.match(/REASON:\s*(.+)/);
+      const schemaMatch = reply.match(/SCHEMA:\s*(.+)/);
+      let schemaLabel = schemaMatch?.[1]?.trim() || null;
+
+      // Fallback: if Bea named Limited Reparenting but didn't give a clean SCHEMA line,
+      // scan her reasoning text for any of the person's actual elevated schema labels.
+      const toolName = toolMatch?.[1]?.trim();
+      if(toolName === "Limited Reparenting" && !schemaLabel && ysqProfile?.schemaScores) {
+        const reasonText = (reasonMatch?.[1] || "") + " " + reply;
+        const found = ysqProfile.schemaScores
+          .filter(s => s.avg >= 4) // only elevated patterns are worth matching against
+          .find(s => reasonText.toLowerCase().includes(s.label.toLowerCase()));
+        if(found) schemaLabel = found.label;
+      }
+
       setBeaSuggestion({
-        tool:   toolMatch?.[1]?.trim()   || "Bea Chat",
+        tool:   toolName || "Bea Chat",
         reason: reasonMatch?.[1]?.trim() || "I think talking it through would help.",
+        schemaLabel,
       });
     } catch(e) {
       setBeaSuggestion({ tool:"Bea Chat", reason:"Let's talk this through together." });
@@ -1282,6 +1303,37 @@ CLARIFY: [one specific question, e.g. "What about this meeting feels hardest —
   };
 
   // ── Match Feel Better Box items to this specific problem ─────────────────
+  // ── Continue the conversation about Bea's recommendation, in place ───────
+  const sendBeaFollowup = async () => {
+    if(!beaFollowupInput.trim()) return;
+    const userMsg = beaFollowupInput.trim();
+    const newThread = [...beaFollowupThread, {from:"user", text:userMsg}];
+    setBeaFollowupThread(newThread);
+    setBeaFollowupInput("");
+    setLoadingFollowup(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. Earlier you looked at this problem: "${viewItem?.text}" and recommended the tool "${beaSuggestion?.tool}" because: "${beaSuggestion?.reason}"${beaSuggestion?.schemaLabel ? ` (connected to their ${beaSuggestion.schemaLabel} pattern)` : ""}.
+
+The conversation since then:
+${newThread.map(m=>`${m.from==="user"?"Them":"You"}: ${m.text}`).join("\n")}
+
+Respond directly and warmly to what they just said (2-4 sentences). If they're pushing back on your recommendation or giving new context, genuinely reconsider — if a different tool now fits better, say so plainly (e.g. "Actually, given that, I think X would serve you better"). Stay conversational, not clinical. No preamble.`}]);
+      setBeaFollowupThread([...newThread, {from:"bea", text:reply}]);
+
+      // If Bea revised her recommendation mid-conversation, try to pick that up
+      const revisedTool = ["Courtroom","ACT Matrix","Defusion Board","Limited Reparenting","Imagery Rescripting",
+        "Mode Check-In","Compassionate Self Practice","Three Circles Check-In","Behavioural Activation",
+        "Willingness Meter","Grief Box","Emotional Eating Support","Loop Interrupt","Bea Chat"]
+        .find(t => reply.includes(t));
+      if(revisedTool && revisedTool !== beaSuggestion?.tool) {
+        setBeaSuggestion(prev => ({ ...prev, tool: revisedTool, reason: reply.slice(0,200) }));
+      }
+    } catch(e) {
+      setBeaFollowupThread([...newThread, {from:"bea", text:"I couldn't respond right now — try again?"}]);
+    } finally { setLoadingFollowup(false); }
+  };
+
   const getFeelBoxMatch = async (text) => {
     if(feelItems.length===0) { setFeelBoxMatch({ none:true }); return; }
     setLoadingFeelMatch(true);
@@ -1316,13 +1368,13 @@ If nothing fits well, reply only: NONE_FIT`
     } finally { setLoadingFeelMatch(false); }
   };
 
-  const toolAction = (toolName) => {
+  const toolAction = (toolName, schemaLabel=null) => {
     const map = {
       "Courtroom":              ()=>onSetTab("court"),
       "ACT Matrix":             ()=>onSetTab("act"),
       "Defusion Board":         ()=>onSetTab("act"),
       "Defusion":               ()=>onSetTab("act"),
-      "Limited Reparenting":    ()=>onSetValuesJump?.("reparent_intro"),
+      "Limited Reparenting":    ()=>onSetValuesJump?.(schemaLabel ? `reparent:${schemaLabel}` : "reparent_intro"),
       "Imagery Rescripting":    ()=>onSetValuesJump?.("rescript_q"),
       "Mode Check-In":          ()=>onSetValuesJump?.("mode_check"),
       "Compassionate Self Practice": ()=>onSetValuesJump?.("compself_q"),
@@ -1349,7 +1401,7 @@ If nothing fits well, reply only: NONE_FIT`
           onDone={()=>{ onRelease(viewItem.id); setReleasing(null); setViewItem(null); }}
         />
       )}
-      <button onClick={()=>{ setViewItem(null); setBeaSuggestion(null); setLoadingSuggest(false); setFeelBoxMatch(null); setLoadingFeelMatch(false); setEditingProblem(false); setBeaClarifyQ(null); setClarifyAnswer(""); }}
+      <button onClick={()=>{ setViewItem(null); setBeaSuggestion(null); setLoadingSuggest(false); setFeelBoxMatch(null); setLoadingFeelMatch(false); setEditingProblem(false); setBeaClarifyQ(null); setClarifyAnswer(""); setBeaFollowupThread([]); setBeaFollowupInput(""); }}
         style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>
         ← Back to Box
       </button>
@@ -1447,7 +1499,7 @@ If nothing fits well, reply only: NONE_FIT`
               style={{...btnStyle(PALETTE.lavender),flex:1,opacity:clarifyAnswer.trim()?1:0.4}}>
               Tell Bea →
             </button>
-            <button onClick={()=>{ setBeaClarifyQ(null); setClarifyAnswer(""); }}
+            <button onClick={()=>{ setBeaClarifyQ(null); setClarifyAnswer(""); setBeaFollowupThread([]); setBeaFollowupInput(""); }}
               style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>Skip</button>
           </div>
         </div>
@@ -1472,10 +1524,53 @@ If nothing fits well, reply only: NONE_FIT`
               {beaSuggestion.tool}
             </span>
           </div>
+          {beaSuggestion.schemaLabel && (
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+              <span style={{fontSize:11,color:PALETTE.soft}}>Pattern identified:</span>
+              <span style={{fontSize:12,fontWeight:700,color:"#6B3A4A",background:"#6B3A4A11",padding:"2px 10px",borderRadius:999}}>
+                🧸 {beaSuggestion.schemaLabel}
+              </span>
+            </div>
+          )}
           <p style={{margin:0,color:PALETTE.mid,fontSize:13,lineHeight:1.6}}>
             {beaSuggestion.reason}
           </p>
-          <button onClick={()=>toolAction(beaSuggestion.tool)}
+
+          {/* Follow-up conversation thread, if any */}
+          {beaFollowupThread.length>0 && (
+            <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+              {beaFollowupThread.map((msg,i)=>(
+                <div key={i} style={{
+                  alignSelf: msg.from==="user" ? "flex-end" : "flex-start",
+                  maxWidth:"88%",
+                  background: msg.from==="user" ? PALETTE.lavender : "white",
+                  color: msg.from==="user" ? "white" : PALETTE.dark,
+                  borderRadius:12, padding:"8px 12px", fontSize:13, lineHeight:1.5,
+                }}>
+                  {msg.text}
+                </div>
+              ))}
+            </div>
+          )}
+          {loadingFollowup && (
+            <div style={{marginTop:10,display:"flex",alignItems:"center",gap:6}}>
+              <BeeMascot size={22} animated/>
+              <span style={{fontSize:12,color:PALETTE.soft,fontStyle:"italic"}}>Bea is thinking…</span>
+            </div>
+          )}
+
+          <div style={{display:"flex",gap:8,marginTop:12}}>
+            <input value={beaFollowupInput} onChange={e=>setBeaFollowupInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter" && beaFollowupInput.trim() && sendBeaFollowup()}
+              placeholder="Ask Bea anything about this — push back, add context…"
+              style={{...inputStyle,flex:1}}/>
+            <button onClick={sendBeaFollowup} disabled={!beaFollowupInput.trim()||loadingFollowup}
+              style={{...btnStyle(PALETTE.lavender),opacity:beaFollowupInput.trim()?1:0.4}}>
+              →
+            </button>
+          </div>
+
+          <button onClick={()=>toolAction(beaSuggestion.tool, beaSuggestion.schemaLabel)}
             style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:12}}>
             Use {beaSuggestion.tool} →
           </button>
@@ -1651,7 +1746,7 @@ If nothing fits well, reply only: NONE_FIT`
                     style={{...btnStyle(PALETTE.lavender,true),flex:1}}>
                     📦 Put in box for later
                   </button>
-                  <button onClick={()=>{ setViewItem(item); setBeaSuggestion(null); setFeelBoxMatch(null); setEditingProblem(false); setBeaClarifyQ(null); setClarifyAnswer(""); }}
+                  <button onClick={()=>{ setViewItem(item); setBeaSuggestion(null); setFeelBoxMatch(null); setEditingProblem(false); setBeaClarifyQ(null); setClarifyAnswer(""); setBeaFollowupThread([]); setBeaFollowupInput(""); }}
                     style={{...btnStyle(PALETTE.honey,true),flex:1}}>
                     🐝 Work through it now
                   </button>
@@ -1673,7 +1768,7 @@ If nothing fits well, reply only: NONE_FIT`
             IN YOUR BOX — TAP TO WORK THROUGH
           </div>
           {stored.map(item=>(
-            <div key={item.id} onClick={()=>{ setViewItem(item); setBeaSuggestion(null); setFeelBoxMatch(null); setEditingProblem(false); setBeaClarifyQ(null); setClarifyAnswer(""); }}
+            <div key={item.id} onClick={()=>{ setViewItem(item); setBeaSuggestion(null); setFeelBoxMatch(null); setEditingProblem(false); setBeaClarifyQ(null); setClarifyAnswer(""); setBeaFollowupThread([]); setBeaFollowupInput(""); }}
               style={{
                 ...card,cursor:"pointer",marginBottom:8,
                 borderLeft:`3px solid ${PALETTE.lavender}`,
@@ -3733,10 +3828,44 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
       setRescriptAiScript("");
       setView("rescript_q");
       onJumpHandled?.();
+    } else if(jumpToView?.startsWith("reparent:")) {
+      // Bea named a specific schema pattern — find it and jump straight into the practice
+      const schemaLabel = jumpToView.slice("reparent:".length);
+      const candidates = ysqProfile?.schemaScores || [];
+      const match = candidates.find(s =>
+        s.label.toLowerCase() === schemaLabel.toLowerCase() ||
+        s.label.toLowerCase().includes(schemaLabel.toLowerCase()) ||
+        schemaLabel.toLowerCase().includes(s.label.toLowerCase())
+      ) || [...candidates].sort((a,b)=>b.avg-a.avg)[0]; // fall back to highest-scoring pattern, never a dead end
+
+      if(match) {
+        setModeWorkSchema(match);
+        setReparentAnswers({});
+        setReparentStep(0);
+        setReparentAiScript("");
+        setReparentFollowup("");
+        setReparentFollowupReply("");
+        setView("reparent_work");
+      } else {
+        // No YSQ completed at all — send to take the assessment first
+        setView("ysq_q");
+      }
+      onJumpHandled?.();
     } else if(jumpToView === "reparent_intro") {
-      // Limited Reparenting needs a schema selected first — if YSQ has results, jump to
-      // the results page so they can pick a pattern to work with; otherwise the YSQ itself.
-      setView(ysqProfile ? "ysq_profile" : "ysq_q");
+      // No specific schema was named — default straight to the highest-scoring pattern
+      // rather than a results page with nothing tappable for "the recommendation."
+      const top = ysqProfile?.schemaScores ? [...ysqProfile.schemaScores].sort((a,b)=>b.avg-a.avg)[0] : null;
+      if(top) {
+        setModeWorkSchema(top);
+        setReparentAnswers({});
+        setReparentStep(0);
+        setReparentAiScript("");
+        setReparentFollowup("");
+        setReparentFollowupReply("");
+        setView("reparent_work");
+      } else {
+        setView("ysq_q"); // no YSQ done yet — only path is to complete it first
+      }
       onJumpHandled?.();
     }
   }, [jumpToView]);

@@ -172,6 +172,33 @@ function BreathingCircle() {
   );
 }
 
+// ── 5-4-3-2-1 grounding — reusable, dropped into any tool that needs it ─────
+function FiveSenses() {
+  const [step54, setStep54] = useState(0);
+  const senses = [
+    {n:5,q:"Name 5 things you can SEE right now",emoji:"👁️"},
+    {n:4,q:"Name 4 things you can TOUCH or feel",emoji:"✋"},
+    {n:3,q:"Name 3 things you can HEAR",emoji:"👂"},
+    {n:2,q:"Name 2 things you can SMELL",emoji:"👃"},
+    {n:1,q:"Name 1 thing you can TASTE",emoji:"👅"},
+  ];
+  return (
+    <div>
+      <div style={{...card,textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:48,marginBottom:8}}>{senses[step54].emoji}</div>
+        <p style={{fontWeight:700,color:PALETTE.dark,fontSize:16,margin:0}}>{senses[step54].q}</p>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+        {step54>0 && <button onClick={()=>setStep54(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+        {step54<4
+          ? <button onClick={()=>setStep54(s=>s+1)} style={btnStyle(PALETTE.sky)}>Next →</button>
+          : <button onClick={()=>setStep54(0)} style={btnStyle(PALETTE.sage)}>✓ Done — feel more grounded?</button>
+        }
+      </div>
+    </div>
+  );
+}
+
 // ── Wave sound generator ─────────────────────────────────────────────────────
 function playWaves(duration=5000) {
   try {
@@ -492,8 +519,8 @@ ${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use 
 You are non-judgmental, supportive, and use calm, encouraging language.
 Keep responses concise (2-4 sentences) and conversational.
 Occasionally use 🐝 at the end of a thought, but sparingly.
-Never give medical advice. If someone seems in crisis, gently suggest they reach out to a professional or crisis line.
-You guide users through CBT tools, mood tracking, and grounding exercises with care and warmth.`,
+You are equipped to do real, ongoing therapeutic work across CBT, ACT, Schema Therapy, Compassion-Focused Therapy, grief support and more — engage fully and directly with whatever the person brings, continuing across sessions rather than deflecting. Only suggest outside professional or crisis support if there are genuine signs of active self-harm, suicidal ideation, or immediate danger to the person or someone else — never as a general caveat or to avoid doing deeper work.
+Never give medical advice (e.g. medication, diagnosis).`,
         messages,
       })
     });
@@ -2939,13 +2966,22 @@ const LIMITING_BELIEF_QUESTIONS = [
   {id:"lb6", text:"If this belief were only 50% true — what would the other 50% say?",   placeholder:"Write a more balanced, realistic version…"},
 ];
 
+const SMART_TIMEFRAMES = [
+  {id:"week",   emoji:"📅", label:"Next Week",     desc:"Something small, in the next 7 days"},
+  {id:"month",  emoji:"🗓️", label:"Next Month",    desc:"Something you can build over the next few weeks"},
+  {id:"6month", emoji:"📆", label:"Next 6 Months", desc:"A bigger step, with time to build up to it"},
+  {id:"year",   emoji:"🌱", label:"Next Year",     desc:"Something that needs real time to grow"},
+  {id:"3year",  emoji:"🌳", label:"Next 3 Years",  desc:"A longer-term direction"},
+  {id:"5year",  emoji:"🏔️", label:"Next 5 Years",  desc:"A big picture, long-term goal"},
+];
+
 const SMART_QUESTIONS = [
-  {field:"goal",        emoji:"🎯", label:"The Goal",         question:"What do you want to achieve, and by when? Name the goal AND a specific target date or deadline.",             placeholder:"e.g. Build a daily creative practice, starting Monday and reviewed in 4 weeks"},
+  {field:"goal",        emoji:"🎯", label:"The Goal",         question:"What do you want to achieve in this timeframe?",             placeholder:"e.g. Build a daily creative practice"},
   {field:"value",       emoji:"💎", label:"Meaningful — Why", question:"Which of your core values does this connect to? Why does it matter to you personally?", placeholder:"e.g. Creativity — it makes me feel alive and like myself"},
   {field:"specific",    emoji:"📍", label:"Specific",         question:"What exactly will you do? Who, what, where — no vague language.",       placeholder:"e.g. Spend 20 minutes drawing in my sketchbook"},
   {field:"achievable",  emoji:"✅", label:"Achievable",       question:"Is this genuinely doable right now, given your real current situation?", placeholder:"e.g. Yes — I have 20 minutes each morning before the kids wake"},
   {field:"realistic",   emoji:"🔍", label:"Realistic",        question:"What might get in the way? How will you handle it if it does?",         placeholder:"e.g. Tiredness — I will do 5 minutes minimum on hard days"},
-  {field:"timebound",   emoji:"⏰", label:"Time-bound",       question:"Give the exact day, time of day, and how often — e.g. every day, 3x a week, or a single deadline date.", placeholder:"e.g. Every morning at 7am, starting Monday 30th June"},
+  {field:"timebound",   emoji:"⏰", label:"Time-bound",       question:"Within your chosen timeframe, give the exact day, time of day, and how often.", placeholder:"e.g. Every morning at 7am, starting Monday"},
   {field:"experiment",  emoji:"🧪", label:"What happened",    question:"After trying this — what actually happened? What did you learn?",       placeholder:"Fill this in after you have tried it…"},
 ];
 
@@ -3634,6 +3670,7 @@ function InnerWork(props) {
           jumpToView={props.jumpToView} onJumpHandled={props.onJumpHandled}
           ruminationProfile={props.ruminationProfile} onSaveRumination={props.onSaveRumination}
           loopEntries={props.loopEntries} onSaveLoop={props.onSaveLoop}
+          reparentingJournal={props.reparentingJournal} onSaveReparenting={props.onSaveReparenting}
         />
       ) : (
         <ACTToolkit
@@ -3646,7 +3683,7 @@ function InnerWork(props) {
   );
 }
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop }) {
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
   const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
@@ -3723,6 +3760,10 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [reparentStep, setReparentStep] = useState(0);
   const [reparentAnswers, setReparentAnswers] = useState({});
   const [reparentAiScript, setReparentAiScript] = useState("");
+  const [reparentRound, setReparentRound] = useState(1);     // which session/round for this schema
+  const [reparentFollowup, setReparentFollowup] = useState(""); // talking back to the Healthy Adult voice
+  const [reparentFollowupReply, setReparentFollowupReply] = useState("");
+  const [viewingJournal, setViewingJournal] = useState(null); // schema id whose journal is being viewed
   const [reparentLoading, setReparentLoading] = useState(false);
 
   // Imagery Rescripting state
@@ -3744,6 +3785,8 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   // Three Circles practice state
   const [circlesAnswers, setCirclesAnswers] = useState({threat:"", drive:"", soothe:""});
   const [circlesAiReflection, setCirclesAiReflection] = useState("");
+  const [showSootheBreathing, setShowSootheBreathing] = useState(false);
+  const [showModeGrounding, setShowModeGrounding] = useState(false);
   const [circlesLoading, setCirclesLoading] = useState(false);
 
   // Compassionate Self practice state
@@ -3812,6 +3855,9 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [editingPlan, setEditingPlan] = useState(null);
   const [viewBelief, setViewBelief]   = useState(null);
   const [viewPlan, setViewPlan]       = useState(null);
+  const [smartTimeframe, setSmartTimeframe] = useState(null); // chosen before goal step
+  const [goalSuggestions, setGoalSuggestions] = useState(null);
+  const [loadingGoalSuggest, setLoadingGoalSuggest] = useState(false);
 
   // ── Score VLQ ──────────────────────────────────────────────────────────
   const scoreAssessment = async () => {
@@ -3868,22 +3914,25 @@ Be specific and personal. No preamble.`}]);
   };
 
   // ── Get Bea reframe for limiting belief ─────────────────────────────────
-  const getBeliefReframe = async (answers) => {
+  const getBeliefReframe = async (answers, priorBeliefs=[]) => {
     setBeliefLoading(true);
+    const history = priorBeliefs.length>0
+      ? `\n\nThis person has examined other limiting beliefs before:\n${priorBeliefs.slice(0,3).map((b,i)=>`${i+1}. "${b.answers?.lb1}"`).join("\n")}\nIf this belief connects to a similar root pattern, you can note that gently — but treat this specific belief fully on its own terms.`
+      : "";
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, a CBT/ACT therapist.
+        `You are Bea, a CBT/ACT therapist doing real ongoing work, not a one-off exercise.
 A person has worked through this limiting belief:
 Belief: "${answers.lb1}"
 Origin: "${answers.lb2||"unknown"}"
 Evidence FOR: "${answers.lb3||"none listed"}"
 Evidence AGAINST: "${answers.lb4||"none listed"}"
 Cost of belief: "${answers.lb5||"not stated"}"
-Their own 50% reframe: "${answers.lb6||"not yet written"}"
+Their own 50% reframe: "${answers.lb6||"not yet written"}"${history}
 
 Write a compassionate, evidence-based reframe in 2-3 sentences. 
 Then on a new line write: REFRAME: [one clear balanced alternative thought they could carry forward]
-Make it realistic — not toxic positivity, but genuinely believable given the evidence.`}]);
+Make it realistic — not toxic positivity, but genuinely believable given the evidence. No suggestions to seek outside help unless there are signs of crisis.`}]);
 
       setBeliefAiReframe(reply);
     } finally { setBeliefLoading(false); }
@@ -3905,17 +3954,56 @@ Make it realistic — not toxic positivity, but genuinely believable given the e
   const savePlan = () => {
     const plan = {
       id: uid(), date: today(),
+      timeframe: smartTimeframe?.id,
+      timeframeLabel: smartTimeframe?.label,
       ...smartAnswers,
     };
     if(editingPlan) {
-      onSavePlans(ps=>ps.map(p=>p.id===editingPlan?{...p,...smartAnswers}:p));
+      onSavePlans(ps=>ps.map(p=>p.id===editingPlan?{...p,...plan}:p));
     } else {
       onSavePlans(ps=>[plan,...ps]);
     }
     setSmartAnswers({});
     setSmartStep(0);
     setEditingPlan(null);
+    setSmartTimeframe(null);
+    setGoalSuggestions(null);
     setView("home");
+  };
+
+  // ── Generate concrete goal ideas matched to the chosen timeframe ─────────
+  const getGoalSuggestions = async (timeframe) => {
+    setLoadingGoalSuggest(true);
+    setGoalSuggestions(null);
+    const profileBits = [];
+    if(valuesProfile?.top3) profileBits.push(`Top values: ${valuesProfile.top3.map(v=>v.label).join(", ")}.`);
+    if(valuesProfile?.gaps?.length>0) profileBits.push(`Values gaps (important but not currently lived): ${valuesProfile.gaps.map(g=>g.label).join(", ")}.`);
+    if(goalsProfile?.goals?.length>0) profileBits.push(`Goals already named in their Goals Questionnaire: ${goalsProfile.goals.map(g=>g.text).join("; ")}.`);
+    if(ysqProfile?.top3) profileBits.push(`Childhood schema patterns at play: ${ysqProfile.top3.map(s=>s.label).join(", ")}.`);
+    if(dasProfile?.highest?.length>0) profileBits.push(`Core belief vulnerabilities: ${dasProfile.highest.map(d=>d.label).join(", ")}.`);
+    const context = profileBits.length>0 ? profileBits.join("\n") : "No assessments completed yet — suggest general, accessible ideas.";
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, helping someone with autism set a SMART goal. They find open-ended "what do you want to achieve" questions overwhelming and need concrete, specific options to choose from rather than a blank page.
+
+They have chosen the timeframe: ${timeframe.label} (${timeframe.desc}).
+
+Here is what you know about them:
+${context}
+
+Suggest exactly 4 concrete, specific goal ideas suited to this timeframe, each one genuinely achievable within it and connected to what you know about their values or patterns. Each must be a complete, specific sentence — not a vague category.
+
+Reply ONLY in this format, one per line, no other text:
+1. [goal idea]
+2. [goal idea]
+3. [goal idea]
+4. [goal idea]`}]);
+      const ideas = [...reply.matchAll(/^\d+\.\s*(.+)$/gm)].map(m=>m[1].trim());
+      setGoalSuggestions(ideas.length>0 ? ideas : [reply.trim()]);
+    } catch(e) {
+      setGoalSuggestions(["Bea couldn't generate ideas right now — try writing your own below."]);
+    } finally { setLoadingGoalSuggest(false); }
   };
 
   const deleteBelief = (id) => onSaveBeliefs(bs=>bs.filter(b=>b.id!==id));
@@ -4087,20 +4175,38 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     if(pcl5Profile) parts.push(`TRAUMA SCREENING (PCL-5): ${pcl5Profile.severity.label} (score ${pcl5Profile.total}/80).`);
     if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level.label}. Strongest pattern: ${ruminationProfile.highest.label}.`);
 
+    // Active work done — not just assessments, but the actual therapeutic work undertaken
+    const journalEntries = Object.entries(reparentingJournal||{}).filter(([,sessions])=>sessions.length>0);
+    if(journalEntries.length>0) {
+      const schemaWork = journalEntries.map(([id,sessions])=>{
+        const schema = YSQ_SCHEMAS.find(s=>s.id===id);
+        return `${schema?.label||id}: ${sessions.length} session${sessions.length>1?"s":""}`;
+      }).join(", ");
+      parts.push(`LIMITED REPARENTING WORK DONE: ${schemaWork}.`);
+    }
+    if(griefEntries?.length>0) parts.push(`GRIEF WORK: ${griefEntries.length} entr${griefEntries.length===1?"y":"ies"}, most recent loss named: "${griefEntries[0]?.answers?.who}".`);
+    if(rescripts?.length>0) parts.push(`IMAGERY RESCRIPTING DONE: ${rescripts.length} memor${rescripts.length===1?"y":"ies"} worked through.`);
+    if(loopEntries?.length>0) parts.push(`LOOP INTERRUPT USED: ${loopEntries.length} time${loopEntries.length===1?"":"s"}.`);
+    if(modeCheckIns?.length>0) parts.push(`MODE CHECK-INS: ${modeCheckIns.length} logged, most recent mode: ${modeCheckIns[0]?.modeLabel}.`);
+
+    const priorSummaryNote = masterSummary?.summary
+      ? `\n\nYou previously gave this person a summary: "${masterSummary.summary.slice(0,300)}..." Build on this rather than starting fresh — note what's changed, what's progressed, what's still active.`
+      : "";
+
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, an integrative CBT/ACT therapist. A person has completed several validated psychological assessments in their wellness app. Here are all their results:
+        `You are Bea, an integrative therapist across CBT, ACT, Schema Therapy and Compassion-Focused Therapy. This person has been doing real ongoing work in this app — not just one-off assessments. Here is their full current picture:
 
-${parts.join("\n\n")}
+${parts.join("\n\n")}${priorSummaryNote}
 
-Write a warm, clinically-grounded, INTEGRATED summary (6-8 sentences) that connects the dots across assessments rather than repeating each one separately. Specifically:
-1. Identify the SINGLE most important pattern connecting 2+ assessments (e.g. low self-compassion + high perfectionism + values gap in self-care all pointing to the same root issue)
-2. Note any concerning combinations gently but honestly (e.g. elevated depression/anxiety screening alongside low self-compassion)
-3. Highlight genuine strengths shown across the assessments
-4. Give ONE clear, specific, actionable recommendation for what to focus on first — naming which BeeWell tool would help most (Courtroom, Defusion Board, Behavioural Activation, Willingness Meter, etc.)
+Write a warm, clinically-grounded, INTEGRATED summary (6-8 sentences) that connects the dots across everything — assessments AND active work done — rather than repeating each one separately. Specifically:
+1. Identify the SINGLE most important pattern connecting 2+ areas (assessment results and/or active work)
+2. Note any concerning combinations gently but honestly
+3. Highlight genuine strengths and real progress shown by the work they've actually done
+4. Give ONE clear, specific, actionable recommendation for what to focus on next — naming which BeeWell tool would help most, and whether to continue existing work (e.g. another Limited Reparenting session on a specific pattern) or start something new
 5. End with one warm, grounding sentence
 
-Be specific to THEIR actual results, not generic. No preamble, no bullet points — flowing warm prose.`}]);
+Be specific to THEIR actual results and history, not generic. Never suggest outside professional help unless there are genuine signs of crisis (active self-harm, suicidal ideation). No preamble, no bullet points — flowing warm prose.`}]);
       onSaveMasterSummary({ id:uid(), date:today(), summary:reply, basedOn:completedCount });
       setView("master_summary");
     } catch(e) {
@@ -4172,13 +4278,16 @@ Be specific and warm, never clinical-cold. No preamble.`}]);
   };
 
   // ── Generate Limited Reparenting script for a chosen schema ────────────
-  const getReparentingScript = async (schema, answers) => {
+  const getReparentingScript = async (schema, answers, round=1, priorSessions=[]) => {
     setReparentLoading(true);
+    const history = priorSessions.length>0
+      ? `\n\nThis is session ${round} working with this same pattern. Previous sessions covered:\n${priorSessions.map((s,i)=>`Session ${i+1}: memory — "${s.answers?.memory?.slice(0,100)}", ruling/Healthy Adult statement given — "${s.healthyAdult||""}"`).join("\n")}\nBuild on this rather than repeating the same ground — go a layer deeper, or address a new angle of the same pattern.`
+      : "";
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, practising Schema Therapy's Limited Reparenting technique.
+        `You are Bea, practising Schema Therapy's Limited Reparenting technique. This is real, ongoing therapeutic work — not a one-off exercise. Treat it with the depth and continuity a skilled Schema therapist would bring across multiple sessions.
 
-The person is working with this schema: ${schema.label} — ${schema.desc}
+The person is working with this schema: ${schema.label} — ${schema.desc}${history}
 
 They shared:
 What the Vulnerable Child needed but didn't get: "${answers.need||"not stated"}"
@@ -4187,29 +4296,66 @@ A memory connected to this: "${answers.memory||"not stated"}"
 
 Write THREE distinct parts, clearly separated:
 
-PART 1 — CHALLENGE THE PUNITIVE VOICE: Write 2-3 firm, direct sentences confronting and weakening the punitive/critical voice they described. Be assertive, not soft — Schema Therapy actively fights back against this voice rather than just soothing around it. Use language like "That voice is wrong" or "That was never true."
+PART 1 — CHALLENGE THE PUNITIVE VOICE: Write 3-4 firm, direct sentences confronting and weakening the punitive/critical voice they described. Be assertive, not soft — Schema Therapy actively fights back against this voice rather than just soothing around it. Use language like "That voice is wrong" or "That was never true."
 
-PART 2 — VALIDATE THE VULNERABLE CHILD: Write 2-3 warm sentences speaking directly to the younger self, naming exactly what they needed and didn't get, and affirming it was not their fault.
+PART 2 — VALIDATE THE VULNERABLE CHILD: Write 3-4 warm sentences speaking directly to the younger self, naming exactly what they needed and didn't get, and affirming it was not their fault.
 
-PART 3 — HEALTHY ADULT STATEMENT: Write one clear, practical statement the person can say to themselves now, as their own Healthy Adult voice, when this schema gets triggered in daily life.
+PART 3 — HEALTHY ADULT STATEMENT: Write one clear, practical statement the person can say to themselves now, as their own Healthy Adult voice, when this schema gets triggered in daily life. Make it something they could realistically say to themselves, in their own voice.
 
-Be specific to what they shared. No preamble.`}]);
+Be specific to what they shared and to the session history if provided — this work continues and deepens over time. No preamble, no caveats, no suggestions to see a therapist — just do the work fully and directly.`}]);
       setReparentAiScript(reply);
     } catch(e) {
       setReparentAiScript("Bea couldn't generate this right now — please try again.");
     } finally { setReparentLoading(false); }
   };
 
-  // ── Imagery Rescripting ──────────────────────────────────────────────────
-  const getRescriptScript = async (answers) => {
-    setRescriptLoading(true);
+  // Continue the conversation — talk back to the Healthy Adult voice that was just given
+  const getReparentFollowup = async (schema, originalScript, userResponse) => {
+    setReparentLoading(true);
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, a Schema Therapist guiding a gentle, simplified Imagery Rescripting exercise.
+        `You are Bea, continuing a Schema Therapy Limited Reparenting session for the pattern: ${schema.label}.
+
+You just gave this reparenting response:
+"${originalScript}"
+
+The person has responded with: "${userResponse}"
+
+Respond directly to what they said, staying in the Limited Reparenting frame — continue challenging the punitive voice if it's still active in their response, keep validating the Vulnerable Child, and reinforce or refine the Healthy Adult voice based on what they've just shared. This is a real continuing conversation, not a new script from scratch. 3-5 sentences, warm but direct, no caveats or suggestions to see a therapist.`}]);
+      setReparentFollowupReply(reply);
+    } catch(e) {
+      setReparentFollowupReply("Bea couldn't respond right now — please try again.");
+    } finally { setReparentLoading(false); }
+  };
+
+  // Save this completed session to the schema's ongoing journal
+  const saveReparentSession = (schema, answers, script) => {
+    const healthyAdultMatch = script.match(/PART 3[^:]*:\s*([^]*?)$/i);
+    const session = {
+      id: uid(), date: today(),
+      answers: {...answers},
+      script,
+      healthyAdult: healthyAdultMatch ? healthyAdultMatch[1].trim().slice(0,300) : "",
+    };
+    onSaveReparenting(j => ({
+      ...j,
+      [schema.id]: [...(j[schema.id]||[]), session],
+    }));
+  };
+
+  // ── Imagery Rescripting ──────────────────────────────────────────────────
+  const getRescriptScript = async (answers, priorRescripts=[]) => {
+    setRescriptLoading(true);
+    const history = priorRescripts.length>0
+      ? `\n\nThis person has done Imagery Rescripting before. Past memories worked with:\n${priorRescripts.slice(0,3).map((r,i)=>`${i+1}. "${r.answers?.scene?.slice(0,80)}"`).join("\n")}\nIf today's memory connects to a similar theme, you can gently acknowledge the pattern — but always treat this specific memory fully and freshly.`
+      : "";
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, a Schema Therapist guiding Imagery Rescripting. This is real ongoing therapeutic work.
 
 The person described this childhood memory: "${answers.scene}"
 What they needed in that moment but didn't get: "${answers.needed}"
-Who or what they wish had shown up to help: "${answers.helper||"their own adult self"}"
+Who or what they wish had shown up to help: "${answers.helper||"their own adult self"}"${history}
 
 Write a guided imagery script in second person ("you"), structured in 4 short parts, each clearly labelled:
 
@@ -4221,7 +4367,7 @@ INTERVENTION: Describe in 3-4 sentences exactly what the helper says and does to
 
 NEW ENDING: Describe in 2 sentences how the scene now ends differently — the child feeling what they needed to feel.
 
-Keep language gentle, slow-paced, and concrete. No preamble before SCENE.`}]);
+Keep language gentle, slow-paced, and concrete. No preamble before SCENE, no suggestions to seek outside help.`}]);
       setRescriptAiScript(reply);
     } catch(e) {
       setRescriptAiScript("Bea couldn't generate this right now — please try again.");
@@ -4248,17 +4394,21 @@ Keep language gentle, slow-paced, and concrete. No preamble before SCENE.`}]);
   const doModeCheckIn = async (selectedMode) => {
     setModeCheckLoading(true);
     const mode = SCHEMA_MODES.find(m=>m.id===selectedMode);
+    const recentSameMode = (modeCheckIns||[]).filter(c=>c.mode===selectedMode).length;
+    const patternNote = recentSameMode>=2
+      ? `\n\nThis person has logged this same mode (${mode.label}) ${recentSameMode} times before. Gently note the pattern — this mode showing up repeatedly is useful information, not a setback.`
+      : "";
     try {
       const reply = await askBee([{role:"user", content:
         `You are Bea, a Schema Therapist. A person just identified that their "${mode.label}" mode feels active right now.
-Mode description: ${mode.desc}
+Mode description: ${mode.desc}${patternNote}
 
 Write a brief, warm, practical response (3-4 sentences):
 1. Validate that noticing this mode is itself a Healthy Adult skill
 2. Give ONE specific, concrete thing to do right now for this particular mode (e.g. for Vulnerable Child: a self-soothing action; for Punitive Parent: a direct counter-statement; for Detached Protector: a gentle grounding action; for Healthy Adult: an affirmation to anchor it)
 3. If relevant, name which BeeWell tool would help most right now (Limited Reparenting, Defusion Board, Grounding, Willingness Meter)
 
-No preamble.`}]);
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
       const entry = { id:uid(), date:today(), time:new Date().toISOString(), mode:mode.id, modeLabel:mode.label, response:reply };
       onSaveModeCheckIns(cs=>[entry,...cs].slice(0,50)); // keep last 50
       setModeCheckResult({ mode, response:reply });
@@ -4375,18 +4525,18 @@ No preamble.`}]);
     });
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, trauma-informed but NOT a trauma processing therapist. A person completed the PCL-5 trauma screening tool.
+        `You are Bea, a trauma-informed therapist working within this app's full toolkit. A person completed the PCL-5 trauma screening tool.
 Total score: ${total}/80. Clinical threshold is typically 33+.
 Result: ${severity.label}.
 Cluster breakdown — Intrusion: ${clusterTotals.intrusion}, Avoidance: ${clusterTotals.avoidance}, Negative cognitions/mood: ${clusterTotals.cognition}, Arousal/reactivity: ${clusterTotals.arousal}.
 
-Write a careful, warm 4-sentence response:
+Write a careful, warm, direct 4-sentence response:
 1. State the result honestly without alarming language
-2. If at/above threshold, gently and clearly recommend they discuss this with a GP or trauma-specialist therapist — be direct about this, not vague
-3. Explain that this app can offer grounding/stabilisation support but is NOT a substitute for trauma-specific treatment (like EMDR or trauma-focused CBT) which needs a trained clinician
-4. End with one validating, non-alarming sentence
+2. Name which cluster is highest and what that suggests about which part of this person's experience is most active right now (intrusion = memories/flashbacks, avoidance = numbing/withdrawal, negative cognitions = beliefs about self/world/blame, arousal = hypervigilance/reactivity)
+3. Point them toward the specific in-app tool best suited to that cluster — Imagery Rescripting and Limited Reparenting for intrusion/memories, Three Circles and Grounding for arousal/hypervigilance, Compassionate Self and Limited Reparenting for negative cognitions, Mode Check-In and Loop Interrupt for avoidance/detachment
+4. End with one validating, grounding sentence affirming this work can genuinely help over time
 
-Be honest and clear, never minimise, never catastrophise. No preamble.`}]);
+Be honest and clear, never minimise, never catastrophise, never suggest they need anyone outside this app unless there are signs of active self-harm or suicide risk. No preamble.`}]);
       const profile = { id:uid(), date:today(), total, severity, clusterTotals, summary:reply, answers:{...pcl5Answers} };
       onSavePcl5(profile);
       setView("pcl5_profile");
@@ -4398,17 +4548,20 @@ Be honest and clear, never minimise, never catastrophise. No preamble.`}]);
   };
 
   // ── Grief Inventory reflection ───────────────────────────────────────────
-  const getGriefReflection = async (answers) => {
+  const getGriefReflection = async (answers, priorEntries=[]) => {
     setGriefLoading(true);
+    const history = priorEntries.length>0
+      ? `\n\nThis person has written about grief before. Prior entries:\n${priorEntries.slice(0,3).map((e,i)=>`Entry ${i+1} (${e.date}): lost "${e.answers?.who}" — hardest part was "${e.answers?.hardest?.slice(0,80)}"`).join("\n")}\nIf this entry connects to the same loss, acknowledge the continuity and notice anything that's shifted or deepened since. If it's a different loss, treat it freshly but bring the same care.`
+      : "";
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, grief-informed using Worden's Four Tasks of Mourning model. A person shared:
+        `You are Bea, grief-informed using Worden's Four Tasks of Mourning model. This is ongoing grief support, not a one-off entry — engage with real continuity. A person shared:
 
 What/who they lost: "${answers.who}"
 What it meant to them: "${answers.meaning}"
 The hardest part: "${answers.hardest}"
 Anything unsaid/unfinished: "${answers.unsaid||"nothing mentioned"}"
-How they'd like to keep connection: "${answers.keepalive||"not yet decided"}"
+How they'd like to keep connection: "${answers.keepalive||"not yet decided"}"${history}
 
 Write a warm, gentle 4-5 sentence reflection:
 1. Acknowledge the specific loss they named, using their own words where possible
@@ -4417,7 +4570,7 @@ Write a warm, gentle 4-5 sentence reflection:
 4. If they mentioned something unfinished, acknowledge that gently without trying to resolve it for them
 5. End with one warm, grounding sentence
 
-Never rush them toward "moving on." No preamble.`}]);
+Never rush them toward "moving on." Never suggest outside help unless there are signs of crisis. No preamble.`}]);
       setGriefAiReflection(reply);
     } catch(e) {
       setGriefAiReflection("Bea couldn't respond right now — please try again.");
@@ -4623,50 +4776,14 @@ No preamble.`}]);
         </div>
       </div>
 
-      {/* Personal Goals Questionnaire */}
-      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.sage}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-          <span style={{fontSize:24}}>📋</span>
+      {/* Goals work has moved to its own tab */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.sage}`,background:`${PALETTE.sage}08`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+          <span style={{fontSize:24}}>🎯</span>
           <div>
-            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Personal Goals Questionnaire</div>
-            <div style={{fontSize:12,color:PALETTE.soft}}>
-              {goalsProfile ? `${goalsProfile.goals?.length||0} goal${goalsProfile.goals?.length===1?"":"s"} rated · Top: ${goalsProfile.strongest?.[0]?.text?.slice(0,30)||"—"}` : "List your goals · Rate them like a professional assessment"}
-            </div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Goals & SMART Plans</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>Now in their own tab — Goals 🎯, in the bottom navigation</div>
           </div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{
-              setGoalsList(goalsProfile?.goals?.map(g=>g.text) || [""]);
-              setGoalRatings({});
-              setGoalsStep(0);
-              setView("goals_list");
-            }}
-            style={{...btnStyle(PALETTE.sage),flex:1}}>
-            {goalsProfile ? "Redo Assessment" : "List My Goals"}
-          </button>
-          {goalsProfile && <button onClick={()=>setView("goals_profile")}
-            style={{...btnStyle(PALETTE.sage,true),flex:1}}>View Results</button>}
-        </div>
-      </div>
-
-      {/* SMART Plans */}
-      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.honey}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-          <span style={{fontSize:24}}>🧪</span>
-          <div>
-            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>SMART Plans</div>
-            <div style={{fontSize:12,color:PALETTE.soft}}>
-              {smartPlans.length>0 ? `${smartPlans.length} plan${smartPlans.length>1?"s":""} saved` : "Values-based goal experiments"}
-            </div>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setView("smart_q");}}
-            style={{...btnStyle(PALETTE.honey),flex:1}}>
-            + New Plan
-          </button>
-          {smartPlans.length>0 && <button onClick={()=>setView("plans_list")}
-            style={{...btnStyle(PALETTE.honey,true),flex:1}}>View Plans</button>}
         </div>
       </div>
       </>}
@@ -4836,7 +4953,7 @@ No preamble.`}]);
           </div>
         </div>
         <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
-          This is the most emotionally intense tool in BeeWell. Schema Therapy normally does this work with a therapist present. Go gently, and stop any time if it feels like too much.
+          This is deep work — go at your own pace, and know you can pause or stop at any point. Each pass through a memory tends to soften it.
         </p>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{setRescriptAnswers({});setRescriptStep(0);setRescriptAiScript("");setView("rescript_q");}}
@@ -4923,7 +5040,7 @@ No preamble.`}]);
           </div>
         </div>
         <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
-          This screens for trauma symptoms. It cannot treat trauma — that needs a trained specialist. This is about understanding, not processing.
+          This screens for trauma symptoms and points you to the right tools in this app for what shows up most — Imagery Rescripting, Limited Reparenting, Three Circles and more.
         </p>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{setPcl5Answers({});setPcl5Step(0);setView("pcl5_q");}}
@@ -5310,7 +5427,7 @@ No preamble.`}]);
 
         {/* Bea reframe on last step */}
         {isLast && beliefAnswers[q.id] && !beliefAiReframe && !beliefLoading && (
-          <button onClick={()=>getBeliefReframe(beliefAnswers)}
+          <button onClick={()=>getBeliefReframe(beliefAnswers, limitingBeliefs)}
             style={{...btnStyle(PALETTE.blush,true),width:"100%",marginBottom:12}}>
             🐝 Ask Bea to reframe this belief
           </button>
@@ -5404,13 +5521,50 @@ No preamble.`}]);
 
   // ── SMART QUESTIONNAIRE ────────────────────────────────────────────────
   if(view==="smart_q") {
+    // Step 0: pick a timeframe first — concrete, tappable, no blank-page thinking
+    if(!smartTimeframe) {
+      return (
+        <div>
+          <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+          <h3 style={sectionTitle}>🧪 SMART Plan</h3>
+          <p style={{fontSize:13,color:PALETTE.soft,marginBottom:20,lineHeight:1.6}}>
+            First, pick a timeframe. This makes everything that follows much more concrete.
+          </p>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {SMART_TIMEFRAMES.map(t=>(
+              <button key={t.id} onClick={()=>{
+                  setSmartTimeframe(t);
+                  if(!smartAnswers.goal?.trim()) getGoalSuggestions(t);
+                }}
+                style={{...card,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",border:"none"}}>
+                <span style={{fontSize:26}}>{t.emoji}</span>
+                <div>
+                  <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{t.label}</div>
+                  <div style={{fontSize:12,color:PALETTE.soft}}>{t.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     const q = SMART_QUESTIONS[smartStep];
     const isLast = smartStep===SMART_QUESTIONS.length-1;
 
     return (
       <div>
-        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <button onClick={()=>{
+            if(smartStep===0) { setSmartTimeframe(null); setGoalSuggestions(null); }
+            else setSmartStep(s=>s-1);
+          }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
         <h3 style={sectionTitle}>🧪 SMART Plan</h3>
+
+        <div style={{display:"inline-flex",alignItems:"center",gap:6,background:`${PALETTE.honey}15`,
+          borderRadius:999,padding:"4px 12px",marginBottom:14,fontSize:12,color:PALETTE.amber,fontWeight:700}}>
+          {smartTimeframe.emoji} {smartTimeframe.label}
+        </div>
 
         {/* Progress */}
         <div style={{display:"flex",gap:4,marginBottom:20}}>
@@ -5428,36 +5582,65 @@ No preamble.`}]);
           <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{q.question}</p>
         </div>
 
-        {/* Show top values as hint */}
-        {valuesProfile && smartStep<=1 && (
-          <div style={{background:`${PALETTE.honey}11`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:PALETTE.mid}}>
-            💛 Your top values: {valuesProfile.top3.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
+        {/* Step 0 — concrete goal suggestions from Bea, tappable */}
+        {smartStep===0 && !editingPlan && (loadingGoalSuggest || goalSuggestions) && (
+          <div style={{...card,marginBottom:12,background:`${PALETTE.honey}0D`,border:`1px solid ${PALETTE.honey}33`}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1,marginBottom:8}}>
+              🐝 BEA'S SUGGESTIONS FOR THIS TIMEFRAME
+            </div>
+            {loadingGoalSuggest && <p style={{fontSize:13,color:PALETTE.mid,fontStyle:"italic",margin:0}}>Thinking of ideas based on what I know about you…</p>}
+            {goalSuggestions && (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {goalSuggestions.map((idea,i)=>(
+                  <button key={i} onClick={()=>setSmartAnswers(a=>({...a,goal:idea}))}
+                    style={{textAlign:"left",border:"none",borderRadius:8,cursor:"pointer",
+                      padding:"10px 12px",background: smartAnswers.goal===idea ? PALETTE.honey : "white",
+                      color: smartAnswers.goal===idea ? "white" : PALETTE.dark, fontSize:13,lineHeight:1.5}}>
+                    {idea}
+                  </button>
+                ))}
+                <button onClick={()=>getGoalSuggestions(smartTimeframe)}
+                  style={{...btnStyle("#EEE",true),color:PALETTE.mid,fontSize:12,marginTop:4}}>
+                  🔄 Suggest different ideas
+                </button>
+              </div>
+            )}
           </div>
         )}
-        {goalsProfile?.goals?.length>0 && smartStep===0 && !smartAnswers.goal && (
+
+        {/* Pull from existing Goals Questionnaire too */}
+        {goalsProfile?.goals?.length>0 && smartStep===0 && (
           <div style={{...card,marginBottom:12,background:`${PALETTE.sage}0D`,border:`1px solid ${PALETTE.sage}33`}}>
             <div style={{fontSize:11,fontWeight:700,color:PALETTE.sage,letterSpacing:1,marginBottom:8}}>
-              📋 USE A GOAL FROM YOUR QUESTIONNAIRE
+              📋 OR USE A GOAL FROM YOUR QUESTIONNAIRE
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {[...goalsProfile.goals].sort((a,b)=>b.successScore-a.successScore).map((g,i)=>(
                 <button key={i} onClick={()=>setSmartAnswers(a=>({...a,goal:g.text}))}
                   style={{
                     textAlign:"left",border:"none",borderRadius:8,cursor:"pointer",
-                    padding:"8px 10px",background:"white",
+                    padding:"8px 10px",background: smartAnswers.goal===g.text ? PALETTE.sage : "white",
                     display:"flex",alignItems:"center",gap:8,
                   }}>
                   <span style={{fontSize:11,fontWeight:700,
-                    color:g.successScore>=70?PALETTE.sage:g.successScore>=50?PALETTE.honey:PALETTE.blush}}>
+                    color: smartAnswers.goal===g.text ? "white" : (g.successScore>=70?PALETTE.sage:g.successScore>=50?PALETTE.honey:PALETTE.blush)}}>
                     {g.successScore}
                   </span>
-                  <span style={{fontSize:12,color:PALETTE.dark,flex:1}}>{g.text}</span>
+                  <span style={{fontSize:12,color: smartAnswers.goal===g.text ? "white" : PALETTE.dark,flex:1}}>{g.text}</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
+        {/* Show top values as hint for value step */}
+        {valuesProfile && smartStep===1 && (
+          <div style={{background:`${PALETTE.honey}11`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:PALETTE.mid}}>
+            💛 Your top values: {valuesProfile.top3.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
+          </div>
+        )}
+
+        <label style={labelStyle}>{smartStep===0 ? "Or write your own goal:" : "Your answer:"}</label>
         <textarea value={smartAnswers[q.field]||""} onChange={e=>setSmartAnswers(a=>({...a,[q.field]:e.target.value}))}
           placeholder={q.placeholder}
           style={{...textareaStyle,minHeight:90,marginBottom:12}}/>
@@ -5488,6 +5671,12 @@ No preamble.`}]);
       <h3 style={sectionTitle}>🧪 My SMART Plans</h3>
       {smartPlans.map(p=>(
         <div key={p.id} style={{...card,marginBottom:12,borderLeft:`3px solid ${PALETTE.honey}`}}>
+          {p.timeframeLabel && (
+            <div style={{display:"inline-flex",alignItems:"center",gap:4,background:`${PALETTE.honey}15`,
+              borderRadius:999,padding:"2px 10px",marginBottom:8,fontSize:11,color:PALETTE.amber,fontWeight:700}}>
+              {SMART_TIMEFRAMES.find(t=>t.id===p.timeframe)?.emoji} {p.timeframeLabel}
+            </div>
+          )}
           <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15,marginBottom:2}}>{p.goal}</div>
           {p.value && <div style={{fontSize:12,color:PALETTE.amber,marginBottom:6}}>💎 {p.value}</div>}
           {p.timebound && <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>⏰ {p.timebound}</div>}
@@ -5497,7 +5686,14 @@ No preamble.`}]);
             </div>
           )}
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{setSmartAnswers({...p});setSmartStep(0);setEditingPlan(p.id);setView("smart_q");}}
+            <button onClick={()=>{
+                setSmartAnswers({...p});
+                setSmartStep(0);
+                setEditingPlan(p.id);
+                setSmartTimeframe(SMART_TIMEFRAMES.find(t=>t.id===p.timeframe) || SMART_TIMEFRAMES[0]);
+                setGoalSuggestions(null);
+                setView("smart_q");
+              }}
               style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>Edit</button>
             <button onClick={()=>deletePlan(p.id)}
               style={{...btnStyle("#FFF8F0",true),color:PALETTE.amber,flex:1,fontSize:12}}>Delete</button>
@@ -5505,7 +5701,7 @@ No preamble.`}]);
         </div>
       ))}
       {smartPlans.length===0 && <div style={emptyState}>No plans yet.</div>}
-      <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setView("smart_q");}}
+      <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setSmartTimeframe(null);setGoalSuggestions(null);setView("smart_q");}}
         style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:8}}>
         + New Plan
       </button>
@@ -5864,6 +6060,8 @@ No preamble.`}]);
                 setSmartAnswers({goal:g.text});
                 setSmartStep(0);
                 setEditingPlan(null);
+                setSmartTimeframe(null);
+                setGoalSuggestions(null);
                 setView("smart_q");
               }}
               style={{...btnStyle(PALETTE.honey,true),width:"100%",fontSize:12}}>
@@ -5982,7 +6180,7 @@ No preamble.`}]);
       )}
       <div style={{...card,background:"#F8F8F8"}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
-          This is a screening tool, not a diagnosis. Scores of 10+ are typically discussed with a GP or therapist. Tracking this monthly can help show patterns over time.
+          This is a screening tool, not a diagnosis. Tracking this monthly shows real patterns over time — Behavioural Activation, the Courtroom and Compassionate Self Practice are good places to start working with what this reveals.
         </p>
       </div>
       <button onClick={()=>{setPhqAnswers({});setPhqStep(0);setView("phq9_q");}}
@@ -6062,7 +6260,7 @@ No preamble.`}]);
       </div>
       <div style={{...card,background:"#F8F8F8"}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
-          This is a screening tool, not a diagnosis. Scores of 10+ are typically discussed with a GP or therapist.
+          This is a screening tool, not a diagnosis. Grounding, Three Circles Check-In and the ACT Matrix are well-suited to working with what's showing up here.
         </p>
       </div>
       <button onClick={()=>{setGadAnswers({});setGadStep(0);setView("gad7_q");}}
@@ -6330,10 +6528,12 @@ No preamble.`}]);
               setReparentAnswers({});
               setReparentStep(0);
               setReparentAiScript("");
+              setReparentFollowup("");
+              setReparentFollowupReply("");
               setView("reparent_work");
             }}
             style={{...btnStyle(s.domain.color,true),width:"100%",marginTop:10,fontSize:12}}>
-            🌱 Work with this pattern
+            🌱 {reparentingJournal?.[s.id]?.length>0 ? `Continue (${reparentingJournal[s.id].length} session${reparentingJournal[s.id].length>1?"s":""} so far)` : "Work with this pattern"}
           </button>
         </div>
       ))}
@@ -6395,8 +6595,11 @@ No preamble.`}]);
 
   // ── LIMITED REPARENTING PRACTICE ─────────────────────────────────────────
   if(view==="reparent_work" && modeWorkSchema) {
+    const priorSessions = reparentingJournal?.[modeWorkSchema.id] || [];
     const steps = [
-      {field:"memory",      label:"A Memory",          question:"Bring to mind a specific memory connected to this pattern — a moment when you felt this most clearly.",
+      {field:"memory",      label:"A Memory",          question: priorSessions.length>0
+         ? "Bring to mind another moment connected to this pattern — it can be a new memory, or a different angle on one you've already explored."
+         : "Bring to mind a specific memory connected to this pattern — a moment when you felt this most clearly.",
        placeholder:"Describe what happened, as much or as little detail as feels okay…"},
       {field:"need",        label:"The Unmet Need",    question:"In that memory, what did your younger self actually need — but didn't get?",
        placeholder:"e.g. To be noticed. To be comforted. To be protected. To be told it wasn't their fault."},
@@ -6409,16 +6612,28 @@ No preamble.`}]);
 
     return (
       <div>
-        <button onClick={()=>{setModeWorkSchema(null);setView("ysq_profile");}}
+        <button onClick={()=>{setModeWorkSchema(null);setReparentAiScript("");setReparentFollowup("");setReparentFollowupReply("");setView("ysq_profile");}}
           style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
         <h3 style={sectionTitle}>🌱 Limited Reparenting</h3>
         <div style={{...card,marginBottom:16,borderLeft:`4px solid ${modeWorkSchema.domain.color}`}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
             <span style={{fontSize:22}}>{modeWorkSchema.emoji}</span>
             <span style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{modeWorkSchema.label}</span>
+            {priorSessions.length>0 && (
+              <span style={{fontSize:11,color:modeWorkSchema.domain.color,marginLeft:"auto",fontWeight:700}}>
+                Session {priorSessions.length+1}
+              </span>
+            )}
           </div>
           <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{modeWorkSchema.desc}</p>
         </div>
+
+        {priorSessions.length>0 && !reparentAiScript && (
+          <button onClick={()=>setViewingJournal(modeWorkSchema.id)}
+            style={{...btnStyle(modeWorkSchema.domain.color,true),width:"100%",marginBottom:16,fontSize:12}}>
+            📖 Read your {priorSessions.length} previous session{priorSessions.length>1?"s":""} with this pattern
+          </button>
+        )}
 
         {!reparentAiScript ? (
           <div>
@@ -6447,7 +6662,7 @@ No preamble.`}]);
                   Next →
                 </button>
               ) : (
-                <button onClick={()=>getReparentingScript(modeWorkSchema, reparentAnswers)}
+                <button onClick={()=>getReparentingScript(modeWorkSchema, reparentAnswers, priorSessions.length+1, priorSessions)}
                   disabled={!allDone||reparentLoading}
                   style={{...btnStyle("#6B3A4A"),flex:1,opacity:allDone?1:0.4,color:"white"}}>
                   {reparentLoading?"🐝 Bea is working on this…":"Begin Reparenting →"}
@@ -6469,17 +6684,90 @@ No preamble.`}]);
                 </div>
               );
             })}
-            <div style={{...card,background:"#FFF8F0",border:"1px solid #E8891A33",marginTop:8}}>
-              <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
-                💛 This kind of work can bring up a lot. If it feels too big to hold alone, that is exactly the sign to bring it to a real trauma-informed therapist — not a sign you are doing it wrong.
-              </p>
-            </div>
-            <button onClick={()=>{setModeWorkSchema(null);setReparentAiScript("");setView("ysq_profile");}}
-              style={{...btnStyle("#6B3A4A",true),width:"100%",marginTop:14,color:"#6B3A4A"}}>
-              Done for now
+
+            {/* Continue the conversation */}
+            {!reparentFollowupReply && (
+              <div style={{...card,marginTop:8,background:`${modeWorkSchema.domain.color}0A`,border:`1px solid ${modeWorkSchema.domain.color}33`}}>
+                <div style={{fontSize:11,fontWeight:700,color:modeWorkSchema.domain.color,letterSpacing:1,marginBottom:8}}>
+                  TALK BACK TO THIS — KEEP GOING
+                </div>
+                <textarea value={reparentFollowup} onChange={e=>setReparentFollowup(e.target.value)}
+                  placeholder="What's coming up for you reading this? Does the critical voice push back? Does something feel unfinished? Say it here…"
+                  style={{...textareaStyle,minHeight:80,marginBottom:10}}/>
+                <button onClick={()=>getReparentFollowup(modeWorkSchema, reparentAiScript, reparentFollowup)}
+                  disabled={!reparentFollowup.trim()||reparentLoading}
+                  style={{...btnStyle(modeWorkSchema.domain.color),width:"100%",opacity:reparentFollowup.trim()?1:0.4}}>
+                  {reparentLoading?"🐝 Bea is with you…":"Continue →"}
+                </button>
+              </div>
+            )}
+
+            {reparentFollowupReply && (
+              <div style={{...card,marginTop:8,borderLeft:`4px solid ${modeWorkSchema.domain.color}`,background:`${modeWorkSchema.domain.color}0D`}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                  <BeeMascot size={26}/>
+                  <span style={{fontWeight:700,color:modeWorkSchema.domain.color,fontSize:13}}>Bea continues with you</span>
+                </div>
+                <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.8}}>{reparentFollowupReply}</p>
+              </div>
+            )}
+
+            <button onClick={()=>{
+                saveReparentSession(modeWorkSchema, reparentAnswers, reparentAiScript);
+                setReparentAnswers({});
+                setReparentStep(0);
+                setReparentAiScript("");
+                setReparentFollowup("");
+                setReparentFollowupReply("");
+              }}
+              style={{...btnStyle("#6B3A4A"),width:"100%",marginTop:14,color:"white"}}>
+              ✓ Save This Session & Finish for Now
             </button>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── REPARENTING JOURNAL (history for a single schema) ───────────────────
+  if(viewingJournal) {
+    const sessions = reparentingJournal?.[viewingJournal] || [];
+    const schemaInfo = YSQ_SCHEMAS.find(s=>s.id===viewingJournal);
+    const domain = YSQ_DOMAINS.find(d=>d.id===schemaInfo?.domain);
+    return (
+      <div>
+        <button onClick={()=>setViewingJournal(null)} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>📖 {schemaInfo?.emoji} {schemaInfo?.label} Journal</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16}}>{sessions.length} session{sessions.length===1?"":"s"} so far</p>
+        {sessions.map((s,i)=>(
+          <div key={s.id} style={{...card,marginBottom:12,borderLeft:`4px solid ${domain?.color||"#6B3A4A"}`}}>
+            <div style={{fontSize:11,fontWeight:700,color:domain?.color,letterSpacing:1,marginBottom:6}}>
+              SESSION {i+1} · {fmtDate(s.date)}
+            </div>
+            {s.answers?.memory && (
+              <p style={{margin:"0 0 8px",fontSize:12,color:PALETTE.soft,fontStyle:"italic"}}>
+                Memory: "{s.answers.memory.slice(0,100)}{s.answers.memory.length>100?"…":""}"
+              </p>
+            )}
+            {s.healthyAdult && (
+              <div style={{background:"#7BB3690D",borderRadius:8,padding:"8px 10px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#7BB369",letterSpacing:1,marginBottom:3}}>HEALTHY ADULT VOICE</div>
+                <p style={{margin:0,fontSize:12,color:PALETTE.dark,lineHeight:1.5}}>{s.healthyAdult}</p>
+              </div>
+            )}
+          </div>
+        ))}
+        <button onClick={()=>{
+            setModeWorkSchema({...schemaInfo, domain});
+            setReparentAnswers({});
+            setReparentStep(0);
+            setReparentAiScript("");
+            setViewingJournal(null);
+            setView("reparent_work");
+          }}
+          style={{...btnStyle(domain?.color||"#6B3A4A",true),width:"100%",marginTop:8}}>
+          🌱 Start a New Session
+        </button>
       </div>
     );
   }
@@ -6532,15 +6820,26 @@ No preamble.`}]);
               </div>
               <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{modeCheckResult.mode.desc}</p>
             </div>
-            <div style={{...card,background:`${PALETTE.honey}0D`,border:`1.5px solid ${PALETTE.honey}33`}}>
+            <div style={{...card,background:`${PALETTE.honey}0D`,border:`1.5px solid ${PALETTE.honey}33`,marginBottom:14}}>
               <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
                 <BeeMascot size={28}/>
                 <span style={{fontWeight:700,color:PALETTE.amber,fontSize:13}}>Bea</span>
               </div>
               <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{modeCheckResult.response}</p>
             </div>
-            <button onClick={()=>{setModeCheckAnswer(null);setModeCheckResult(null);setView("home");}}
-              style={{...btnStyle(modeCheckResult.mode.color,true),width:"100%",marginTop:16}}>
+
+            {(modeCheckResult.mode.id==="detached_protector" || modeCheckResult.mode.id==="vulnerable_child") && (
+              <div style={{marginBottom:14}}>
+                <button onClick={()=>setShowModeGrounding(s=>!s)}
+                  style={{...btnStyle(modeCheckResult.mode.color,true),width:"100%",fontSize:12}}>
+                  {showModeGrounding ? "Hide grounding exercise" : "🖐 Want to ground back into your body right now?"}
+                </button>
+                {showModeGrounding && <div style={{marginTop:10}}><FiveSenses/></div>}
+              </div>
+            )}
+
+            <button onClick={()=>{setModeCheckAnswer(null);setModeCheckResult(null);setShowModeGrounding(false);setView("home");}}
+              style={{...btnStyle(modeCheckResult.mode.color,true),width:"100%"}}>
               Done
             </button>
           </div>
@@ -6617,7 +6916,7 @@ No preamble.`}]);
           })}
           <div style={{...card,background:"#FFF8F0",border:"1px solid #E8891A33",marginTop:8,marginBottom:14}}>
             <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
-              💛 If this brought up strong feelings, that is completely normal. Be gentle with yourself for the rest of today, and consider sharing this with a real therapist if it feels important to.
+              💛 If this brought up strong feelings, that is completely normal — it means the work reached something real. Be gentle with yourself for the rest of today. You can return to this memory again any time, and each pass tends to soften it a little more.
             </p>
           </div>
           <button onClick={saveRescript} style={{...btnStyle("#9B6BA0"),width:"100%",color:"white"}}>
@@ -6661,7 +6960,7 @@ No preamble.`}]);
               Next →
             </button>
           ) : (
-            <button onClick={()=>getRescriptScript(rescriptAnswers)}
+            <button onClick={()=>getRescriptScript(rescriptAnswers, rescripts)}
               disabled={!allDone||rescriptLoading}
               style={{...btnStyle("#9B6BA0"),flex:1,opacity:allDone?1:0.4,color:"white"}}>
               {rescriptLoading?"🐝 Bea is preparing this gently…":"Begin Rescripting →"}
@@ -6834,6 +7133,15 @@ No preamble.`}]);
               <textarea value={circlesAnswers[circle.id]} onChange={e=>setCirclesAnswers(a=>({...a,[circle.id]:e.target.value}))}
                 placeholder="What's showing up here for you right now, if anything?"
                 style={{...textareaStyle,minHeight:60}}/>
+              {circle.id==="soothe" && (
+                <div style={{marginTop:10}}>
+                  <button onClick={()=>setShowSootheBreathing(s=>!s)}
+                    style={{...btnStyle(circle.color,true),fontSize:12,width:"100%"}}>
+                    {showSootheBreathing ? "Hide breathing exercise" : "🌬️ Need a hand activating this? Try breathing"}
+                  </button>
+                  {showSootheBreathing && <div style={{marginTop:10}}><BreathingCircle/></div>}
+                </div>
+              )}
             </div>
           ))}
           <button onClick={()=>getCirclesReflection(circlesAnswers)} disabled={circlesLoading}
@@ -7026,8 +7334,14 @@ No preamble.`}]);
 
       <div style={{...card,background:"#F8F8F8",marginBottom:16}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
-          This screens for trauma symptoms but cannot treat them. Trauma-focused therapy (such as trauma-focused CBT or EMDR) with a trained clinician is the appropriate next step if this score is elevated. BeeWell's grounding tools can support stabilisation but are not a substitute.
+          This screens for trauma symptoms and points to where to focus. The tools in this app — Imagery Rescripting, Limited Reparenting, Three Circles, Mode Check-In — are built to work with exactly these patterns over time.
         </p>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <button onClick={()=>setView("rescript_q")}
+          style={{...btnStyle("#9B6BA0",true),flex:1,fontSize:12}}>🎬 Imagery Rescripting</button>
+        <button onClick={()=>setView("circles_q")}
+          style={{...btnStyle("#5B9BD5",true),flex:1,fontSize:12}}>⭕ Three Circles</button>
       </div>
 
       <button onClick={()=>{setPcl5Answers({});setPcl5Step(0);setView("pcl5_q");}}
@@ -7092,7 +7406,7 @@ No preamble.`}]);
               {griefStep<2 ? "Next →" : "Next (optional) →"}
             </button>
           ) : (
-            <button onClick={()=>getGriefReflection(griefAnswers)}
+            <button onClick={()=>getGriefReflection(griefAnswers, griefEntries)}
               disabled={!allDone||griefLoading}
               style={{...btnStyle("#5B7B9B"),flex:1,opacity:allDone?1:0.4,color:"white"}}>
               {griefLoading?"🐝 Bea is reflecting…":"Get Bea's Reflection →"}
@@ -8311,51 +8625,655 @@ In 2 warm, ACT-consistent sentences: validate their experience, and affirm the v
   return null;
 }
 
-// ── Grounding ─────────────────────────────────────────────────────────────────
-function Grounding() {
-  const [tool, setTool] = useState(null);
-  const [step54, setStep54] = useState(0);
-  const senses = [
-    {n:5,q:"Name 5 things you can SEE right now",emoji:"👁️"},
-    {n:4,q:"Name 4 things you can TOUCH or feel",emoji:"✋"},
-    {n:3,q:"Name 3 things you can HEAR",emoji:"👂"},
-    {n:2,q:"Name 2 things you can SMELL",emoji:"👃"},
-    {n:1,q:"Name 1 thing you can TASTE",emoji:"👅"},
-  ];
+// ── Goals Hub — consolidates Goals Questionnaire + SMART Plans + tracking ───
+function GoalsHub({ goalsProfile, onSaveGoals, smartPlans, onSavePlans, valuesProfile, jumpToGoals, onJumpHandled }) {
+  const [view, setView] = useState("home"); // home | goals_list | goals_rate | goals_profile | smart_q | plans_list | plan_progress
+  const [goalsList, setGoalsList]     = useState(goalsProfile?.goals?.map(g=>g.text) || [""]);
+  const [goalRatings, setGoalRatings] = useState({});
+  const [goalsStep, setGoalsStep]     = useState(0);
+  const [goalsLoading, setGoalsLoading] = useState(false);
 
-  return (
+  const [smartAnswers, setSmartAnswers] = useState({});
+  const [smartStep, setSmartStep]       = useState(0);
+  const [editingPlan, setEditingPlan]   = useState(null);
+  const [smartTimeframe, setSmartTimeframe] = useState(null);
+  const [goalSuggestions, setGoalSuggestions] = useState(null);
+  const [loadingGoalSuggest, setLoadingGoalSuggest] = useState(false);
+  const [viewingPlan, setViewingPlan]   = useState(null);
+  const [progressNote, setProgressNote] = useState("");
+  const [progressAiReply, setProgressAiReply] = useState("");
+  const [progressLoading, setProgressLoading] = useState(false);
+
+  useEffect(() => {
+    if(jumpToGoals === "smart_q") {
+      setSmartAnswers({}); setSmartStep(0); setEditingPlan(null);
+      setSmartTimeframe(null); setGoalSuggestions(null);
+      setView("smart_q");
+      onJumpHandled?.();
+    } else if(jumpToGoals === "goals_list") {
+      setView("goals_list");
+      onJumpHandled?.();
+    }
+  }, [jumpToGoals]);
+
+  // ── Score Personal Goals Questionnaire ──────────────────────────────────
+  const scoreGoals = async () => {
+    setGoalsLoading(true);
+    const filledGoals = goalsList.filter(g=>g.trim());
+    const scored = filledGoals.map((text, i) => {
+      const ratings = goalRatings[i] || {};
+      const commitment = ratings.commitment || 0;
+      const difficulty  = ratings.difficulty || 0;
+      const clarity     = ratings.clarity || 0;
+      const control     = ratings.control || 0;
+      const conflict    = ratings.conflict || 0;
+      const support     = ratings.support || 0;
+      const successScore = Math.round(
+        (commitment*1.5 + clarity*1.3 + control*1.0 + support*1.0 - conflict*1.2
+         - Math.abs(difficulty-3)*0.5)
+        * 10 / 6.8
+      );
+      return { text, commitment, difficulty, clarity, control, conflict, support,
+               successScore: Math.max(0, Math.min(100, successScore)) };
+    });
+    const sorted = [...scored].sort((a,b)=>b.successScore-a.successScore);
+    const strongest = sorted.slice(0,2);
+    const atRisk = sorted.filter(g=>g.successScore<50).slice(-2);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, familiar with goal-setting research (Locke & Latham's Goal Setting Theory). This is real ongoing work, not a one-off — engage fully.
+A person has rated several personal goals across 6 dimensions: commitment, difficulty, clarity, sense of control, conflict with other goals, and support available.
+
+Their goals, ranked by estimated likelihood of success:
+${sorted.map(g=>`- "${g.text}" — success likelihood ${g.successScore}/100 (commitment ${g.commitment}/5, clarity ${g.clarity}/5, control ${g.control}/5, conflict ${g.conflict}/5, support ${g.support}/5)`).join("\n")}
+
+Write a warm, practical 4-sentence summary:
+1. Name their strongest-positioned goal and what makes it well-set-up to succeed
+2. If any goal has low success likelihood, gently name what's working against it — not as criticism but as useful information
+3. If any goals conflict with each other, name that conflict directly
+4. One practical, encouraging suggestion for what to do next — naming the SMART Plan tool if a goal is ready to be broken down
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+
+      const profile = { id:uid(), date:today(), goals:scored, strongest, atRisk, summary:reply };
+      onSaveGoals(profile);
+      setView("goals_profile");
+    } catch(e) {
+      onSaveGoals({ id:uid(), date:today(), goals:scored, strongest, atRisk, summary:"" });
+      setView("goals_profile");
+    } finally { setGoalsLoading(false); }
+  };
+
+  // ── SMART Plan logic ──────────────────────────────────────────────────────
+  const getGoalSuggestions = async (timeframe) => {
+    setLoadingGoalSuggest(true);
+    setGoalSuggestions(null);
+    const profileBits = [];
+    if(valuesProfile?.top3) profileBits.push(`Top values: ${valuesProfile.top3.map(v=>v.label).join(", ")}.`);
+    if(valuesProfile?.gaps?.length>0) profileBits.push(`Values gaps (important but not currently lived): ${valuesProfile.gaps.map(g=>g.label).join(", ")}.`);
+    if(goalsProfile?.goals?.length>0) profileBits.push(`Goals already named in their Goals Questionnaire: ${goalsProfile.goals.map(g=>g.text).join("; ")}.`);
+    const context = profileBits.length>0 ? profileBits.join("\n") : "No assessments completed yet — suggest general, accessible ideas.";
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, helping someone with autism set a SMART goal. They find open-ended "what do you want to achieve" questions overwhelming and need concrete, specific options to choose from rather than a blank page.
+
+They have chosen the timeframe: ${timeframe.label} (${timeframe.desc}).
+
+Here is what you know about them:
+${context}
+
+Suggest exactly 4 concrete, specific goal ideas suited to this timeframe, each one genuinely achievable within it and connected to what you know about their values or patterns. Each must be a complete, specific sentence — not a vague category.
+
+Reply ONLY in this format, one per line, no other text:
+1. [goal idea]
+2. [goal idea]
+3. [goal idea]
+4. [goal idea]`}]);
+      const ideas = [...reply.matchAll(/^\d+\.\s*(.+)$/gm)].map(m=>m[1].trim());
+      setGoalSuggestions(ideas.length>0 ? ideas : [reply.trim()]);
+    } catch(e) {
+      setGoalSuggestions(["Bea couldn't generate ideas right now — try writing your own below."]);
+    } finally { setLoadingGoalSuggest(false); }
+  };
+
+  const savePlan = () => {
+    const plan = { id:uid(), date:today(), timeframe:smartTimeframe?.id, timeframeLabel:smartTimeframe?.label, ...smartAnswers };
+    if(editingPlan) onSavePlans(ps=>ps.map(p=>p.id===editingPlan?{...p,...plan}:p));
+    else onSavePlans(ps=>[plan,...ps]);
+    setSmartAnswers({}); setSmartStep(0); setEditingPlan(null); setSmartTimeframe(null); setGoalSuggestions(null);
+    setView("home");
+  };
+  const deletePlan = (id) => onSavePlans(ps=>ps.filter(p=>p.id!==id));
+
+  // ── Progress check-in on an existing plan ────────────────────────────────
+  const getProgressReply = async (plan, note) => {
+    setProgressLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, supporting someone with an ongoing SMART goal: "${plan.goal}" (timeframe: ${plan.timeframeLabel||"not set"}, specific plan: "${plan.specific||"not specified"}").
+
+They just shared a progress update: "${note}"
+
+Respond warmly and practically in 3-4 sentences: acknowledge what they shared honestly (progress or setback alike), and give one specific, encouraging next step. If they've stalled, help them adjust the plan rather than just encouraging more willpower. No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      setProgressAiReply(reply);
+      const updated = { ...plan, progressLog: [...(plan.progressLog||[]), {date:today(), note, reply}] };
+      onSavePlans(ps=>ps.map(p=>p.id===plan.id?updated:p));
+      setViewingPlan(updated);
+    } catch(e) {
+      setProgressAiReply("Bea couldn't respond right now — please try again.");
+    } finally { setProgressLoading(false); }
+  };
+
+  // ── HOME ───────────────────────────────────────────────────────────────
+  if(view==="home") return (
     <div>
-      <h3 style={sectionTitle}>🌿 Grounding Toolkit</h3>
-      <p style={{color:PALETTE.soft,fontSize:13,marginBottom:16}}>Quick tools for when you feel overwhelmed or anxious.</p>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-        {["breathing","5-4-3-2-1"].map(t=>(
-          <button key={t} onClick={()=>setTool(t===tool?null:t)}
-            style={btnStyle(tool===t?PALETTE.sky:"#EEE",true)}>
-            {t==="breathing"?"🌬️ Breathing":"🖐 5-4-3-2-1"}
-            <span style={{color:tool===t?"white":PALETTE.mid}}> </span>
-          </button>
-        ))}
+      <h3 style={sectionTitle}>🎯 Goals</h3>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:20,padding:"10px 12px",
+        background:`${PALETTE.sage}18`,borderRadius:10}}>
+        <BeeMascot size={28}/>
+        <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
+          From naming what you want, to rating how likely it is to succeed, to breaking it into a real plan — all in one place. 🐝
+        </p>
       </div>
 
-      {tool==="breathing" && <BreathingCircle/>}
+      {/* Personal Goals Questionnaire */}
+      <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.sage}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>📋</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Personal Goals Questionnaire</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {goalsProfile ? `${goalsProfile.goals?.length||0} goal${goalsProfile.goals?.length===1?"":"s"} rated · Top: ${goalsProfile.strongest?.[0]?.text?.slice(0,30)||"—"}` : "List your goals · Rate them like a professional assessment"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{
+              setGoalsList(goalsProfile?.goals?.map(g=>g.text) || [""]);
+              setGoalRatings({});
+              setGoalsStep(0);
+              setView("goals_list");
+            }}
+            style={{...btnStyle(PALETTE.sage),flex:1}}>
+            {goalsProfile ? "Redo Assessment" : "List My Goals"}
+          </button>
+          {goalsProfile && <button onClick={()=>setView("goals_profile")}
+            style={{...btnStyle(PALETTE.sage,true),flex:1}}>View Results</button>}
+        </div>
+      </div>
 
-      {tool==="5-4-3-2-1" && (
+      {/* SMART Plans */}
+      <div style={{...card,borderTop:`3px solid ${PALETTE.honey}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🧪</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>SMART Plans</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {smartPlans.length>0 ? `${smartPlans.length} plan${smartPlans.length>1?"s":""} saved` : "Values-based goal experiments"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setSmartTimeframe(null);setGoalSuggestions(null);setView("smart_q");}}
+            style={{...btnStyle(PALETTE.honey),flex:1}}>
+            + New Plan
+          </button>
+          {smartPlans.length>0 && <button onClick={()=>setView("plans_list")}
+            style={{...btnStyle(PALETTE.honey,true),flex:1}}>View Plans</button>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── GOALS LIST (input goals) ─────────────────────────────────────────────
+  if(view==="goals_list") {
+    const updateGoal = (i, val) => setGoalsList(g=>g.map((x,idx)=>idx===i?val:x));
+    const addGoalField = () => setGoalsList(g=>[...g,""]);
+    const removeGoalField = (i) => setGoalsList(g=>g.filter((_,idx)=>idx!==i));
+    const filledCount = goalsList.filter(g=>g.trim()).length;
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>📋 Personal Goals Questionnaire</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          Based on goal-setting research. List up to 6 goals currently on your mind — big or small. You'll then rate each one across 6 dimensions shown to predict whether a goal succeeds.
+        </p>
+
+        {goalsList.map((g,i)=>(
+          <div key={i} style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+            <span style={{fontSize:13,color:PALETTE.soft,width:20}}>{i+1}.</span>
+            <input value={g} onChange={e=>updateGoal(i,e.target.value)}
+              placeholder={`Goal ${i+1}, e.g. "Build a daily creative practice"`}
+              style={{...inputStyle,flex:1}}/>
+            {goalsList.length>1 && (
+              <button onClick={()=>removeGoalField(i)}
+                style={{background:"none",border:"none",color:PALETTE.soft,fontSize:18,cursor:"pointer",padding:"0 4px"}}>×</button>
+            )}
+          </div>
+        ))}
+
+        {goalsList.length<6 && (
+          <button onClick={addGoalField}
+            style={{...btnStyle("#EEE",true),color:PALETTE.mid,width:"100%",marginBottom:16}}>
+            + Add another goal
+          </button>
+        )}
+
+        <button onClick={()=>{
+            if(filledCount===0) return;
+            setGoalsStep(0);
+            setGoalRatings({});
+            setView("goals_rate");
+          }}
+          disabled={filledCount===0}
+          style={{...btnStyle(PALETTE.sage),width:"100%",opacity:filledCount>0?1:0.4}}>
+          Rate My Goals → ({filledCount} goal{filledCount===1?"":"s"})
+        </button>
+      </div>
+    );
+  }
+
+  // ── GOALS RATE (rate each goal on 6 dimensions) ──────────────────────────
+  if(view==="goals_rate") {
+    const filledGoals = goalsList.filter(g=>g.trim());
+    const currentGoal = filledGoals[goalsStep];
+    const total = filledGoals.length;
+    const dimsAnswered = (i) => GOAL_RATING_DIMENSIONS.every(d=>goalRatings[i]?.[d.id]!==undefined);
+    const allDone = filledGoals.every((_,i)=>dimsAnswered(i));
+    const progress = Math.round((goalsStep/total)*100);
+
+    return (
+      <div>
+        <button onClick={()=>setView("goals_list")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit Goals</button>
+        <h3 style={sectionTitle}>📋 Rate Your Goal</h3>
+
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Goal {goalsStep+1} of {total}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:PALETTE.sage,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+
+        <div style={{...card,marginBottom:20,padding:16,borderLeft:`3px solid ${PALETTE.sage}`}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.sage,letterSpacing:1,marginBottom:6}}>YOUR GOAL</div>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.6}}>{currentGoal}</p>
+        </div>
+
+        {GOAL_RATING_DIMENSIONS.map(dim=>{
+          const val = goalRatings[goalsStep]?.[dim.id];
+          return (
+            <div key={dim.id} style={{...card,marginBottom:12,padding:14}}>
+              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                <span style={{fontSize:18}}>{dim.emoji}</span>
+                <span style={{fontWeight:700,color:PALETTE.dark,fontSize:14}}>{dim.label}</span>
+              </div>
+              <p style={{fontSize:13,color:PALETTE.mid,margin:"0 0 8px",lineHeight:1.5}}>{dim.question}</p>
+              <div style={{display:"flex",gap:6,justifyContent:"space-between",marginBottom:6}}>
+                {[1,2,3,4,5].map(n=>{
+                  const sel = val===n;
+                  return (
+                    <button key={n}
+                      onClick={()=>setGoalRatings(r=>({...r,[goalsStep]:{...(r[goalsStep]||{}),[dim.id]:n}}))}
+                      style={{
+                        flex:1,padding:"10px 4px",borderRadius:10,border:"none",cursor:"pointer",
+                        background:sel?PALETTE.sage:"#F0F0F0",
+                        color:sel?"white":PALETTE.mid,
+                        fontWeight:700,fontSize:15,
+                        transform:sel?"scale(1.08)":"scale(1)",
+                        transition:"all .15s",
+                      }}>{n}</button>
+                  );
+                })}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:PALETTE.soft}}>
+                <span>{dim.low}</span><span>{dim.high}</span>
+              </div>
+              <p style={{fontSize:11,color:PALETTE.soft,margin:"8px 0 0",fontStyle:"italic",lineHeight:1.4}}>{dim.desc}</p>
+            </div>
+          );
+        })}
+
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          {goalsStep>0 && <button onClick={()=>setGoalsStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Prev Goal</button>}
+          {goalsStep<total-1 ? (
+            <button onClick={()=>dimsAnswered(goalsStep)&&setGoalsStep(s=>s+1)}
+              disabled={!dimsAnswered(goalsStep)}
+              style={{...btnStyle(PALETTE.sage),flex:1,opacity:dimsAnswered(goalsStep)?1:0.4}}>
+              Next Goal →
+            </button>
+          ) : (
+            <button onClick={scoreGoals} disabled={!allDone||goalsLoading}
+              style={{...btnStyle(PALETTE.sage),flex:1,opacity:allDone?1:0.4}}>
+              {goalsLoading?"🐝 Bea is analysing…":"See My Results →"}
+            </button>
+          )}
+        </div>
+        {!allDone && goalsStep===total-1 && (
+          <p style={{fontSize:11,color:PALETTE.soft,textAlign:"center",marginTop:8}}>
+            Rate all 6 dimensions for every goal to see results
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── GOALS PROFILE (results) ──────────────────────────────────────────────
+  if(view==="goals_profile" && goalsProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>📋 My Goals Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(goalsProfile.date)}</p>
+
+      <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:10}}>
+        RANKED BY ESTIMATED SUCCESS LIKELIHOOD
+      </div>
+      {[...goalsProfile.goals].sort((a,b)=>b.successScore-a.successScore).map((g,i)=>{
+        const color = g.successScore>=70?PALETTE.sage : g.successScore>=50?PALETTE.honey : PALETTE.blush;
+        return (
+          <div key={i} style={{...card,marginBottom:10,borderLeft:`4px solid ${color}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <p style={{margin:0,fontWeight:600,color:PALETTE.dark,fontSize:14,flex:1,paddingRight:10}}>{g.text}</p>
+              <div style={{textAlign:"center",flexShrink:0}}>
+                <div style={{fontSize:22,fontWeight:800,color}}>{g.successScore}</div>
+                <div style={{fontSize:9,color:PALETTE.soft}}>/100</div>
+              </div>
+            </div>
+            <div style={{height:6,background:"#EEE",borderRadius:3,marginBottom:8}}>
+              <div style={{height:"100%",width:`${g.successScore}%`,background:color,borderRadius:3}}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4,fontSize:10,textAlign:"center",marginBottom:10}}>
+              {GOAL_RATING_DIMENSIONS.map(d=>(
+                <div key={d.id}>
+                  <div>{d.emoji}</div>
+                  <div style={{fontWeight:700,color:PALETTE.mid}}>{g[d.id]}</div>
+                </div>
+              ))}
+            </div>
+            <button onClick={()=>{
+                setSmartAnswers({goal:g.text});
+                setSmartStep(0);
+                setEditingPlan(null);
+                setSmartTimeframe(null);
+                setGoalSuggestions(null);
+                setView("smart_q");
+              }}
+              style={{...btnStyle(PALETTE.honey,true),width:"100%",fontSize:12}}>
+              🧪 Build a SMART Plan for this goal
+            </button>
+          </div>
+        );
+      })}
+
+      {goalsProfile.summary && (
+        <div style={{...card,marginTop:16,background:`${PALETTE.sage}0D`,border:`1.5px solid ${PALETTE.sage}44`}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:PALETTE.sage,fontSize:13}}>Bea's analysis</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{goalsProfile.summary}</p>
+        </div>
+      )}
+
+      <button onClick={()=>{
+          setGoalsList(goalsProfile.goals.map(g=>g.text));
+          setGoalRatings({});
+          setGoalsStep(0);
+          setView("goals_list");
+        }}
+        style={{...btnStyle(PALETTE.sage,true),width:"100%",marginTop:16}}>
+        Redo Assessment
+      </button>
+    </div>
+  );
+
+  // ── SMART QUESTIONNAIRE ────────────────────────────────────────────────
+  if(view==="smart_q") {
+    if(!smartTimeframe) {
+      return (
         <div>
-          <div style={{...card,textAlign:"center",marginBottom:12}}>
-            <div style={{fontSize:48,marginBottom:8}}>{senses[step54].emoji}</div>
-            <p style={{fontWeight:700,color:PALETTE.dark,fontSize:16,margin:0}}>{senses[step54].q}</p>
+          <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+          <h3 style={sectionTitle}>🧪 SMART Plan</h3>
+          <p style={{fontSize:13,color:PALETTE.soft,marginBottom:20,lineHeight:1.6}}>
+            First, pick a timeframe. This makes everything that follows much more concrete.
+          </p>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {SMART_TIMEFRAMES.map(t=>(
+              <button key={t.id} onClick={()=>{
+                  setSmartTimeframe(t);
+                  if(!smartAnswers.goal?.trim()) getGoalSuggestions(t);
+                }}
+                style={{...card,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",border:"none"}}>
+                <span style={{fontSize:26}}>{t.emoji}</span>
+                <div>
+                  <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{t.label}</div>
+                  <div style={{fontSize:12,color:PALETTE.soft}}>{t.desc}</div>
+                </div>
+              </button>
+            ))}
           </div>
-          <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-            {step54>0 && <button onClick={()=>setStep54(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
-            {step54<4
-              ? <button onClick={()=>setStep54(s=>s+1)} style={btnStyle(PALETTE.sky)}>Next →</button>
-              : <button onClick={()=>setStep54(0)} style={btnStyle(PALETTE.sage)}>✓ Done — feel more grounded?</button>
-            }
+        </div>
+      );
+    }
+
+    const q = SMART_QUESTIONS[smartStep];
+    const isLast = smartStep===SMART_QUESTIONS.length-1;
+
+    return (
+      <div>
+        <button onClick={()=>{
+            if(smartStep===0) { setSmartTimeframe(null); setGoalSuggestions(null); }
+            else setSmartStep(s=>s-1);
+          }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🧪 SMART Plan</h3>
+
+        <div style={{display:"inline-flex",alignItems:"center",gap:6,background:`${PALETTE.honey}15`,
+          borderRadius:999,padding:"4px 12px",marginBottom:14,fontSize:12,color:PALETTE.amber,fontWeight:700}}>
+          {smartTimeframe.emoji} {smartTimeframe.label}
+        </div>
+
+        <div style={{display:"flex",gap:4,marginBottom:20}}>
+          {SMART_QUESTIONS.map((_,i)=>(
+            <div key={i} style={{flex:1,height:4,borderRadius:2,
+              background:i<=smartStep?PALETTE.honey:"#EEE",transition:"background .3s"}}/>
+          ))}
+        </div>
+
+        <div style={{...card,marginBottom:16,borderLeft:`3px solid ${PALETTE.honey}`,padding:20}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:22}}>{q.emoji}</span>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1}}>{q.label.toUpperCase()}</div>
           </div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{q.question}</p>
+        </div>
+
+        {smartStep===0 && !editingPlan && (loadingGoalSuggest || goalSuggestions) && (
+          <div style={{...card,marginBottom:12,background:`${PALETTE.honey}0D`,border:`1px solid ${PALETTE.honey}33`}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1,marginBottom:8}}>
+              🐝 BEA'S SUGGESTIONS FOR THIS TIMEFRAME
+            </div>
+            {loadingGoalSuggest && <p style={{fontSize:13,color:PALETTE.mid,fontStyle:"italic",margin:0}}>Thinking of ideas based on what I know about you…</p>}
+            {goalSuggestions && (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {goalSuggestions.map((idea,i)=>(
+                  <button key={i} onClick={()=>setSmartAnswers(a=>({...a,goal:idea}))}
+                    style={{textAlign:"left",border:"none",borderRadius:8,cursor:"pointer",
+                      padding:"10px 12px",background: smartAnswers.goal===idea ? PALETTE.honey : "white",
+                      color: smartAnswers.goal===idea ? "white" : PALETTE.dark, fontSize:13,lineHeight:1.5}}>
+                    {idea}
+                  </button>
+                ))}
+                <button onClick={()=>getGoalSuggestions(smartTimeframe)}
+                  style={{...btnStyle("#EEE",true),color:PALETTE.mid,fontSize:12,marginTop:4}}>
+                  🔄 Suggest different ideas
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {goalsProfile?.goals?.length>0 && smartStep===0 && (
+          <div style={{...card,marginBottom:12,background:`${PALETTE.sage}0D`,border:`1px solid ${PALETTE.sage}33`}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.sage,letterSpacing:1,marginBottom:8}}>
+              📋 OR USE A GOAL FROM YOUR QUESTIONNAIRE
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {[...goalsProfile.goals].sort((a,b)=>b.successScore-a.successScore).map((g,i)=>(
+                <button key={i} onClick={()=>setSmartAnswers(a=>({...a,goal:g.text}))}
+                  style={{
+                    textAlign:"left",border:"none",borderRadius:8,cursor:"pointer",
+                    padding:"8px 10px",background: smartAnswers.goal===g.text ? PALETTE.sage : "white",
+                    display:"flex",alignItems:"center",gap:8,
+                  }}>
+                  <span style={{fontSize:11,fontWeight:700,
+                    color: smartAnswers.goal===g.text ? "white" : (g.successScore>=70?PALETTE.sage:g.successScore>=50?PALETTE.honey:PALETTE.blush)}}>
+                    {g.successScore}
+                  </span>
+                  <span style={{fontSize:12,color: smartAnswers.goal===g.text ? "white" : PALETTE.dark,flex:1}}>{g.text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {valuesProfile && smartStep===1 && (
+          <div style={{background:`${PALETTE.honey}11`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:PALETTE.mid}}>
+            💛 Your top values: {valuesProfile.top3.map(v=>`${v.emoji} ${v.label}`).join(" · ")}
+          </div>
+        )}
+
+        <label style={labelStyle}>{smartStep===0 ? "Or write your own goal:" : "Your answer:"}</label>
+        <textarea value={smartAnswers[q.field]||""} onChange={e=>setSmartAnswers(a=>({...a,[q.field]:e.target.value}))}
+          placeholder={q.placeholder}
+          style={{...textareaStyle,minHeight:90,marginBottom:12}}/>
+
+        <div style={{display:"flex",gap:8}}>
+          {smartStep>0 && <button onClick={()=>setSmartStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+          {!isLast ? (
+            <button onClick={()=>smartAnswers[q.field]?.trim()&&setSmartStep(s=>s+1)}
+              disabled={!smartAnswers[q.field]?.trim()}
+              style={{...btnStyle(PALETTE.honey),flex:1,opacity:smartAnswers[q.field]?.trim()?1:0.4}}>
+              Next →
+            </button>
+          ) : (
+            <button onClick={savePlan}
+              style={{...btnStyle(PALETTE.honey),flex:1}}>
+              Save Plan ✓
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PLANS LIST ─────────────────────────────────────────────────────────
+  if(view==="plans_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🧪 My SMART Plans</h3>
+      {smartPlans.map(p=>(
+        <div key={p.id} style={{...card,marginBottom:12,borderLeft:`3px solid ${PALETTE.honey}`}}>
+          {p.timeframeLabel && (
+            <div style={{display:"inline-flex",alignItems:"center",gap:4,background:`${PALETTE.honey}15`,
+              borderRadius:999,padding:"2px 10px",marginBottom:8,fontSize:11,color:PALETTE.amber,fontWeight:700}}>
+              {SMART_TIMEFRAMES.find(t=>t.id===p.timeframe)?.emoji} {p.timeframeLabel}
+            </div>
+          )}
+          <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15,marginBottom:2}}>{p.goal}</div>
+          {p.value && <div style={{fontSize:12,color:PALETTE.amber,marginBottom:6}}>💎 {p.value}</div>}
+          {p.timebound && <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>⏰ {p.timebound}</div>}
+          {p.progressLog?.length>0 && (
+            <div style={{background:"#F5FFF8",borderRadius:6,padding:"6px 10px",fontSize:12,color:PALETTE.dark,marginBottom:8,lineHeight:1.5}}>
+              <strong>{p.progressLog.length} progress check-in{p.progressLog.length>1?"s":""}</strong> · Last: {p.progressLog[p.progressLog.length-1].note.slice(0,60)}
+            </div>
+          )}
+          {p.experiment && (
+            <div style={{background:"#F5FFF8",borderRadius:6,padding:"6px 10px",fontSize:12,color:PALETTE.dark,marginBottom:8,lineHeight:1.5}}>
+              <strong>What happened:</strong> {p.experiment}
+            </div>
+          )}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{ setViewingPlan(p); setProgressNote(""); setProgressAiReply(""); setView("plan_progress"); }}
+              style={{...btnStyle(PALETTE.sage,true),flex:1,fontSize:12}}>📈 Progress</button>
+            <button onClick={()=>{
+                setSmartAnswers({...p});
+                setSmartStep(0);
+                setEditingPlan(p.id);
+                setSmartTimeframe(SMART_TIMEFRAMES.find(t=>t.id===p.timeframe) || SMART_TIMEFRAMES[0]);
+                setGoalSuggestions(null);
+                setView("smart_q");
+              }}
+              style={{...btnStyle(PALETTE.honey,true),flex:1,fontSize:12}}>Edit</button>
+            <button onClick={()=>deletePlan(p.id)}
+              style={{...btnStyle("#FFF8F0",true),color:PALETTE.amber,flex:1,fontSize:12}}>Delete</button>
+          </div>
+        </div>
+      ))}
+      {smartPlans.length===0 && <div style={emptyState}>No plans yet.</div>}
+      <button onClick={()=>{setSmartAnswers({});setSmartStep(0);setEditingPlan(null);setSmartTimeframe(null);setGoalSuggestions(null);setView("smart_q");}}
+        style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:8}}>
+        + New Plan
+      </button>
+    </div>
+  );
+
+  // ── PLAN PROGRESS CHECK-IN ────────────────────────────────────────────────
+  if(view==="plan_progress" && viewingPlan) return (
+    <div>
+      <button onClick={()=>setView("plans_list")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>📈 Progress Check-In</h3>
+      <div style={{...card,marginBottom:16,borderLeft:`3px solid ${PALETTE.sage}`}}>
+        <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15,marginBottom:4}}>{viewingPlan.goal}</div>
+        {viewingPlan.timebound && <div style={{fontSize:12,color:PALETTE.soft}}>⏰ {viewingPlan.timebound}</div>}
+      </div>
+
+      {viewingPlan.progressLog?.length>0 && (
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:1,marginBottom:8}}>PAST CHECK-INS</div>
+          {viewingPlan.progressLog.map((log,i)=>(
+            <div key={i} style={{...card,marginBottom:8,padding:"10px 12px"}}>
+              <div style={{fontSize:11,color:PALETTE.soft,marginBottom:4}}>{fmtDate(log.date)}</div>
+              <p style={{margin:"0 0 6px",fontSize:13,color:PALETTE.dark}}>{log.note}</p>
+              <p style={{margin:0,fontSize:12,color:PALETTE.sage,fontStyle:"italic"}}>{log.reply}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!progressAiReply ? (
+        <div>
+          <label style={labelStyle}>How's it going?</label>
+          <textarea value={progressNote} onChange={e=>setProgressNote(e.target.value)}
+            placeholder="Be honest — progress, setbacks, or somewhere in between…"
+            style={{...textareaStyle,minHeight:90,marginBottom:12}}/>
+          <button onClick={()=>getProgressReply(viewingPlan, progressNote)}
+            disabled={!progressNote.trim()||progressLoading}
+            style={{...btnStyle(PALETTE.sage),width:"100%",opacity:progressNote.trim()?1:0.4}}>
+            {progressLoading?"🐝 Bea is reading this…":"Share Update →"}
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{...card,background:`${PALETTE.sage}0D`,border:`1.5px solid ${PALETTE.sage}33`}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+              <BeeMascot size={28}/>
+              <span style={{fontWeight:700,color:PALETTE.sage,fontSize:13}}>Bea</span>
+            </div>
+            <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{progressAiReply}</p>
+          </div>
+          <button onClick={()=>setView("plans_list")} style={{...btnStyle(PALETTE.sage,true),width:"100%",marginTop:14}}>Done</button>
         </div>
       )}
     </div>
   );
+
+  return null;
 }
 
 // ── Progress ──────────────────────────────────────────────────────────────────
@@ -8527,8 +9445,10 @@ export default function BeeWell() {
   const [eatingEntries, setEatingEntries] = usePersistedState("eatingEntries", []);
   const [ruminationProfile, setRuminationProfile] = usePersistedState("ruminationProfile", null);
   const [loopEntries, setLoopEntries] = usePersistedState("loopEntries", []);
+  const [reparentingJournal, setReparentingJournal] = usePersistedState("reparentingJournal", {}); // { schemaId: [sessions] }
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [valuesJump, setValuesJump] = useState(null); // deep-link request into ValuesGoals
+  const [goalsJump, setGoalsJump] = useState(null); // deep-link request into GoalsHub
   const [lastCheckedInId, setLastCheckedInId] = usePersistedState("lastCheckedInId", null); // avoid re-asking about the same problem
 
   const handleResetAll = () => {
@@ -8574,7 +9494,7 @@ export default function BeeWell() {
     {id:"court",     label:"Courtroom",   emoji:"⚖️"},
     {id:"activate",  label:"Activate",    emoji:"🌱"},
     {id:"act",       label:"Inner Work",  emoji:"🌀"},
-    {id:"ground",    label:"Ground",      emoji:"🍃"},
+    {id:"goals",     label:"Goals",       emoji:"🎯"},
     {id:"progress",  label:"Progress",    emoji:"📈"},
     {id:"bea",       label:"Bea",         emoji:"🐝"},
   ];
@@ -8777,10 +9697,20 @@ export default function BeeWell() {
           onSaveRumination={setRuminationProfile}
           loopEntries={loopEntries}
           onSaveLoop={setLoopEntries}
+          reparentingJournal={reparentingJournal}
+          onSaveReparenting={setReparentingJournal}
           jumpToView={valuesJump}
           onJumpHandled={()=>setValuesJump(null)}
         />}
-        {tab==="ground"   && <Grounding/>}
+        {tab==="goals"    && <GoalsHub
+          goalsProfile={goalsProfile}
+          onSaveGoals={setGoalsProfile}
+          smartPlans={smartPlans}
+          onSavePlans={setSmartPlans}
+          valuesProfile={valuesProfile}
+          jumpToGoals={goalsJump}
+          onJumpHandled={()=>setGoalsJump(null)}
+        />}
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}
         {tab==="bea"      && <BeaChat/>}
       </div>

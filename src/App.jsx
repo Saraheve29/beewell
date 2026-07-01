@@ -3125,6 +3125,165 @@ const GOAL_RATING_DIMENSIONS = [
   },
 ];
 
+// ── Values Card Sort — adapted from Russ Harris's Common Values checklist ───
+// Used in ACT therapy. Different from the VLQ — this sorts named personal
+// values/qualities (not life domains) into Very/Quite/Not Important, then
+// narrows to a top set. Captures things like Organisation that the VLQ misses.
+const VALUES_CARD_LIST = [
+  "Acceptance","Adventure","Assertiveness","Authenticity","Beauty","Caring",
+  "Challenge","Compassion","Connection","Contribution","Conformity","Cooperation",
+  "Courage","Creativity","Curiosity","Dependability","Excitement","Fairness",
+  "Fitness","Flexibility","Freedom","Friendliness","Forgiveness","Fun",
+  "Generosity","Gratitude","Honesty","Humility","Humour","Independence",
+  "Industry","Intimacy","Justice","Kindness","Love","Loyalty","Mindfulness",
+  "Order","Organisation","Open-mindedness","Patience","Persistence","Power",
+  "Reciprocity","Respect","Responsibility","Romance","Safety","Self-awareness",
+  "Self-control","Self-development","Sensuality","Sexuality","Skilfulness",
+  "Spirituality","Supportiveness","Trust","Warmth",
+];
+
+const VALUES_SORT_BUCKETS = [
+  {id:"very",  label:"Very Important",  emoji:"⭐", color:"#7BB369"},
+  {id:"quite", label:"Quite Important", emoji:"🌤️", color:"#D4AF37"},
+  {id:"not",   label:"Not Important",   emoji:"☁️", color:"#A8937E"},
+];
+
+const VALUES_SORT_DOMAINS = [
+  {id:"work",      label:"Work & Career",       emoji:"🎯"},
+  {id:"relations", label:"Relationships",       emoji:"💞"},
+  {id:"growth",    label:"Personal Growth & Health", emoji:"🌱"},
+  {id:"leisure",   label:"Leisure & Recreation", emoji:"🎨"},
+  {id:"general",   label:"My Life in General",  emoji:"🌟"},
+];
+
+// ── New General Self-Efficacy Scale (NGSE) — Chen, Gully & Eden, 2001 ───────
+// 8 items, 1-5 scale. Measures belief in one's ability to achieve goals
+// despite difficulty — a different, more fundamental thing than rating the
+// goals themselves (which is what the Personal Goals Questionnaire measures).
+const NGSE_QUESTIONS = [
+  "I will be able to achieve most of the goals that I set for myself.",
+  "When facing difficult tasks, I am certain that I will accomplish them.",
+  "In general, I think that I can obtain outcomes that are important to me.",
+  "I believe I can succeed at most any endeavour to which I set my mind.",
+  "I will be able to successfully overcome many challenges.",
+  "I am confident that I can perform effectively on many different tasks.",
+  "Compared to other people, I can do most tasks very well.",
+  "Even when things are tough, I can perform quite well.",
+];
+const NGSE_SCALE = [
+  {val:1, label:"Strongly Disagree"},
+  {val:2, label:"Disagree"},
+  {val:3, label:"Neither Agree nor Disagree"},
+  {val:4, label:"Agree"},
+  {val:5, label:"Strongly Agree"},
+];
+const ngseLevel = (avg) => {
+  if(avg<2.5) return {label:"Lower Self-Efficacy", color:"#8B1A1A"};
+  if(avg<3.5) return {label:"Moderate Self-Efficacy", color:"#D4AF37"};
+  return              {label:"Higher Self-Efficacy", color:"#7BB369"};
+};
+
+// ── TIPI — Ten Item Personality Inventory (Gosling, Rentfrow & Swann, 2003) ──
+// 10 items, 2 per Big Five dimension, 1-7 scale. Freely usable for any purpose
+// per the authors. Items 2,4,6,8,10 are reverse-scored.
+const TIPI_SCALE = [
+  {val:1, label:"Disagree Strongly"},
+  {val:2, label:"Disagree Moderately"},
+  {val:3, label:"Disagree a Little"},
+  {val:4, label:"Neither Agree nor Disagree"},
+  {val:5, label:"Agree a Little"},
+  {val:6, label:"Agree Moderately"},
+  {val:7, label:"Agree Strongly"},
+];
+const TIPI_QUESTIONS = [
+  {text:"Extraverted, enthusiastic", dim:"extraversion", reverse:false},
+  {text:"Critical, quarrelsome", dim:"agreeableness", reverse:true},
+  {text:"Dependable, self-disciplined", dim:"conscientiousness", reverse:false},
+  {text:"Anxious, easily upset", dim:"stability", reverse:true},
+  {text:"Open to new experiences, complex", dim:"openness", reverse:false},
+  {text:"Reserved, quiet", dim:"extraversion", reverse:true},
+  {text:"Sympathetic, warm", dim:"agreeableness", reverse:false},
+  {text:"Disorganized, careless", dim:"conscientiousness", reverse:true},
+  {text:"Calm, emotionally stable", dim:"stability", reverse:false},
+  {text:"Conventional, uncreative", dim:"openness", reverse:true},
+];
+const TIPI_DIMENSIONS = {
+  extraversion:      {label:"Extraversion",       emoji:"🎉", color:"#F5A623", desc:"Sociability, assertiveness, and drawing energy from other people."},
+  agreeableness:     {label:"Agreeableness",       emoji:"🤝", color:"#7BB369", desc:"Warmth, cooperation, and trust toward others."},
+  conscientiousness: {label:"Conscientiousness",   emoji:"📋", color:"#5B9BD5", desc:"Organisation, dependability, and self-discipline."},
+  stability:         {label:"Emotional Stability", emoji:"🧘", color:"#7B4A8B", desc:"Calmness and resilience under stress (the inverse of Neuroticism)."},
+  openness:          {label:"Openness",            emoji:"🎨", color:"#D4AF37", desc:"Curiosity, creativity, and openness to new experiences and ideas."},
+};
+const tipiBand = (avg) => {
+  if(avg<3) return {label:"Lower", color:"#A8937E"};
+  if(avg<5) return {label:"Moderate", color:"#D4AF37"};
+  return             {label:"Higher", color:"#7BB369"};
+};
+
+// ── BIS/BAS Scale — Carver & White, 1994 ────────────────────────────────────
+// Measures approach motivation (BAS — drawn toward rewards) vs avoidance
+// motivation (BIS — sensitive to threat/punishment). Directly useful for how
+// goals should be framed: reward-framed vs loss-framed language.
+const BISBAS_SCALE = [
+  {val:1, label:"Very False for Me"},
+  {val:2, label:"Somewhat False for Me"},
+  {val:3, label:"Somewhat True for Me"},
+  {val:4, label:"Very True for Me"},
+];
+const BISBAS_QUESTIONS = [
+  {text:"If I think something unpleasant is going to happen I usually get pretty worked up.", scale:"bis"},
+  {text:"I worry about making mistakes.", scale:"bis"},
+  {text:"Criticism or scolding hurts me quite a bit.", scale:"bis"},
+  {text:"I feel pretty worried or upset when I think or know somebody is angry at me.", scale:"bis"},
+  {text:"Even if something bad is about to happen to me, I rarely experience fear or nervousness.", scale:"bis", reverse:true},
+  {text:"I feel worried when I think I have done poorly at something important.", scale:"bis"},
+  {text:"When I want something, I usually go all-out to get it.", scale:"basDrive"},
+  {text:"When I'm doing well at something, I love to keep at it.", scale:"basDrive"},
+  {text:"I go out of my way to get things I want.", scale:"basDrive"},
+  {text:"If I see a chance to get something I want, I move on it right away.", scale:"basDrive"},
+  {text:"When good things happen to me, it affects me strongly.", scale:"basReward"},
+  {text:"It would excite me to win a contest.", scale:"basReward"},
+  {text:"When I get something I want, I feel excited and energised.", scale:"basReward"},
+  {text:"I feel excited just before I am about to receive a reward.", scale:"basReward"},
+  {text:"I often act on the spur of the moment.", scale:"basFun"},
+  {text:"I will often do things for no other reason than they might be fun.", scale:"basFun"},
+  {text:"I crave excitement and new sensations.", scale:"basFun"},
+];
+const BISBAS_SUBSCALES = {
+  bis:       {label:"BIS — Threat Sensitivity", emoji:"🛡️", color:"#8B1A1A", desc:"How much you're motivated by avoiding negative outcomes, criticism, or punishment."},
+  basDrive:  {label:"BAS — Drive",              emoji:"🎯", color:"#7BB369", desc:"Persistent pursuit of desired goals."},
+  basReward: {label:"BAS — Reward Responsiveness", emoji:"🌟", color:"#D4AF37", desc:"How strongly positive outcomes and rewards affect you."},
+  basFun:    {label:"BAS — Fun Seeking",        emoji:"🎢", color:"#5B9BD5", desc:"Desire for new, exciting experiences and willingness to approach potentially rewarding situations on the spur of the moment."},
+};
+
+// ── General Procrastination Scale — Lay, 1986 (short form) ─────────────────
+// Distinct from Self-Efficacy (belief in capability) — measures the actual
+// behavioural tendency to delay, directly relevant to goal follow-through.
+const PROCRASTINATION_SCALE = [
+  {val:1, label:"Very Uncharacteristic"},
+  {val:2, label:"Somewhat Uncharacteristic"},
+  {val:3, label:"Neutral"},
+  {val:4, label:"Somewhat Characteristic"},
+  {val:5, label:"Very Characteristic"},
+];
+const PROCRASTINATION_QUESTIONS = [
+  {text:"I often find myself performing tasks that I had intended to do days before.", reverse:false},
+  {text:"I am continually saying \"I'll do it tomorrow\".", reverse:false},
+  {text:"When I make plans to do something, I generally do it that same day.", reverse:true},
+  {text:"In preparation for some deadlines, I often waste time doing other things.", reverse:false},
+  {text:"I generally delay before starting on work I have to do.", reverse:false},
+  {text:"I usually make decisions as soon as possible.", reverse:true},
+  {text:"I don't get things done on time.", reverse:false},
+  {text:"I am not very good at meeting deadlines.", reverse:false},
+  {text:"I find myself running out of time.", reverse:false},
+  {text:"I put off making decisions until it's too late.", reverse:false},
+];
+const procrastinationLevel = (avg) => {
+  if(avg<2.5) return {label:"Low Procrastination Tendency", color:"#7BB369"};
+  if(avg<3.5) return {label:"Moderate Procrastination Tendency", color:"#D4AF37"};
+  return               {label:"High Procrastination Tendency", color:"#8B1A1A"};
+};
+
 
 // ── Dysfunctional Attitude Scale (DAS) — Weissman & Beck ────────────────────
 // 35 items across 7 domains, scored -2 to +2 (Agree Strongly to Disagree Very Much)
@@ -3766,6 +3925,11 @@ function InnerWork(props) {
           ruminationProfile={props.ruminationProfile} onSaveRumination={props.onSaveRumination}
           loopEntries={props.loopEntries} onSaveLoop={props.onSaveLoop}
           reparentingJournal={props.reparentingJournal} onSaveReparenting={props.onSaveReparenting}
+          cardSortProfile={props.cardSortProfile} onSaveCardSort={props.onSaveCardSort}
+          ngseProfile={props.ngseProfile} onSaveNgse={props.onSaveNgse}
+          tipiProfile={props.tipiProfile} onSaveTipi={props.onSaveTipi}
+          bisBasProfile={props.bisBasProfile} onSaveBisBas={props.onSaveBisBas}
+          procrastinationProfile={props.procrastinationProfile} onSaveProcrastination={props.onSaveProcrastination}
         />
       ) : (
         <ACTToolkit
@@ -3778,7 +3942,7 @@ function InnerWork(props) {
   );
 }
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting }) {
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
   const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
@@ -3893,6 +4057,32 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [reparentFollowup, setReparentFollowup] = useState(""); // talking back to the Healthy Adult voice
   const [reparentFollowupReply, setReparentFollowupReply] = useState("");
   const [viewingJournal, setViewingJournal] = useState(null); // schema id whose journal is being viewed
+
+  // Values Card Sort state
+  const [cardSortDomain, setCardSortDomain] = useState(null);
+  const [cardSortBuckets, setCardSortBuckets] = useState({}); // {cardName: bucketId}
+  const [cardSortIndex, setCardSortIndex] = useState(0);
+  const [cardSortLoading, setCardSortLoading] = useState(false);
+
+  // NGSE Self-Efficacy state
+  const [ngseAnswers, setNgseAnswers] = useState({});
+  const [ngseStep, setNgseStep] = useState(0);
+  const [ngseLoading, setNgseLoading] = useState(false);
+
+  // TIPI Big Five state
+  const [tipiAnswers, setTipiAnswers] = useState({});
+  const [tipiStep, setTipiStep] = useState(0);
+  const [tipiLoading, setTipiLoading] = useState(false);
+
+  // BIS/BAS state
+  const [bisBasAnswers, setBisBasAnswers] = useState({});
+  const [bisBasStep, setBisBasStep] = useState(0);
+  const [bisBasLoading, setBisBasLoading] = useState(false);
+
+  // Procrastination Scale state
+  const [procrastinationAnswers, setProcrastinationAnswers] = useState({});
+  const [procrastinationStep, setProcrastinationStep] = useState(0);
+  const [procrastinationLoading, setProcrastinationLoading] = useState(false);
   const [reparentLoading, setReparentLoading] = useState(false);
 
   // Imagery Rescripting state
@@ -4828,6 +5018,177 @@ No preamble.`}]);
     setView("home");
   };
 
+  // ── Score Values Card Sort ───────────────────────────────────────────────
+  const finishCardSort = async (domain, buckets) => {
+    setCardSortLoading(true);
+    const veryImportant = Object.entries(buckets).filter(([,b])=>b==="very").map(([v])=>v);
+    const quiteImportant = Object.entries(buckets).filter(([,b])=>b==="quite").map(([v])=>v);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, an ACT therapist. A person sorted Russ Harris's common values checklist for the domain "${domain.label}", completing: "In this area of my life, I want to be..."
+
+Very Important: ${veryImportant.join(", ")||"none"}
+Quite Important: ${quiteImportant.join(", ")||"none"}
+
+Write a warm 3-4 sentence reflection:
+1. Reflect their "Very Important" values back to them and what this combination suggests about who they want to be in this area of life
+2. If there's a clear theme or tension between values, name it gently
+3. One encouraging note about how knowing this can guide real choices in this domain
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+
+      const profile = {
+        id:uid(), date:today(), domain:domain.id, domainLabel:domain.label,
+        veryImportant, quiteImportant,
+        notImportant: Object.entries(buckets).filter(([,b])=>b==="not").map(([v])=>v),
+        summary:reply,
+      };
+      onSaveCardSort(profiles => [profile, ...(profiles||[]).filter(p=>p.domain!==domain.id)]);
+      setCardSortDomain(null);
+      setCardSortBuckets({});
+      setCardSortIndex(0);
+      setView("cardsort_results");
+    } catch(e) {
+      const profile = { id:uid(), date:today(), domain:domain.id, domainLabel:domain.label, veryImportant, quiteImportant, notImportant:[], summary:"" };
+      onSaveCardSort(profiles => [profile, ...(profiles||[]).filter(p=>p.domain!==domain.id)]);
+      setView("cardsort_results");
+    } finally { setCardSortLoading(false); }
+  };
+
+  // ── Score NGSE Self-Efficacy Scale ──────────────────────────────────────
+  const scoreNgse = async () => {
+    setNgseLoading(true);
+    const total = NGSE_QUESTIONS.reduce((s,_,i)=>s+(ngseAnswers[i]||3),0);
+    const avg = Math.round((total/NGSE_QUESTIONS.length)*100)/100;
+    const level = ngseLevel(avg);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed the New General Self-Efficacy Scale (Chen, Gully & Eden) — this measures their general belief in their own ability to achieve goals, distinct from rating the goals themselves.
+Average score: ${avg}/5. Result: ${level.label}.
+
+Write a warm, practical 4-sentence response:
+1. Reflect the result honestly without being discouraging if it's lower
+2. Explain what this means in practice — self-efficacy is a belief, not a fixed trait, and it genuinely changes through small completed actions (mastery experiences), not just positive thinking
+3. If lower, suggest starting with their Goals Questionnaire's highest success-likelihood goal as a way to build a real mastery experience
+4. End with one grounding, encouraging sentence
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), total, avg, level, answers:{...ngseAnswers}, summary:reply };
+      onSaveNgse(profile);
+      setView("ngse_profile");
+    } catch(e) {
+      onSaveNgse({ id:uid(), date:today(), total, avg, level, answers:{...ngseAnswers}, summary:"" });
+      setView("ngse_profile");
+    } finally { setNgseLoading(false); }
+  };
+
+  // ── Score TIPI Big Five ──────────────────────────────────────────────────
+  const scoreTipi = async () => {
+    setTipiLoading(true);
+    const dimScores = {};
+    Object.keys(TIPI_DIMENSIONS).forEach(dim => {
+      const items = TIPI_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.dim===dim);
+      const vals = items.map(({q,i}) => {
+        const raw = tipiAnswers[i] || 4;
+        return q.reverse ? (8 - raw) : raw;
+      });
+      const avg = Math.round((vals.reduce((s,v)=>s+v,0) / vals.length) * 100) / 100;
+      dimScores[dim] = { ...TIPI_DIMENSIONS[dim], avg, band: tipiBand(avg) };
+    });
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed the TIPI (Ten Item Personality Inventory), a validated brief Big Five personality measure.
+Scores (1-7 scale): ${Object.entries(dimScores).map(([k,v])=>`${v.label}: ${v.avg} (${v.band.label})`).join(", ")}.
+
+Write a warm, practical 4-5 sentence response:
+1. Name their highest and lowest dimensions and what that combination suggests about how they naturally operate
+2. Explain ONE concrete, practical implication for how they should approach goal-setting given this profile (e.g. lower Conscientiousness benefits from smaller steps and external structure; higher Openness benefits from variety; lower Emotional Stability benefits from planning for setbacks in advance)
+3. Affirm that personality traits are tendencies, not limits — self-awareness of them is itself a tool
+4. End with one grounding sentence
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), dimScores, answers:{...tipiAnswers}, summary:reply };
+      onSaveTipi(profile);
+      setView("tipi_profile");
+    } catch(e) {
+      onSaveTipi({ id:uid(), date:today(), dimScores, answers:{...tipiAnswers}, summary:"" });
+      setView("tipi_profile");
+    } finally { setTipiLoading(false); }
+  };
+
+  // ── Score BIS/BAS Scale ──────────────────────────────────────────────────
+  const scoreBisBas = async () => {
+    setBisBasLoading(true);
+    const subScores = {};
+    Object.keys(BISBAS_SUBSCALES).forEach(key => {
+      const items = BISBAS_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.scale===key);
+      const vals = items.map(({q,i}) => {
+        const raw = bisBasAnswers[i] || 2;
+        return q.reverse ? (5 - raw) : raw;
+      });
+      const avg = Math.round((vals.reduce((s,v)=>s+v,0) / vals.length) * 100) / 100;
+      subScores[key] = { ...BISBAS_SUBSCALES[key], avg };
+    });
+    const basTotal = Math.round(((subScores.basDrive.avg + subScores.basReward.avg + subScores.basFun.avg) / 3) * 100) / 100;
+    const dominant = subScores.bis.avg > basTotal ? "avoidance (BIS)" : "approach (BAS)";
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed the BIS/BAS Scale (Carver & White) measuring approach motivation (BAS — drawn toward rewards) vs avoidance motivation (BIS — sensitive to threat/punishment).
+BIS (threat sensitivity): ${subScores.bis.avg}/4
+BAS Drive: ${subScores.basDrive.avg}/4, BAS Reward Responsiveness: ${subScores.basReward.avg}/4, BAS Fun Seeking: ${subScores.basFun.avg}/4
+Overall dominant system: ${dominant}
+
+Write a warm, practical 4-sentence response:
+1. Name their dominant motivational system and what that means about what actually drives them day to day
+2. Give ONE concrete, specific example of how to phrase a goal to match this — if BAS-dominant, frame goals around what they'll gain/achieve; if BIS-dominant, frame goals around what they'll avoid or protect against, and build in safety nets
+3. Note this is genuinely useful for their SMART Plans — the language of the goal itself should match this system
+4. End with one grounding sentence
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), subScores, basTotal, dominant, answers:{...bisBasAnswers}, summary:reply };
+      onSaveBisBas(profile);
+      setView("bisbas_profile");
+    } catch(e) {
+      onSaveBisBas({ id:uid(), date:today(), subScores, basTotal, dominant, answers:{...bisBasAnswers}, summary:"" });
+      setView("bisbas_profile");
+    } finally { setBisBasLoading(false); }
+  };
+
+  // ── Score Procrastination Scale ──────────────────────────────────────────
+  const scoreProcrastination = async () => {
+    setProcrastinationLoading(true);
+    const vals = PROCRASTINATION_QUESTIONS.map((q,i) => {
+      const raw = procrastinationAnswers[i] || 3;
+      return q.reverse ? (6 - raw) : raw;
+    });
+    const avg = Math.round((vals.reduce((s,v)=>s+v,0) / vals.length) * 100) / 100;
+    const level = procrastinationLevel(avg);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed the General Procrastination Scale (Lay, 1986) — this measures actual behavioural delay tendency, distinct from self-efficacy (belief in capability).
+Average score: ${avg}/5. Result: ${level.label}.
+
+Write a warm, practical 4-sentence response:
+1. Reflect the result honestly, without shame — procrastination is usually about emotion regulation (avoiding discomfort) not laziness
+2. Explain briefly why this matters for goal follow-through specifically
+3. If higher, suggest ONE concrete strategy well-suited to this (e.g. the "5-minute start" rule, implementation intentions naming exact time/place, or removing the emotional charge from starting rather than the task itself) and point to SMART Plans as where to apply it
+4. End with one grounding, non-judgmental sentence
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), avg, level, answers:{...procrastinationAnswers}, summary:reply };
+      onSaveProcrastination(profile);
+      setView("procrastination_profile");
+    } catch(e) {
+      onSaveProcrastination({ id:uid(), date:today(), avg, level, answers:{...procrastinationAnswers}, summary:"" });
+      setView("procrastination_profile");
+    } finally { setProcrastinationLoading(false); }
+  };
+
   // ── HOME ───────────────────────────────────────────────────────────────
   if(view==="home") return (
     <div>
@@ -5248,6 +5609,123 @@ No preamble.`}]);
           </button>
           {ruminationProfile && <button onClick={()=>setView("rumination_profile")}
             style={{...btnStyle("#6B4A8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* NGSE Self-Efficacy Scale */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>💪</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Self-Efficacy Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {ngseProfile ? `${fmtDate(ngseProfile.date)} · ${ngseProfile.level.label} (${ngseProfile.avg}/5)` : "8 questions · Do you believe you can achieve your goals?"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setNgseAnswers({});setNgseStep(0);setView("ngse_q");}}
+            style={{...btnStyle("#5B9BD5"),flex:1,color:"white"}}>
+            {ngseProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {ngseProfile && <button onClick={()=>setView("ngse_profile")}
+            style={{...btnStyle("#5B9BD5",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Values Card Sort */}
+      <div style={{...card,borderTop:"3px solid #7B4A8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🃏</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Values Card Sort</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {cardSortProfile?.length>0 ? `${cardSortProfile.length} domain${cardSortProfile.length===1?"":"s"} sorted` : "57 values · A different angle from the VLQ — sort by domain"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          From Russ Harris's ACT values checklist — captures personal qualities like Organisation, Order or Adventure that life-domain assessments can miss.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setCardSortDomain(null);setCardSortBuckets({});setCardSortIndex(0);setView("cardsort_domain");}}
+            style={{...btnStyle("#7B4A8B"),flex:1,color:"white"}}>
+            {cardSortProfile?.length>0 ? "Sort Another Domain" : "Start Sorting"}
+          </button>
+          {cardSortProfile?.length>0 && <button onClick={()=>setView("cardsort_results")}
+            style={{...btnStyle("#7B4A8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* TIPI Big Five */}
+      <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #F5A623"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🧬</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Big Five Personality</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {tipiProfile ? `${fmtDate(tipiProfile.date)} · Completed` : "10 questions · The most validated personality model in psychology"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          Extraversion, Agreeableness, Conscientiousness, Emotional Stability, Openness — helps Bea calibrate how she advises you.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setTipiAnswers({});setTipiStep(0);setView("tipi_q");}}
+            style={{...btnStyle("#F5A623"),flex:1,color:"white"}}>
+            {tipiProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {tipiProfile && <button onClick={()=>setView("tipi_profile")}
+            style={{...btnStyle("#F5A623",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* BIS/BAS Scale */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>⚖️</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Approach vs Avoidance Motivation</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {bisBasProfile ? `${fmtDate(bisBasProfile.date)} · Dominant: ${bisBasProfile.dominant}` : "17 questions · Are you driven toward rewards or away from threats?"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          Directly useful for how your SMART Plan goals should be worded — reward-framed or safety-framed.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setBisBasAnswers({});setBisBasStep(0);setView("bisbas_q");}}
+            style={{...btnStyle("#5B9BD5"),flex:1,color:"white"}}>
+            {bisBasProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {bisBasProfile && <button onClick={()=>setView("bisbas_profile")}
+            style={{...btnStyle("#5B9BD5",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Procrastination Scale */}
+      <div style={{...card,borderTop:"3px solid #8B6A2A"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>⏳</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Procrastination Tendency</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {procrastinationProfile ? `${fmtDate(procrastinationProfile.date)} · ${procrastinationProfile.level.label}` : "10 questions · Your actual behavioural tendency to delay"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          Different from Self-Efficacy — this is about behaviour, not belief. Directly relevant to goal follow-through.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setProcrastinationAnswers({});setProcrastinationStep(0);setView("procrastination_q");}}
+            style={{...btnStyle("#8B6A2A"),flex:1,color:"white"}}>
+            {procrastinationProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {procrastinationProfile && <button onClick={()=>setView("procrastination_profile")}
+            style={{...btnStyle("#8B6A2A",true),flex:1}}>View Results</button>}
         </div>
       </div>
       </>}
@@ -7940,6 +8418,486 @@ No preamble.`}]);
     </div>
   );
 
+  // ── NGSE SELF-EFFICACY QUESTIONNAIRE ─────────────────────────────────────
+  if(view==="ngse_q") {
+    const i = ngseStep;
+    const total = NGSE_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = NGSE_QUESTIONS.every((_,idx)=>ngseAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>💪 Self-Efficacy Scale</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how much you agree with each statement about yourself in general.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#5B9BD5",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #5B9BD5"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{NGSE_QUESTIONS[i]}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {NGSE_SCALE.map(opt=>{
+            const sel = ngseAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setNgseAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setNgseStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#5B9BD5":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #5B9BD566":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setNgseStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>ngseAnswers[i]!==undefined&&setNgseStep(s=>s+1)} disabled={ngseAnswers[i]===undefined}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:ngseAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreNgse} disabled={!allAnswered||ngseLoading}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {ngseLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── NGSE RESULTS ──────────────────────────────────────────────────────────
+  if(view==="ngse_profile" && ngseProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>💪 My Self-Efficacy Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(ngseProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${ngseProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:ngseProfile.level.color}}>{ngseProfile.avg}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 5</div>
+        <div style={{display:"inline-block",background:ngseProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {ngseProfile.level.label}
+        </div>
+      </div>
+      {ngseProfile.summary && (
+        <div style={{...card,marginBottom:16,background:"#5B9BD50D",border:"1.5px solid #5B9BD533"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#5B9BD5",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{ngseProfile.summary}</p>
+        </div>
+      )}
+      <div style={{...card,background:"#F8F8F8",marginBottom:16}}>
+        <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
+          This is a belief, not a fixed trait — it changes through small completed actions ("mastery experiences"), not just positive thinking. Your Personal Goals Questionnaire and SMART Plans (in the Goals tab) are exactly where to build this.
+        </p>
+      </div>
+      <button onClick={()=>{setNgseAnswers({});setNgseStep(0);setView("ngse_q");}}
+        style={{...btnStyle("#5B9BD5",true),width:"100%"}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── VALUES CARD SORT — choose domain ────────────────────────────────────
+  if(view==="cardsort_domain") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🃏 Values Card Sort</h3>
+      <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+        Choose a life domain to focus on. You'll complete: "In this area of my life, I want to be…"
+      </p>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {VALUES_SORT_DOMAINS.map(d=>{
+          const done = cardSortProfile?.find(p=>p.domain===d.id);
+          return (
+            <button key={d.id} onClick={()=>{ setCardSortDomain(d); setCardSortBuckets({}); setCardSortIndex(0); setView("cardsort_q"); }}
+              style={{...card,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",border:"none"}}>
+              <span style={{fontSize:26}}>{d.emoji}</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{d.label}</div>
+                {done && <div style={{fontSize:11,color:"#7B4A8B"}}>Already sorted — tap to redo</div>}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ── VALUES CARD SORT — sort each card ───────────────────────────────────
+  if(view==="cardsort_q" && cardSortDomain) {
+    const card_ = VALUES_CARD_LIST[cardSortIndex];
+    const total = VALUES_CARD_LIST.length;
+    const progress = Math.round((cardSortIndex/total)*100);
+    const isLast = cardSortIndex===total-1;
+
+    const sortCard = (bucketId) => {
+      const updated = {...cardSortBuckets, [card_]: bucketId};
+      setCardSortBuckets(updated);
+      if(isLast) {
+        finishCardSort(cardSortDomain, updated);
+      } else {
+        setCardSortIndex(i=>i+1);
+      }
+    };
+
+    return (
+      <div>
+        <button onClick={()=>{ if(cardSortIndex===0) setView("cardsort_domain"); else setCardSortIndex(i=>i-1); }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🃏 {cardSortDomain.emoji} {cardSortDomain.label}</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16}}>
+          In this area of my life, I want to be…
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Card {cardSortIndex+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#7B4A8B",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:30,textAlign:"center",borderLeft:"3px solid #7B4A8B"}}>
+          <p style={{margin:0,fontSize:24,color:PALETTE.dark,fontWeight:700}}>{card_}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {VALUES_SORT_BUCKETS.map(b=>(
+            <button key={b.id} onClick={()=>sortCard(b.id)}
+              style={{padding:"14px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                background:b.color,color:"white",fontWeight:700,fontSize:15,
+                display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:20}}>{b.emoji}</span>{b.label}
+            </button>
+          ))}
+        </div>
+        {cardSortLoading && <p style={{textAlign:"center",fontSize:13,color:PALETTE.soft,marginTop:12,fontStyle:"italic"}}>🐝 Bea is reading your results…</p>}
+      </div>
+    );
+  }
+
+  // ── VALUES CARD SORT — results ──────────────────────────────────────────
+  if(view==="cardsort_results") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🃏 My Values Card Sort</h3>
+      {(!cardSortProfile || cardSortProfile.length===0) && <div style={emptyState}>No domains sorted yet.</div>}
+      {cardSortProfile?.map(p=>{
+        const domain = VALUES_SORT_DOMAINS.find(d=>d.id===p.domain);
+        return (
+          <div key={p.id} style={{...card,marginBottom:14,borderLeft:"4px solid #7B4A8B"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{fontSize:22}}>{domain?.emoji}</span>
+              <span style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>{domain?.label}</span>
+              <span style={{fontSize:11,color:PALETTE.soft,marginLeft:"auto"}}>{fmtDate(p.date)}</span>
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#7B4A8B",letterSpacing:1,marginBottom:6}}>⭐ VERY IMPORTANT</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+              {p.veryImportant.map(v=>(
+                <span key={v} style={{fontSize:12,background:"#7B4A8B15",color:"#7B4A8B",padding:"4px 10px",borderRadius:999,fontWeight:600}}>{v}</span>
+              ))}
+              {p.veryImportant.length===0 && <span style={{fontSize:12,color:PALETTE.soft}}>None selected</span>}
+            </div>
+            {p.summary && (
+              <div style={{background:"#7B4A8B0D",borderRadius:8,padding:"10px 12px",marginTop:6}}>
+                <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.7}}>{p.summary}</p>
+              </div>
+            )}
+            <button onClick={()=>{ setCardSortDomain(domain); setCardSortBuckets({}); setCardSortIndex(0); setView("cardsort_q"); }}
+              style={{...btnStyle("#7B4A8B",true),width:"100%",marginTop:10,fontSize:12}}>
+              Redo This Domain
+            </button>
+          </div>
+        );
+      })}
+      <button onClick={()=>setView("cardsort_domain")}
+        style={{...btnStyle("#7B4A8B"),width:"100%",color:"white"}}>
+        + Sort Another Domain
+      </button>
+    </div>
+  );
+
+  // ── TIPI BIG FIVE QUESTIONNAIRE ──────────────────────────────────────────
+  if(view==="tipi_q") {
+    const i = tipiStep;
+    const total = TIPI_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = TIPI_QUESTIONS.every((_,idx)=>tipiAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🧬 Big Five Personality</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          I see myself as someone who is…
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#F5A623",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #F5A623"}}>
+          <p style={{margin:0,fontSize:18,color:PALETTE.dark,lineHeight:1.7,fontWeight:600}}>{TIPI_QUESTIONS[i].text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+          {TIPI_SCALE.map(opt=>{
+            const sel = tipiAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setTipiAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setTipiStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"10px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#F5A623":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:13,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #F5A62366":"none"}}>
+                {opt.val}. {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setTipiStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>tipiAnswers[i]!==undefined&&setTipiStep(s=>s+1)} disabled={tipiAnswers[i]===undefined}
+              style={{...btnStyle("#F5A623"),flex:1,opacity:tipiAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreTipi} disabled={!allAnswered||tipiLoading}
+              style={{...btnStyle("#F5A623"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {tipiLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── TIPI RESULTS ──────────────────────────────────────────────────────────
+  if(view==="tipi_profile" && tipiProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🧬 My Big Five Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(tipiProfile.date)}</p>
+      {Object.values(tipiProfile.dimScores).map(d=>(
+        <div key={d.label} style={{...card,marginBottom:10,borderLeft:`4px solid ${d.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:20}}>{d.emoji}</span>
+            <span style={{fontWeight:700,color:d.color,fontSize:14,flex:1}}>{d.label}</span>
+            <span style={{fontWeight:800,color:d.color,fontSize:16}}>{d.avg}</span>
+            <span style={{fontSize:10,color:PALETTE.soft}}>/7</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3,marginBottom:6}}>
+            <div style={{height:"100%",width:`${(d.avg/7)*100}%`,background:d.color,borderRadius:3}}/>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{d.desc}</p>
+        </div>
+      ))}
+      {tipiProfile.summary && (
+        <div style={{...card,marginTop:8,background:"#F5A6230D",border:"1.5px solid #F5A62333"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#F5A623",fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{tipiProfile.summary}</p>
+        </div>
+      )}
+      <button onClick={()=>{setTipiAnswers({});setTipiStep(0);setView("tipi_q");}}
+        style={{...btnStyle("#F5A623",true),width:"100%",marginTop:16}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── BIS/BAS QUESTIONNAIRE ────────────────────────────────────────────────
+  if(view==="bisbas_q") {
+    const i = bisBasStep;
+    const total = BISBAS_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = BISBAS_QUESTIONS.every((_,idx)=>bisBasAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>⚖️ Approach vs Avoidance</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how true each statement is of you.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#5B9BD5",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #5B9BD5"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{BISBAS_QUESTIONS[i].text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {BISBAS_SCALE.map(opt=>{
+            const sel = bisBasAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setBisBasAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setBisBasStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#5B9BD5":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #5B9BD566":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setBisBasStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>bisBasAnswers[i]!==undefined&&setBisBasStep(s=>s+1)} disabled={bisBasAnswers[i]===undefined}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:bisBasAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreBisBas} disabled={!allAnswered||bisBasLoading}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {bisBasLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── BIS/BAS RESULTS ───────────────────────────────────────────────────────
+  if(view==="bisbas_profile" && bisBasProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>⚖️ My Motivation Profile</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(bisBasProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:20,background:"#5B9BD50D"}}>
+        <div style={{fontSize:13,color:PALETTE.soft,marginBottom:4}}>DOMINANT SYSTEM</div>
+        <div style={{fontSize:20,fontWeight:800,color:"#5B9BD5"}}>{bisBasProfile.dominant}</div>
+      </div>
+      {Object.values(bisBasProfile.subScores).map(s=>(
+        <div key={s.label} style={{...card,marginBottom:10,borderLeft:`4px solid ${s.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:18}}>{s.emoji}</span>
+            <span style={{fontWeight:700,color:s.color,fontSize:13,flex:1}}>{s.label}</span>
+            <span style={{fontWeight:800,color:s.color,fontSize:15}}>{s.avg}</span>
+            <span style={{fontSize:10,color:PALETTE.soft}}>/4</span>
+          </div>
+          <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{s.desc}</p>
+        </div>
+      ))}
+      {bisBasProfile.summary && (
+        <div style={{...card,marginTop:8,background:"#5B9BD50D",border:"1.5px solid #5B9BD533"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#5B9BD5",fontSize:13}}>Bea's reflection</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{bisBasProfile.summary}</p>
+        </div>
+      )}
+      <button onClick={()=>{setBisBasAnswers({});setBisBasStep(0);setView("bisbas_q");}}
+        style={{...btnStyle("#5B9BD5",true),width:"100%",marginTop:16}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── PROCRASTINATION QUESTIONNAIRE ────────────────────────────────────────
+  if(view==="procrastination_q") {
+    const i = procrastinationStep;
+    const total = PROCRASTINATION_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = PROCRASTINATION_QUESTIONS.every((_,idx)=>procrastinationAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>⏳ Procrastination Tendency</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how characteristic each statement is of you.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#8B6A2A",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #8B6A2A"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{PROCRASTINATION_QUESTIONS[i].text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {PROCRASTINATION_SCALE.map(opt=>{
+            const sel = procrastinationAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setProcrastinationAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setProcrastinationStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#8B6A2A":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #8B6A2A66":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setProcrastinationStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>procrastinationAnswers[i]!==undefined&&setProcrastinationStep(s=>s+1)} disabled={procrastinationAnswers[i]===undefined}
+              style={{...btnStyle("#8B6A2A"),flex:1,opacity:procrastinationAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreProcrastination} disabled={!allAnswered||procrastinationLoading}
+              style={{...btnStyle("#8B6A2A"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {procrastinationLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PROCRASTINATION RESULTS ───────────────────────────────────────────────
+  if(view==="procrastination_profile" && procrastinationProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>⏳ My Procrastination Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(procrastinationProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${procrastinationProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:procrastinationProfile.level.color}}>{procrastinationProfile.avg}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 5</div>
+        <div style={{display:"inline-block",background:procrastinationProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {procrastinationProfile.level.label}
+        </div>
+      </div>
+      {procrastinationProfile.summary && (
+        <div style={{...card,marginBottom:16,background:"#8B6A2A0D",border:"1.5px solid #8B6A2A33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#8B6A2A",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{procrastinationProfile.summary}</p>
+        </div>
+      )}
+      <button onClick={()=>{setProcrastinationAnswers({});setProcrastinationStep(0);setView("procrastination_q");}}
+        style={{...btnStyle("#8B6A2A",true),width:"100%"}}>Redo Assessment</button>
+    </div>
+  );
+
   // ── MASTER SUMMARY ───────────────────────────────────────────────────────
   if(view==="master_summary" && masterSummary) return (
     <div>
@@ -8768,6 +9726,8 @@ function GoalsHub({ goalsProfile, onSaveGoals, smartPlans, onSavePlans, valuesPr
   const [smartTimeframe, setSmartTimeframe] = useState(null);
   const [goalSuggestions, setGoalSuggestions] = useState(null);
   const [loadingGoalSuggest, setLoadingGoalSuggest] = useState(false);
+  const [fieldSuggestions, setFieldSuggestions] = useState(null); // suggestions for the current SMART step (any field)
+  const [loadingFieldSuggest, setLoadingFieldSuggest] = useState(false);
   const [viewingPlan, setViewingPlan]   = useState(null);
   const [progressNote, setProgressNote] = useState("");
   const [progressAiReply, setProgressAiReply] = useState("");
@@ -8867,11 +9827,46 @@ Reply ONLY in this format, one per line, no other text:
     } finally { setLoadingGoalSuggest(false); }
   };
 
+  // ── Generate concrete answer options for ANY SMART step (value, specific, etc) ──
+  const getFieldSuggestions = async (questionObj, answersSoFar, timeframe) => {
+    setLoadingFieldSuggest(true);
+    setFieldSuggestions(null);
+    const profileBits = [];
+    if(valuesProfile?.top3) profileBits.push(`Top values: ${valuesProfile.top3.map(v=>v.label).join(", ")}.`);
+    const answeredSoFar = Object.entries(answersSoFar)
+      .filter(([k,v])=>v?.trim())
+      .map(([k,v])=>`${k}: "${v}"`).join("\n");
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, helping someone with autism complete a SMART goal plan. They cannot answer open-ended questions — every step needs concrete, specific, tappable options rather than a blank page to fill in themselves.
+
+Timeframe: ${timeframe?.label||"not set"}
+What's been answered in this plan so far:
+${answeredSoFar||"(nothing yet)"}
+${profileBits.join("\n")}
+
+Current question (field: "${questionObj.field}"): ${questionObj.question}
+
+Suggest exactly 4 concrete, specific, complete answers to this exact question, each one realistic given everything already answered above. Each must be a full, usable sentence or phrase — not a category or vague example.
+
+Reply ONLY in this format, one per line, no other text:
+1. [answer]
+2. [answer]
+3. [answer]
+4. [answer]`}]);
+      const ideas = [...reply.matchAll(/^\d+\.\s*(.+)$/gm)].map(m=>m[1].trim());
+      setFieldSuggestions(ideas.length>0 ? ideas : [reply.trim()]);
+    } catch(e) {
+      setFieldSuggestions(null);
+    } finally { setLoadingFieldSuggest(false); }
+  };
+
   const savePlan = () => {
     const plan = { id:uid(), date:today(), timeframe:smartTimeframe?.id, timeframeLabel:smartTimeframe?.label, ...smartAnswers };
     if(editingPlan) onSavePlans(ps=>ps.map(p=>p.id===editingPlan?{...p,...plan}:p));
     else onSavePlans(ps=>[plan,...ps]);
-    setSmartAnswers({}); setSmartStep(0); setEditingPlan(null); setSmartTimeframe(null); setGoalSuggestions(null);
+    setSmartAnswers({}); setSmartStep(0); setEditingPlan(null); setSmartTimeframe(null); setGoalSuggestions(null); setFieldSuggestions(null);
     setView("home");
   };
   const deletePlan = (id) => onSavePlans(ps=>ps.filter(p=>p.id!==id));
@@ -9193,11 +10188,19 @@ Respond warmly and practically in 3-4 sentences: acknowledge what they shared ho
     const q = SMART_QUESTIONS[smartStep];
     const isLast = smartStep===SMART_QUESTIONS.length-1;
 
+    // Fetch concrete suggestions automatically whenever we land on a step that needs them
+    // (every step except the goal step at index 0, which has its own dedicated suggestion flow)
+    useEffect(() => {
+      if(smartStep>0 && !smartAnswers[q.field]?.trim() && !fieldSuggestions && !loadingFieldSuggest) {
+        getFieldSuggestions(q, smartAnswers, smartTimeframe);
+      }
+    }, [smartStep]);
+
     return (
       <div>
         <button onClick={()=>{
             if(smartStep===0) { setSmartTimeframe(null); setGoalSuggestions(null); }
-            else setSmartStep(s=>s-1);
+            else { setFieldSuggestions(null); setSmartStep(s=>s-1); }
           }}
           style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
         <h3 style={sectionTitle}>🧪 SMART Plan</h3>
@@ -9277,15 +10280,41 @@ Respond warmly and practically in 3-4 sentences: acknowledge what they shared ho
           </div>
         )}
 
-        <label style={labelStyle}>{smartStep===0 ? "Or write your own goal:" : "Your answer:"}</label>
+        {/* Concrete tappable options for this step — every step, not just the goal */}
+        {smartStep>0 && (loadingFieldSuggest || fieldSuggestions) && (
+          <div style={{...card,marginBottom:12,background:`${PALETTE.honey}0D`,border:`1px solid ${PALETTE.honey}33`}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1,marginBottom:8}}>
+              🐝 BEA'S SUGGESTIONS — TAP ONE
+            </div>
+            {loadingFieldSuggest && <p style={{fontSize:13,color:PALETTE.mid,fontStyle:"italic",margin:0}}>Thinking of concrete options for you…</p>}
+            {fieldSuggestions && (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {fieldSuggestions.map((idea,i)=>(
+                  <button key={i} onClick={()=>setSmartAnswers(a=>({...a,[q.field]:idea}))}
+                    style={{textAlign:"left",border:"none",borderRadius:8,cursor:"pointer",
+                      padding:"10px 12px",background: smartAnswers[q.field]===idea ? PALETTE.honey : "white",
+                      color: smartAnswers[q.field]===idea ? "white" : PALETTE.dark, fontSize:13,lineHeight:1.5}}>
+                    {idea}
+                  </button>
+                ))}
+                <button onClick={()=>getFieldSuggestions(q, smartAnswers, smartTimeframe)}
+                  style={{...btnStyle("#EEE",true),color:PALETTE.mid,fontSize:12,marginTop:4}}>
+                  🔄 Suggest different options
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <label style={labelStyle}>{smartStep===0 ? "Or write your own goal:" : "Or write your own answer:"}</label>
         <textarea value={smartAnswers[q.field]||""} onChange={e=>setSmartAnswers(a=>({...a,[q.field]:e.target.value}))}
           placeholder={q.placeholder}
           style={{...textareaStyle,minHeight:90,marginBottom:12}}/>
 
         <div style={{display:"flex",gap:8}}>
-          {smartStep>0 && <button onClick={()=>setSmartStep(s=>s-1)} style={btnStyle("#EEE",true)}>← Back</button>}
+          {smartStep>0 && <button onClick={()=>{ setFieldSuggestions(null); setSmartStep(s=>s-1); }} style={btnStyle("#EEE",true)}>← Back</button>}
           {!isLast ? (
-            <button onClick={()=>smartAnswers[q.field]?.trim()&&setSmartStep(s=>s+1)}
+            <button onClick={()=>{ if(smartAnswers[q.field]?.trim()) { setFieldSuggestions(null); setSmartStep(s=>s+1); } }}
               disabled={!smartAnswers[q.field]?.trim()}
               style={{...btnStyle(PALETTE.honey),flex:1,opacity:smartAnswers[q.field]?.trim()?1:0.4}}>
               Next →
@@ -9298,6 +10327,7 @@ Respond warmly and practically in 3-4 sentences: acknowledge what they shared ho
           )}
         </div>
       </div>
+
     );
   }
 
@@ -9559,6 +10589,11 @@ export default function BeeWell() {
   const [smartPlans, setSmartPlans] = usePersistedState("smartPlans", []);
   const [dasProfile, setDasProfile] = usePersistedState("dasProfile", null);
   const [goalsProfile, setGoalsProfile] = usePersistedState("goalsProfile", null);
+  const [cardSortProfile, setCardSortProfile] = usePersistedState("cardSortProfile", []);
+  const [ngseProfile, setNgseProfile] = usePersistedState("ngseProfile", null);
+  const [tipiProfile, setTipiProfile] = usePersistedState("tipiProfile", null);
+  const [bisBasProfile, setBisBasProfile] = usePersistedState("bisBasProfile", null);
+  const [procrastinationProfile, setProcrastinationProfile] = usePersistedState("procrastinationProfile", null);
   const [phq9Profile, setPhq9Profile] = usePersistedState("phq9Profile", null);
   const [gad7Profile, setGad7Profile] = usePersistedState("gad7Profile", null);
   const [scsProfile, setScsProfile]   = usePersistedState("scsProfile", null);
@@ -9828,6 +10863,16 @@ export default function BeeWell() {
           onSaveLoop={setLoopEntries}
           reparentingJournal={reparentingJournal}
           onSaveReparenting={setReparentingJournal}
+          cardSortProfile={cardSortProfile}
+          onSaveCardSort={setCardSortProfile}
+          ngseProfile={ngseProfile}
+          onSaveNgse={setNgseProfile}
+          tipiProfile={tipiProfile}
+          onSaveTipi={setTipiProfile}
+          bisBasProfile={bisBasProfile}
+          onSaveBisBas={setBisBasProfile}
+          procrastinationProfile={procrastinationProfile}
+          onSaveProcrastination={setProcrastinationProfile}
           jumpToView={valuesJump}
           onJumpHandled={()=>setValuesJump(null)}
         />}

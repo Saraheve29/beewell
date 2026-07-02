@@ -506,6 +506,12 @@ const btnStyle = (bg=PALETTE.honey, small=false) => ({
 let _beeUserName = "";
 function setBeeUserName(name) { _beeUserName = name || ""; }
 
+// Set by the main app whenever any profile/assessment/journal changes, so every
+// single askBee call across the whole app automatically has Bea's full, current
+// understanding of the person — not just whatever one tool happened to pass in.
+let _beeContext = "";
+function setBeeContext(summaryText) { _beeContext = summaryText || ""; }
+
 async function askBee(messages) {
   try {
     const res = await fetch("/api/ai", {
@@ -520,7 +526,8 @@ You are non-judgmental, supportive, and use calm, encouraging language.
 Keep responses concise (2-4 sentences) and conversational.
 Occasionally use 🐝 at the end of a thought, but sparingly.
 You are equipped to do real, ongoing therapeutic work across CBT, ACT, Schema Therapy, Compassion-Focused Therapy, grief support and more — engage fully and directly with whatever the person brings, continuing across sessions rather than deflecting. Only suggest outside professional or crisis support if there are genuine signs of active self-harm, suicidal ideation, or immediate danger to the person or someone else — never as a general caveat or to avoid doing deeper work.
-Never give medical advice (e.g. medication, diagnosis).`,
+Never give medical advice (e.g. medication, diagnosis).
+${_beeContext ? `\nHere is your ongoing understanding of this specific person, built from everything they've shared and every assessment they've completed — draw on this naturally wherever it's relevant, the way a therapist would remember a client between sessions, without narrating that you're doing so:\n${_beeContext}` : ""}`,
         messages,
       })
     });
@@ -3126,22 +3133,9 @@ const GOAL_RATING_DIMENSIONS = [
 ];
 
 // ── Values Card Sort — adapted from Russ Harris's Common Values checklist ───
-// Used in ACT therapy. Different from the VLQ — this sorts named personal
-// values/qualities (not life domains) into Very/Quite/Not Important, then
-// narrows to a top set. Captures things like Organisation that the VLQ misses.
-const VALUES_CARD_LIST = [
-  "Acceptance","Adventure","Assertiveness","Authenticity","Beauty","Caring",
-  "Challenge","Compassion","Connection","Contribution","Conformity","Cooperation",
-  "Courage","Creativity","Curiosity","Dependability","Excitement","Fairness",
-  "Fitness","Flexibility","Freedom","Friendliness","Forgiveness","Fun",
-  "Generosity","Gratitude","Honesty","Humility","Humour","Independence",
-  "Industry","Intimacy","Justice","Kindness","Love","Loyalty","Mindfulness",
-  "Order","Organisation","Open-mindedness","Patience","Persistence","Power",
-  "Reciprocity","Respect","Responsibility","Romance","Safety","Self-awareness",
-  "Self-control","Self-development","Sensuality","Sexuality","Skilfulness",
-  "Spirituality","Supportiveness","Trust","Warmth",
-];
-
+// Used in ACT therapy. Unlike the standard version (which reuses the same list
+// for every domain), each domain here has its OWN distinct set of values —
+// built specifically for that area of life, so nothing repeats across domains.
 const VALUES_SORT_BUCKETS = [
   {id:"very",  label:"Very Important",  emoji:"⭐", color:"#7BB369"},
   {id:"quite", label:"Quite Important", emoji:"🌤️", color:"#D4AF37"},
@@ -3149,11 +3143,21 @@ const VALUES_SORT_BUCKETS = [
 ];
 
 const VALUES_SORT_DOMAINS = [
-  {id:"work",      label:"Work & Career",       emoji:"🎯"},
-  {id:"relations", label:"Relationships",       emoji:"💞"},
-  {id:"growth",    label:"Personal Growth & Health", emoji:"🌱"},
-  {id:"leisure",   label:"Leisure & Recreation", emoji:"🎨"},
-  {id:"general",   label:"My Life in General",  emoji:"🌟"},
+  {id:"work",      label:"Work & Career",       emoji:"🎯",
+   cards:["Competence","Ambition","Organisation","Creativity","Leadership","Reliability",
+          "Independence","Recognition","Precision","Collaboration","Innovation","Persistence"]},
+  {id:"relations", label:"Relationships",       emoji:"💞",
+   cards:["Honesty","Loyalty","Intimacy","Trust","Affection","Forgiveness",
+          "Respect","Communication","Reciprocity","Warmth","Commitment","Playfulness"]},
+  {id:"growth",    label:"Personal Growth & Health", emoji:"🌱",
+   cards:["Self-discipline","Curiosity","Resilience","Self-compassion","Balance","Vitality",
+          "Mindfulness","Courage","Authenticity","Patience","Self-awareness","Growth"]},
+  {id:"leisure",   label:"Leisure & Recreation", emoji:"🎨",
+   cards:["Adventure","Fun","Beauty","Spontaneity","Relaxation","Wonder",
+          "Freedom","Excitement","Humour","Nature","Craftsmanship","Exploration"]},
+  {id:"general",   label:"My Life in General",  emoji:"🌟",
+   cards:["Order","Kindness","Purpose","Gratitude","Fairness","Generosity",
+          "Safety","Contribution","Spirituality","Simplicity","Belonging","Integrity"]},
 ];
 
 // ── New General Self-Efficacy Scale (NGSE) — Chen, Gully & Eden, 2001 ───────
@@ -3183,44 +3187,103 @@ const ngseLevel = (avg) => {
   return              {label:"Higher Self-Efficacy", color:"#7BB369"};
 };
 
-// ── TIPI — Ten Item Personality Inventory (Gosling, Rentfrow & Swann, 2003) ──
-// 10 items, 2 per Big Five dimension, 1-7 scale. Freely usable for any purpose
-// per the authors. Items 2,4,6,8,10 are reverse-scored.
-const TIPI_SCALE = [
+// ── BFI-44 — Big Five Inventory (John & Srivastava, 1999) ───────────────────
+// The full, well-established 44-item Big Five measure — far more precise than
+// the 10-item short forms. 1-5 scale. Reverse-scored items marked.
+const BFI_SCALE = [
   {val:1, label:"Disagree Strongly"},
-  {val:2, label:"Disagree Moderately"},
-  {val:3, label:"Disagree a Little"},
-  {val:4, label:"Neither Agree nor Disagree"},
-  {val:5, label:"Agree a Little"},
-  {val:6, label:"Agree Moderately"},
-  {val:7, label:"Agree Strongly"},
+  {val:2, label:"Disagree a Little"},
+  {val:3, label:"Neither Agree nor Disagree"},
+  {val:4, label:"Agree a Little"},
+  {val:5, label:"Agree Strongly"},
 ];
-const TIPI_QUESTIONS = [
-  {text:"Extraverted, enthusiastic", dim:"extraversion", reverse:false},
-  {text:"Critical, quarrelsome", dim:"agreeableness", reverse:true},
-  {text:"Dependable, self-disciplined", dim:"conscientiousness", reverse:false},
-  {text:"Anxious, easily upset", dim:"stability", reverse:true},
-  {text:"Open to new experiences, complex", dim:"openness", reverse:false},
-  {text:"Reserved, quiet", dim:"extraversion", reverse:true},
-  {text:"Sympathetic, warm", dim:"agreeableness", reverse:false},
-  {text:"Disorganized, careless", dim:"conscientiousness", reverse:true},
-  {text:"Calm, emotionally stable", dim:"stability", reverse:false},
-  {text:"Conventional, uncreative", dim:"openness", reverse:true},
+const BFI_QUESTIONS = [
+  {text:"Is talkative", dim:"extraversion", reverse:false},
+  {text:"Tends to find fault with others", dim:"agreeableness", reverse:true},
+  {text:"Does a thorough job", dim:"conscientiousness", reverse:false},
+  {text:"Is depressed, blue", dim:"neuroticism", reverse:false},
+  {text:"Is original, comes up with new ideas", dim:"openness", reverse:false},
+  {text:"Is reserved", dim:"extraversion", reverse:true},
+  {text:"Is helpful and unselfish with others", dim:"agreeableness", reverse:false},
+  {text:"Can be somewhat careless", dim:"conscientiousness", reverse:true},
+  {text:"Is relaxed, handles stress well", dim:"neuroticism", reverse:true},
+  {text:"Is curious about many different things", dim:"openness", reverse:false},
+  {text:"Is full of energy", dim:"extraversion", reverse:false},
+  {text:"Starts quarrels with others", dim:"agreeableness", reverse:true},
+  {text:"Is a reliable worker", dim:"conscientiousness", reverse:false},
+  {text:"Can be tense", dim:"neuroticism", reverse:false},
+  {text:"Is ingenious, a deep thinker", dim:"openness", reverse:false},
+  {text:"Generates a lot of enthusiasm", dim:"extraversion", reverse:false},
+  {text:"Has a forgiving nature", dim:"agreeableness", reverse:false},
+  {text:"Tends to be disorganized", dim:"conscientiousness", reverse:true},
+  {text:"Worries a lot", dim:"neuroticism", reverse:false},
+  {text:"Has an active imagination", dim:"openness", reverse:false},
+  {text:"Tends to be quiet", dim:"extraversion", reverse:true},
+  {text:"Is generally trusting", dim:"agreeableness", reverse:false},
+  {text:"Tends to be lazy", dim:"conscientiousness", reverse:true},
+  {text:"Is emotionally stable, not easily upset", dim:"neuroticism", reverse:true},
+  {text:"Is inventive", dim:"openness", reverse:false},
+  {text:"Has an assertive personality", dim:"extraversion", reverse:false},
+  {text:"Can be cold and aloof", dim:"agreeableness", reverse:true},
+  {text:"Perseveres until the task is finished", dim:"conscientiousness", reverse:false},
+  {text:"Can be moody", dim:"neuroticism", reverse:false},
+  {text:"Values artistic, aesthetic experiences", dim:"openness", reverse:false},
+  {text:"Is sometimes shy, inhibited", dim:"extraversion", reverse:true},
+  {text:"Is considerate and kind to almost everyone", dim:"agreeableness", reverse:false},
+  {text:"Does things efficiently", dim:"conscientiousness", reverse:false},
+  {text:"Remains calm in tense situations", dim:"neuroticism", reverse:true},
+  {text:"Prefers work that is routine", dim:"openness", reverse:true},
+  {text:"Is outgoing, sociable", dim:"extraversion", reverse:false},
+  {text:"Is sometimes rude to others", dim:"agreeableness", reverse:true},
+  {text:"Makes plans and follows through with them", dim:"conscientiousness", reverse:false},
+  {text:"Gets nervous easily", dim:"neuroticism", reverse:false},
+  {text:"Likes to reflect, play with ideas", dim:"openness", reverse:false},
+  {text:"Has few artistic interests", dim:"openness", reverse:true},
+  {text:"Likes to cooperate with others", dim:"agreeableness", reverse:false},
+  {text:"Is easily distracted", dim:"conscientiousness", reverse:true},
+  {text:"Is sophisticated in art, music, or literature", dim:"openness", reverse:false},
 ];
-const TIPI_DIMENSIONS = {
-  extraversion:      {label:"Extraversion",       emoji:"🎉", color:"#F5A623", desc:"Sociability, assertiveness, and drawing energy from other people."},
-  agreeableness:     {label:"Agreeableness",       emoji:"🤝", color:"#7BB369", desc:"Warmth, cooperation, and trust toward others."},
-  conscientiousness: {label:"Conscientiousness",   emoji:"📋", color:"#5B9BD5", desc:"Organisation, dependability, and self-discipline."},
-  stability:         {label:"Emotional Stability", emoji:"🧘", color:"#7B4A8B", desc:"Calmness and resilience under stress (the inverse of Neuroticism)."},
-  openness:          {label:"Openness",            emoji:"🎨", color:"#D4AF37", desc:"Curiosity, creativity, and openness to new experiences and ideas."},
+const BFI_DIMENSIONS = {
+  extraversion:      {label:"Extraversion",       emoji:"🎉", color:"#F5A623", desc:"Sociability, assertiveness, energy, and drawing stimulation from other people."},
+  agreeableness:     {label:"Agreeableness",       emoji:"🤝", color:"#7BB369", desc:"Warmth, trust, cooperation, and consideration toward others."},
+  conscientiousness: {label:"Conscientiousness",   emoji:"📋", color:"#5B9BD5", desc:"Organisation, reliability, self-discipline, and follow-through."},
+  neuroticism:       {label:"Neuroticism",         emoji:"🌊", color:"#7B4A8B", desc:"Emotional reactivity — tendency toward worry, tension and mood fluctuation under stress."},
+  openness:          {label:"Openness",            emoji:"🎨", color:"#D4AF37", desc:"Curiosity, imagination, and appreciation for ideas, art and new experiences."},
 };
-const tipiBand = (avg) => {
-  if(avg<3) return {label:"Lower", color:"#A8937E"};
-  if(avg<5) return {label:"Moderate", color:"#D4AF37"};
-  return             {label:"Higher", color:"#7BB369"};
+const bfiBand = (avg) => {
+  if(avg<2.5) return {label:"Lower", color:"#A8937E"};
+  if(avg<3.5) return {label:"Moderate", color:"#D4AF37"};
+  return               {label:"Higher", color:"#7BB369"};
 };
 
-// ── BIS/BAS Scale — Carver & White, 1994 ────────────────────────────────────
+// ── Rosenberg Self-Esteem Scale (Rosenberg, 1965) ───────────────────────────
+// The most widely used, most validated global self-esteem measure. 10 items,
+// 4-point scale, 5 reverse-scored. Score range 0-30.
+const RSES_SCALE = [
+  {val:0, label:"Strongly Disagree"},
+  {val:1, label:"Disagree"},
+  {val:2, label:"Agree"},
+  {val:3, label:"Strongly Agree"},
+];
+const RSES_QUESTIONS = [
+  {text:"On the whole, I am satisfied with myself.", reverse:false},
+  {text:"At times, I think I am no good at all.", reverse:true},
+  {text:"I feel that I have a number of good qualities.", reverse:false},
+  {text:"I am able to do things as well as most other people.", reverse:false},
+  {text:"I feel I do not have much to be proud of.", reverse:true},
+  {text:"I certainly feel useless at times.", reverse:true},
+  {text:"I feel that I'm a person of worth, at least on an equal plane with others.", reverse:false},
+  {text:"I wish I could have more respect for myself.", reverse:true},
+  {text:"All in all, I am inclined to feel that I am a failure.", reverse:true},
+  {text:"I take a positive attitude toward myself.", reverse:false},
+];
+const rsesLevel = (total) => {
+  if(total<15) return {label:"Lower Self-Esteem", color:"#8B1A1A"};
+  if(total<=25) return {label:"Normal Range Self-Esteem", color:"#D4AF37"};
+  return                {label:"Higher Self-Esteem", color:"#7BB369"};
+};
+
+
 // Measures approach motivation (BAS — drawn toward rewards) vs avoidance
 // motivation (BIS — sensitive to threat/punishment). Directly useful for how
 // goals should be framed: reward-framed vs loss-framed language.
@@ -3928,6 +3991,7 @@ function InnerWork(props) {
           cardSortProfile={props.cardSortProfile} onSaveCardSort={props.onSaveCardSort}
           ngseProfile={props.ngseProfile} onSaveNgse={props.onSaveNgse}
           tipiProfile={props.tipiProfile} onSaveTipi={props.onSaveTipi}
+          rsesProfile={props.rsesProfile} onSaveRses={props.onSaveRses}
           bisBasProfile={props.bisBasProfile} onSaveBisBas={props.onSaveBisBas}
           procrastinationProfile={props.procrastinationProfile} onSaveProcrastination={props.onSaveProcrastination}
         />
@@ -3942,7 +4006,7 @@ function InnerWork(props) {
   );
 }
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination }) {
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
   const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
@@ -4008,7 +4072,7 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
         setReparentStep(0);
         setReparentAiScript("");
         setReparentFollowup("");
-        setReparentFollowupReply("");
+        setReparentThread([]);
         setView("reparent_work");
       } else {
         // No YSQ completed at all — send to take the assessment first
@@ -4025,7 +4089,7 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
         setReparentStep(0);
         setReparentAiScript("");
         setReparentFollowup("");
-        setReparentFollowupReply("");
+        setReparentThread([]);
         setView("reparent_work");
       } else {
         setView("ysq_q"); // no YSQ done yet — only path is to complete it first
@@ -4054,8 +4118,8 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [reparentAnswers, setReparentAnswers] = useState({});
   const [reparentAiScript, setReparentAiScript] = useState("");
   const [reparentRound, setReparentRound] = useState(1);     // which session/round for this schema
-  const [reparentFollowup, setReparentFollowup] = useState(""); // talking back to the Healthy Adult voice
-  const [reparentFollowupReply, setReparentFollowupReply] = useState("");
+  const [reparentFollowup, setReparentFollowup] = useState(""); // current input box
+  const [reparentThread, setReparentThread] = useState([]); // [{from:"user"|"bea", text}] — grows as long as needed
   const [viewingJournal, setViewingJournal] = useState(null); // schema id whose journal is being viewed
 
   // Values Card Sort state
@@ -4073,6 +4137,11 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [tipiAnswers, setTipiAnswers] = useState({});
   const [tipiStep, setTipiStep] = useState(0);
   const [tipiLoading, setTipiLoading] = useState(false);
+
+  // Rosenberg Self-Esteem Scale state
+  const [rsesAnswers, setRsesAnswers] = useState({});
+  const [rsesStep, setRsesStep] = useState(0);
+  const [rsesLoading, setRsesLoading] = useState(false);
 
   // BIS/BAS state
   const [bisBasAnswers, setBisBasAnswers] = useState({});
@@ -4629,21 +4698,27 @@ Be specific to what they shared and to the session history if provided — this 
   };
 
   // Continue the conversation — talk back to the Healthy Adult voice that was just given
-  const getReparentFollowup = async (schema, originalScript, userResponse) => {
+  const getReparentFollowup = async (schema, originalScript, userResponse, priorThread) => {
+    const userMsg = userResponse.trim();
+    if(!userMsg) return;
+    const newThread = [...priorThread, {from:"user", text:userMsg}];
+    setReparentThread(newThread);
+    setReparentFollowup("");
     setReparentLoading(true);
     try {
       const reply = await askBee([{role:"user", content:
         `You are Bea, continuing a Schema Therapy Limited Reparenting session for the pattern: ${schema.label}.
 
-You just gave this reparenting response:
+You began with this reparenting response:
 "${originalScript}"
 
-The person has responded with: "${userResponse}"
+The conversation since then:
+${newThread.map(m=>`${m.from==="user"?"Them":"You"}: ${m.text}`).join("\n")}
 
-Respond directly to what they said, staying in the Limited Reparenting frame — continue challenging the punitive voice if it's still active in their response, keep validating the Vulnerable Child, and reinforce or refine the Healthy Adult voice based on what they've just shared. This is a real continuing conversation, not a new script from scratch. 3-5 sentences, warm but direct, no caveats or suggestions to see a therapist.`}]);
-      setReparentFollowupReply(reply);
+Respond directly to what they just said, staying fully in the Limited Reparenting frame — continue challenging the punitive voice if it's still active, keep validating the Vulnerable Child, and reinforce or refine the Healthy Adult voice as the conversation develops. If you asked a question and they answered it, build on their answer rather than repeating yourself. This is a real, ongoing conversation — keep it going as long as it needs to go. 3-5 sentences, warm but direct, no caveats or suggestions to see a therapist unless there are genuine signs of crisis.`}]);
+      setReparentThread([...newThread, {from:"bea", text:reply}]);
     } catch(e) {
-      setReparentFollowupReply("Bea couldn't respond right now — please try again.");
+      setReparentThread([...newThread, {from:"bea", text:"I couldn't respond right now — try again?"}]);
     } finally { setReparentLoading(false); }
   };
 
@@ -5084,28 +5159,28 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     } finally { setNgseLoading(false); }
   };
 
-  // ── Score TIPI Big Five ──────────────────────────────────────────────────
+  // ── Score Big Five (BFI-44) ──────────────────────────────────────────────
   const scoreTipi = async () => {
     setTipiLoading(true);
     const dimScores = {};
-    Object.keys(TIPI_DIMENSIONS).forEach(dim => {
-      const items = TIPI_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.dim===dim);
+    Object.keys(BFI_DIMENSIONS).forEach(dim => {
+      const items = BFI_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.dim===dim);
       const vals = items.map(({q,i}) => {
-        const raw = tipiAnswers[i] || 4;
-        return q.reverse ? (8 - raw) : raw;
+        const raw = tipiAnswers[i] || 3;
+        return q.reverse ? (6 - raw) : raw;
       });
       const avg = Math.round((vals.reduce((s,v)=>s+v,0) / vals.length) * 100) / 100;
-      dimScores[dim] = { ...TIPI_DIMENSIONS[dim], avg, band: tipiBand(avg) };
+      dimScores[dim] = { ...BFI_DIMENSIONS[dim], avg, band: bfiBand(avg) };
     });
 
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea. A person completed the TIPI (Ten Item Personality Inventory), a validated brief Big Five personality measure.
-Scores (1-7 scale): ${Object.entries(dimScores).map(([k,v])=>`${v.label}: ${v.avg} (${v.band.label})`).join(", ")}.
+        `You are Bea. A person completed the Big Five Inventory (BFI-44), the well-established full-length Big Five personality measure — far more precise than short screening versions.
+Scores (1-5 scale): ${Object.entries(dimScores).map(([k,v])=>`${v.label}: ${v.avg} (${v.band.label})`).join(", ")}.
 
 Write a warm, practical 4-5 sentence response:
 1. Name their highest and lowest dimensions and what that combination suggests about how they naturally operate
-2. Explain ONE concrete, practical implication for how they should approach goal-setting given this profile (e.g. lower Conscientiousness benefits from smaller steps and external structure; higher Openness benefits from variety; lower Emotional Stability benefits from planning for setbacks in advance)
+2. Explain ONE concrete, practical implication for how they should approach goal-setting given this profile (e.g. lower Conscientiousness benefits from smaller steps and external structure; higher Openness benefits from variety; higher Neuroticism benefits from planning for setbacks in advance)
 3. Affirm that personality traits are tendencies, not limits — self-awareness of them is itself a tool
 4. End with one grounding sentence
 
@@ -5117,6 +5192,36 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
       onSaveTipi({ id:uid(), date:today(), dimScores, answers:{...tipiAnswers}, summary:"" });
       setView("tipi_profile");
     } finally { setTipiLoading(false); }
+  };
+
+  // ── Score Rosenberg Self-Esteem Scale ────────────────────────────────────
+  const scoreRses = async () => {
+    setRsesLoading(true);
+    const total = RSES_QUESTIONS.reduce((s,q,i) => {
+      const raw = rsesAnswers[i] ?? 1;
+      return s + (q.reverse ? (3 - raw) : raw);
+    }, 0);
+    const level = rsesLevel(total);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed the Rosenberg Self-Esteem Scale, the most widely validated global self-worth measure.
+Total score: ${total}/30. Result: ${level.label}.
+
+Write a warm, practical 4-sentence response:
+1. Reflect the result honestly and without judgment
+2. Explain what self-esteem actually is — a global sense of self-worth, distinct from self-compassion (kindness toward yourself in hard moments) and self-efficacy (belief in your capability) which they may have also assessed
+3. If lower, connect this gently to relevant patterns already known about them if applicable (e.g. childhood schemas, core beliefs) without over-interpreting, and point to Limited Reparenting or Compassionate Self Practice as places to work with this directly
+4. End with one grounding, affirming sentence
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), total, level, answers:{...rsesAnswers}, summary:reply };
+      onSaveRses(profile);
+      setView("rses_profile");
+    } catch(e) {
+      onSaveRses({ id:uid(), date:today(), total, level, answers:{...rsesAnswers}, summary:"" });
+      setView("rses_profile");
+    } finally { setRsesLoading(false); }
   };
 
   // ── Score BIS/BAS Scale ──────────────────────────────────────────────────
@@ -5657,19 +5762,19 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
         </div>
       </div>
 
-      {/* TIPI Big Five */}
+      {/* BFI-44 Big Five */}
       <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #F5A623"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
           <span style={{fontSize:24}}>🧬</span>
           <div>
-            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Big Five Personality</div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Big Five Personality (Full)</div>
             <div style={{fontSize:12,color:PALETTE.soft}}>
-              {tipiProfile ? `${fmtDate(tipiProfile.date)} · Completed` : "10 questions · The most validated personality model in psychology"}
+              {tipiProfile ? `${fmtDate(tipiProfile.date)} · Completed` : "44 questions · The full, detailed version — far more precise than short screeners"}
             </div>
           </div>
         </div>
         <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
-          Extraversion, Agreeableness, Conscientiousness, Emotional Stability, Openness — helps Bea calibrate how she advises you.
+          Extraversion, Agreeableness, Conscientiousness, Neuroticism, Openness — helps Bea calibrate how she advises you.
         </p>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{setTipiAnswers({});setTipiStep(0);setView("tipi_q");}}
@@ -5678,6 +5783,30 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           </button>
           {tipiProfile && <button onClick={()=>setView("tipi_profile")}
             style={{...btnStyle("#F5A623",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Rosenberg Self-Esteem Scale */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #C45B8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🪟</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Self-Esteem Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {rsesProfile ? `${fmtDate(rsesProfile.date)} · ${rsesProfile.level.label} (${rsesProfile.total}/30)` : "10 questions · The gold-standard global self-worth measure"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          The Rosenberg Self-Esteem Scale — the most widely used and validated self-esteem instrument in psychology.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setRsesAnswers({});setRsesStep(0);setView("rses_q");}}
+            style={{...btnStyle("#C45B8B"),flex:1,color:"white"}}>
+            {rsesProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {rsesProfile && <button onClick={()=>setView("rses_profile")}
+            style={{...btnStyle("#C45B8B",true),flex:1}}>View Results</button>}
         </div>
       </div>
 
@@ -7136,7 +7265,7 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
               setReparentStep(0);
               setReparentAiScript("");
               setReparentFollowup("");
-              setReparentFollowupReply("");
+              setReparentThread([]);
               setView("reparent_work");
             }}
             style={{...btnStyle(s.domain.color,true),width:"100%",marginTop:10,fontSize:12}}>
@@ -7219,7 +7348,7 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
 
     return (
       <div>
-        <button onClick={()=>{setModeWorkSchema(null);setReparentAiScript("");setReparentFollowup("");setReparentFollowupReply("");setView("ysq_profile");}}
+        <button onClick={()=>{setModeWorkSchema(null);setReparentAiScript("");setReparentFollowup("");setReparentThread([]);setView("ysq_profile");}}
           style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
         <h3 style={sectionTitle}>🌱 Limited Reparenting</h3>
         <div style={{...card,marginBottom:16,borderLeft:`4px solid ${modeWorkSchema.domain.color}`}}>
@@ -7292,32 +7421,52 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
               );
             })}
 
-            {/* Continue the conversation */}
-            {!reparentFollowupReply && (
-              <div style={{...card,marginTop:8,background:`${modeWorkSchema.domain.color}0A`,border:`1px solid ${modeWorkSchema.domain.color}33`}}>
-                <div style={{fontSize:11,fontWeight:700,color:modeWorkSchema.domain.color,letterSpacing:1,marginBottom:8}}>
-                  TALK BACK TO THIS — KEEP GOING
-                </div>
-                <textarea value={reparentFollowup} onChange={e=>setReparentFollowup(e.target.value)}
-                  placeholder="What's coming up for you reading this? Does the critical voice push back? Does something feel unfinished? Say it here…"
-                  style={{...textareaStyle,minHeight:80,marginBottom:10}}/>
-                <button onClick={()=>getReparentFollowup(modeWorkSchema, reparentAiScript, reparentFollowup)}
-                  disabled={!reparentFollowup.trim()||reparentLoading}
-                  style={{...btnStyle(modeWorkSchema.domain.color),width:"100%",opacity:reparentFollowup.trim()?1:0.4}}>
-                  {reparentLoading?"🐝 Bea is with you…":"Continue →"}
-                </button>
+            {/* Continue the conversation — a real, open-ended back-and-forth */}
+            {reparentThread.length>0 && (
+              <div style={{marginTop:12,marginBottom:12,display:"flex",flexDirection:"column",gap:8}}>
+                {reparentThread.map((msg,i)=>(
+                  <div key={i} style={{
+                    alignSelf: msg.from==="user" ? "flex-end" : "flex-start",
+                    maxWidth:"88%",
+                    background: msg.from==="user" ? modeWorkSchema.domain.color : "white",
+                    color: msg.from==="user" ? "white" : PALETTE.dark,
+                    border: msg.from==="bea" ? `1px solid ${modeWorkSchema.domain.color}33` : "none",
+                    borderRadius:12, padding:"10px 14px", fontSize:14, lineHeight:1.7,
+                  }}>
+                    {msg.from==="bea" && (
+                      <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                        <BeeMascot size={20}/>
+                        <span style={{fontWeight:700,color:modeWorkSchema.domain.color,fontSize:11}}>Bea</span>
+                      </div>
+                    )}
+                    {msg.text}
+                  </div>
+                ))}
               </div>
             )}
 
-            {reparentFollowupReply && (
-              <div style={{...card,marginTop:8,borderLeft:`4px solid ${modeWorkSchema.domain.color}`,background:`${modeWorkSchema.domain.color}0D`}}>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-                  <BeeMascot size={26}/>
-                  <span style={{fontWeight:700,color:modeWorkSchema.domain.color,fontSize:13}}>Bea continues with you</span>
-                </div>
-                <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.8}}>{reparentFollowupReply}</p>
+            {reparentLoading && (
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                <BeeMascot size={24} animated/>
+                <span style={{fontSize:12,color:PALETTE.soft,fontStyle:"italic"}}>Bea is with you…</span>
               </div>
             )}
+
+            <div style={{...card,marginBottom:12,background:`${modeWorkSchema.domain.color}0A`,border:`1px solid ${modeWorkSchema.domain.color}33`}}>
+              <div style={{fontSize:11,fontWeight:700,color:modeWorkSchema.domain.color,letterSpacing:1,marginBottom:8}}>
+                {reparentThread.length===0 ? "TALK BACK TO THIS — KEEP GOING" : "KEEP GOING — REPLY TO BEA"}
+              </div>
+              <textarea value={reparentFollowup} onChange={e=>setReparentFollowup(e.target.value)}
+                placeholder={reparentThread.length===0
+                  ? "What's coming up for you reading this? Does the critical voice push back? Does something feel unfinished? Say it here…"
+                  : "Keep replying for as long as you need to…"}
+                style={{...textareaStyle,minHeight:80,marginBottom:10}}/>
+              <button onClick={()=>getReparentFollowup(modeWorkSchema, reparentAiScript, reparentFollowup, reparentThread)}
+                disabled={!reparentFollowup.trim()||reparentLoading}
+                style={{...btnStyle(modeWorkSchema.domain.color),width:"100%",opacity:reparentFollowup.trim()?1:0.4}}>
+                {reparentLoading?"🐝 Bea is with you…":"Continue →"}
+              </button>
+            </div>
 
             <button onClick={()=>{
                 saveReparentSession(modeWorkSchema, reparentAnswers, reparentAiScript);
@@ -7325,9 +7474,9 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
                 setReparentStep(0);
                 setReparentAiScript("");
                 setReparentFollowup("");
-                setReparentFollowupReply("");
+                setReparentThread([]);
               }}
-              style={{...btnStyle("#6B3A4A"),width:"100%",marginTop:14,color:"white"}}>
+              style={{...btnStyle("#6B3A4A",true),width:"100%",color:"#6B3A4A"}}>
               ✓ Save This Session & Finish for Now
             </button>
           </div>
@@ -8537,8 +8686,8 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
 
   // ── VALUES CARD SORT — sort each card ───────────────────────────────────
   if(view==="cardsort_q" && cardSortDomain) {
-    const card_ = VALUES_CARD_LIST[cardSortIndex];
-    const total = VALUES_CARD_LIST.length;
+    const card_ = cardSortDomain.cards[cardSortIndex];
+    const total = cardSortDomain.cards.length;
     const progress = Math.round((cardSortIndex/total)*100);
     const isLast = cardSortIndex===total-1;
 
@@ -8630,16 +8779,16 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
   // ── TIPI BIG FIVE QUESTIONNAIRE ──────────────────────────────────────────
   if(view==="tipi_q") {
     const i = tipiStep;
-    const total = TIPI_QUESTIONS.length;
+    const total = BFI_QUESTIONS.length;
     const progress = Math.round((i/total)*100);
-    const allAnswered = TIPI_QUESTIONS.every((_,idx)=>tipiAnswers[idx]!==undefined);
+    const allAnswered = BFI_QUESTIONS.every((_,idx)=>tipiAnswers[idx]!==undefined);
 
     return (
       <div>
         <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
-        <h3 style={sectionTitle}>🧬 Big Five Personality</h3>
+        <h3 style={sectionTitle}>🧬 Big Five Personality (Full)</h3>
         <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
-          I see myself as someone who is…
+          I see myself as someone who…
         </p>
         <div style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
@@ -8650,10 +8799,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           </div>
         </div>
         <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #F5A623"}}>
-          <p style={{margin:0,fontSize:18,color:PALETTE.dark,lineHeight:1.7,fontWeight:600}}>{TIPI_QUESTIONS[i].text}</p>
+          <p style={{margin:0,fontSize:18,color:PALETTE.dark,lineHeight:1.7,fontWeight:600}}>{BFI_QUESTIONS[i].text}</p>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
-          {TIPI_SCALE.map(opt=>{
+          {BFI_SCALE.map(opt=>{
             const sel = tipiAnswers[i]===opt.val;
             return (
               <button key={opt.val} onClick={()=>{
@@ -8685,11 +8834,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     );
   }
 
-  // ── TIPI RESULTS ──────────────────────────────────────────────────────────
+  // ── BIG FIVE RESULTS ──────────────────────────────────────────────────────
   if(view==="tipi_profile" && tipiProfile) return (
     <div>
       <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
-      <h3 style={sectionTitle}>🧬 My Big Five Profile</h3>
+      <h3 style={sectionTitle}>🧬 My Big Five Profile (Full)</h3>
       <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(tipiProfile.date)}</p>
       {Object.values(tipiProfile.dimScores).map(d=>(
         <div key={d.label} style={{...card,marginBottom:10,borderLeft:`4px solid ${d.color}`}}>
@@ -8697,10 +8846,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <span style={{fontSize:20}}>{d.emoji}</span>
             <span style={{fontWeight:700,color:d.color,fontSize:14,flex:1}}>{d.label}</span>
             <span style={{fontWeight:800,color:d.color,fontSize:16}}>{d.avg}</span>
-            <span style={{fontSize:10,color:PALETTE.soft}}>/7</span>
+            <span style={{fontSize:10,color:PALETTE.soft}}>/5</span>
           </div>
           <div style={{height:6,background:"#EEE",borderRadius:3,marginBottom:6}}>
-            <div style={{height:"100%",width:`${(d.avg/7)*100}%`,background:d.color,borderRadius:3}}/>
+            <div style={{height:"100%",width:`${(d.avg/5)*100}%`,background:d.color,borderRadius:3}}/>
           </div>
           <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>{d.desc}</p>
         </div>
@@ -8716,6 +8865,92 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
       )}
       <button onClick={()=>{setTipiAnswers({});setTipiStep(0);setView("tipi_q");}}
         style={{...btnStyle("#F5A623",true),width:"100%",marginTop:16}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── ROSENBERG SELF-ESTEEM QUESTIONNAIRE ──────────────────────────────────
+  if(view==="rses_q") {
+    const i = rsesStep;
+    const total = RSES_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = RSES_QUESTIONS.every((_,idx)=>rsesAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🪟 Self-Esteem Scale</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how much you agree with each statement about yourself.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#C45B8B",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #C45B8B"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{RSES_QUESTIONS[i].text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {RSES_SCALE.map(opt=>{
+            const sel = rsesAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setRsesAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setRsesStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#C45B8B":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #C45B8B66":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setRsesStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>rsesAnswers[i]!==undefined&&setRsesStep(s=>s+1)} disabled={rsesAnswers[i]===undefined}
+              style={{...btnStyle("#C45B8B"),flex:1,opacity:rsesAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreRses} disabled={!allAnswered||rsesLoading}
+              style={{...btnStyle("#C45B8B"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {rsesLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── ROSENBERG SELF-ESTEEM RESULTS ────────────────────────────────────────
+  if(view==="rses_profile" && rsesProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🪟 My Self-Esteem Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(rsesProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${rsesProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:rsesProfile.level.color}}>{rsesProfile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 30</div>
+        <div style={{display:"inline-block",background:rsesProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {rsesProfile.level.label}
+        </div>
+      </div>
+      {rsesProfile.summary && (
+        <div style={{...card,marginBottom:16,background:"#C45B8B0D",border:"1.5px solid #C45B8B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#C45B8B",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{rsesProfile.summary}</p>
+        </div>
+      )}
+      <button onClick={()=>{setRsesAnswers({});setRsesStep(0);setView("rses_q");}}
+        style={{...btnStyle("#C45B8B",true),width:"100%"}}>Redo Assessment</button>
     </div>
   );
 
@@ -10572,6 +10807,7 @@ export default function BeeWell() {
   const [onboarded, setOnboarded] = usePersistedState("onboarded", false);
   const [userName, setUserName] = usePersistedState("userName", "");
   useEffect(() => { setBeeUserName(userName); }, [userName]);
+
   const [tab, setTab] = useState("mood"); // current tab — no need to persist
   const [moodLogs, setMoodLogs]     = usePersistedState("moodLogs", []);
   const [feelItems, setFeelItems]       = usePersistedState("feelItems", []);
@@ -10592,6 +10828,7 @@ export default function BeeWell() {
   const [cardSortProfile, setCardSortProfile] = usePersistedState("cardSortProfile", []);
   const [ngseProfile, setNgseProfile] = usePersistedState("ngseProfile", null);
   const [tipiProfile, setTipiProfile] = usePersistedState("tipiProfile", null);
+  const [rsesProfile, setRsesProfile] = usePersistedState("rsesProfile", null);
   const [bisBasProfile, setBisBasProfile] = usePersistedState("bisBasProfile", null);
   const [procrastinationProfile, setProcrastinationProfile] = usePersistedState("procrastinationProfile", null);
   const [phq9Profile, setPhq9Profile] = usePersistedState("phq9Profile", null);
@@ -10614,6 +10851,61 @@ export default function BeeWell() {
   const [valuesJump, setValuesJump] = useState(null); // deep-link request into ValuesGoals
   const [goalsJump, setGoalsJump] = useState(null); // deep-link request into GoalsHub
   const [lastCheckedInId, setLastCheckedInId] = usePersistedState("lastCheckedInId", null); // avoid re-asking about the same problem
+
+  // ── Bea's full understanding of this person ──────────────────────────────
+  // Rebuilt whenever anything relevant changes, and pushed into the module-level
+  // context so every single askBee call anywhere in the app automatically has it —
+  // no need to thread it through every component and prompt individually.
+  useEffect(() => {
+    const parts = [];
+    if(valuesProfile?.top3) parts.push(`VALUES (VLQ): Top values are ${valuesProfile.top3.map(v=>v.label).join(", ")}.${valuesProfile.gaps?.length>0 ? ` Values gaps (important but not lived): ${valuesProfile.gaps.map(g=>g.label).join(", ")}.` : ""}`);
+    if(cardSortProfile?.length>0) parts.push(`VALUES CARD SORT: ${cardSortProfile.map(p=>`${p.domainLabel} — very important: ${p.veryImportant.join(", ")}`).join("; ")}.`);
+    if(dasProfile) parts.push(`CORE BELIEFS (DAS): Vulnerable domains: ${dasProfile.highest?.map(d=>d.label).join(", ")||"none significant"}. Strengths: ${dasProfile.lowest?.map(d=>d.label).join(", ")||"none notable"}.`);
+    if(ysqProfile) parts.push(`CHILDHOOD SCHEMAS (YSQ): Most elevated patterns: ${ysqProfile.top3?.map(s=>s.label).join(", ")}. Likely active schema mode: ${ysqProfile.activeModes?.[0]?.label||"Healthy Adult"}.`);
+    if(fcsProfile) parts.push(`FEARS OF COMPASSION: Highest fear is ${fcsProfile.highest?.label}.`);
+    if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level?.label} (avg ${scsProfile.avg}/5).`);
+    if(phq9Profile) parts.push(`MOOD SCREENING (PHQ-9): ${phq9Profile.severity?.label}.`);
+    if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity?.label}.`);
+    if(pcl5Profile) parts.push(`TRAUMA SCREENING (PCL-5): ${pcl5Profile.severity?.label}.`);
+    if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level?.label}.`);
+    if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level?.label}, strongest pattern: ${ruminationProfile.highest?.label}.`);
+    if(tipiProfile) parts.push(`BIG FIVE PERSONALITY (full BFI-44): ${Object.values(tipiProfile.dimScores||{}).map(d=>`${d.label} ${d.avg}/5`).join(", ")}.`);
+    if(rsesProfile) parts.push(`SELF-ESTEEM (Rosenberg): ${rsesProfile.level?.label} (${rsesProfile.total}/30).`);
+    if(bisBasProfile) parts.push(`MOTIVATION STYLE (BIS/BAS): Dominant system is ${bisBasProfile.dominant}.`);
+    if(procrastinationProfile) parts.push(`PROCRASTINATION TENDENCY: ${procrastinationProfile.level?.label}.`);
+    if(ngseProfile) parts.push(`SELF-EFFICACY: ${ngseProfile.level?.label}.`);
+    if(goalsProfile) parts.push(`GOALS QUESTIONNAIRE: Best-positioned goal "${goalsProfile.strongest?.[0]?.text}". At-risk: ${goalsProfile.atRisk?.map(g=>g.text).join(", ")||"none"}.`);
+    if(smartPlans?.length>0) parts.push(`ACTIVE SMART PLANS: ${smartPlans.slice(0,5).map(p=>p.goal).filter(Boolean).join("; ")}.`);
+    if(limitingBeliefs?.length>0) parts.push(`LIMITING BELIEFS EXAMINED: ${limitingBeliefs.slice(0,5).map(b=>b.answers?.lb1).filter(Boolean).join("; ")}.`);
+
+    // Actual therapeutic work and what they've shared, not just scores
+    const journalEntries = Object.entries(reparentingJournal||{}).filter(([,sessions])=>sessions?.length>0);
+    if(journalEntries.length>0) {
+      const schemaWork = journalEntries.map(([id,sessions])=>{
+        const schema = YSQ_SCHEMAS.find(s=>s.id===id);
+        const lastSession = sessions[sessions.length-1];
+        return `${schema?.label||id} (${sessions.length} session${sessions.length>1?"s":""}${lastSession?.healthyAdult ? `, most recent Healthy Adult statement: "${lastSession.healthyAdult.slice(0,150)}"` : ""})`;
+      }).join("; ");
+      parts.push(`LIMITED REPARENTING WORK: ${schemaWork}.`);
+    }
+    if(griefEntries?.length>0) parts.push(`GRIEF: ${griefEntries.slice(0,3).map(e=>`lost "${e.answers?.who}" — hardest part: "${e.answers?.hardest?.slice(0,100)}"`).join("; ")}.`);
+    if(rescripts?.length>0) parts.push(`IMAGERY RESCRIPTING: ${rescripts.length} memor${rescripts.length===1?"y":"ies"} worked through, most recent: "${rescripts[0]?.answers?.scene?.slice(0,100)}".`);
+    if(loopEntries?.length>0) parts.push(`RECENT THOUGHT LOOPS: ${loopEntries.slice(0,3).map(l=>l.answers?.loop?.slice(0,80)).filter(Boolean).join("; ")}.`);
+    if(modeCheckIns?.length>0) parts.push(`RECENT SCHEMA MODES NOTICED: ${modeCheckIns.slice(0,5).map(c=>c.modeLabel).join(", ")}.`);
+    if(circlesEntries?.length>0) parts.push(`THREE CIRCLES: most recent reflection: "${circlesEntries[0]?.reflection?.slice(0,150)}".`);
+    if(eatingEntries?.length>0) parts.push(`EMOTIONAL EATING PATTERNS: most common trigger feeling ${eatingEntries[0]?.emotionLabel}, ${eatingEntries.length} entries logged.`);
+    if(difficultItems?.length>0) {
+      const recent = difficultItems.filter(i=>i.status!=="released").slice(0,3);
+      if(recent.length>0) parts.push(`RECENT PROBLEMS SHARED: ${recent.map(i=>i.text?.slice(0,100)).join("; ")}.`);
+    }
+    if(masterSummary?.summary) parts.push(`MOST RECENT FULL SUMMARY GIVEN: "${masterSummary.summary.slice(0,400)}".`);
+
+    setBeeContext(parts.length>0 ? parts.join("\n") : "");
+  }, [valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
+      pcl5Profile, worryProfile, ruminationProfile, tipiProfile, rsesProfile, bisBasProfile, procrastinationProfile, ngseProfile,
+      goalsProfile, smartPlans, limitingBeliefs, reparentingJournal, griefEntries, rescripts, loopEntries,
+      modeCheckIns, circlesEntries, eatingEntries, difficultItems, masterSummary]);
+
 
   const handleResetAll = () => {
     clearAllPersisted();
@@ -10869,6 +11161,8 @@ export default function BeeWell() {
           onSaveNgse={setNgseProfile}
           tipiProfile={tipiProfile}
           onSaveTipi={setTipiProfile}
+          rsesProfile={rsesProfile}
+          onSaveRses={setRsesProfile}
           bisBasProfile={bisBasProfile}
           onSaveBisBas={setBisBasProfile}
           procrastinationProfile={procrastinationProfile}

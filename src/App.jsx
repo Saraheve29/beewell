@@ -67,10 +67,11 @@ const EMOTIONS = [
   { label:"Happy",      emoji:"😊", color:"#F5A623", valence:"positive", score:8  },
   { label:"Hopeful",    emoji:"🌟", color:"#FFD700", valence:"positive", score:7  },
   { label:"Loved",      emoji:"🥰", color:"#FF6B9D", valence:"positive", score:7  },
+  { label:"Energised",  emoji:"⚡", color:"#F5A623", valence:"positive", score:8, physical:true },
+  { label:"Healthy",    emoji:"💪", color:"#7BB369", valence:"positive", score:8, physical:true },
   // Neutral
   { label:"Okay",       emoji:"😐", color:"#A8937E", valence:"neutral",  score:6  },
   { label:"Calm",       emoji:"😊", color:"#5B9BD5", valence:"neutral",  score:6  },
-  { label:"Tired",      emoji:"😴", color:"#9B8BC4", valence:"neutral",  score:5  },
   { label:"Confused",   emoji:"🤔", color:"#6B9BB8", valence:"neutral",  score:4  },
   // Difficult
   { label:"Anxious",    emoji:"😰", color:"#E8737A", valence:"difficult", score:3 },
@@ -80,6 +81,9 @@ const EMOTIONS = [
   { label:"Low",        emoji:"😔", color:"#9B8BC4", valence:"difficult", score:2 },
   { label:"Struggling", emoji:"💔", color:"#C45B6A", valence:"difficult", score:1 },
   { label:"Overwhelmed",emoji:"😵", color:"#A05080", valence:"difficult", score:1 },
+  { label:"Tired",      emoji:"😴", color:"#9B8BC4", valence:"difficult", score:2, physical:true },
+  { label:"Unwell",     emoji:"🤒", color:"#E8737A", valence:"difficult", score:2, physical:true },
+  { label:"In Pain",    emoji:"🤕", color:"#CC2200", valence:"difficult", score:1, physical:true },
 ];
 const MOODS = EMOTIONS; // legacy alias
 
@@ -676,16 +680,21 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
 
   const handleSave = () => {
     if(!emotion || !rating) return;
+    // If the emotion itself IS a physical state (Tired/Unwell/In Pain/Energised/Healthy),
+    // record it as the physical field too, so the "how's your body now?" check-in works.
+    const physicalState = emotion.physical
+      ? { label: emotion.label, emoji: emotion.emoji, valence: emotion.valence }
+      : physical;
     // Save the mood log
-    onSaveMood({ id:uid(), date:today(), mood:emotion, rating, physical, note:followupText });
+    onSaveMood({ id:uid(), date:today(), mood:emotion, rating, physical: physicalState, note:followupText });
     // Auto-save to appropriate box if text was entered
     if(followupText.trim()) {
       if(emotion.valence === "positive") {
         onAddFeel({ id:uid(), text:followupText.trim(), type:"moment",
-          source:`Felt ${emotion.label} (${rating}/10)${physical ? ` · ${physical.emoji} ${physical.label}` : ""}`, date:today() });
+          source:`Felt ${emotion.label} (${rating}/10)`, date:today() });
       } else if(emotion.valence === "difficult") {
         onAddDifficult({ id:uid(), text:followupText.trim(),
-          emotion: emotion.label, physical: physical?.label, date:today(), status:"pending" });
+          emotion: emotion.label, physical: physicalState?.label, date:today(), status:"pending" });
       }
     }
     setSaved(true);
@@ -846,15 +855,15 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
         {/* Three big attractive group buttons */}
         {[
           { valence:"positive", label:"Positive",  emoji:"☀️",
-            sub:"Joyful · Excited · Grateful · Peaceful · Happy · Hopeful · Loved",
+            sub:"Joyful · Excited · Grateful · Peaceful · Happy · Hopeful · Loved · Energised · Healthy",
             grad:"linear-gradient(135deg,#F5A623,#FFD700)",
             shadow:"0 4px 20px rgba(245,166,35,0.45)" },
           { valence:"neutral",  label:"Neutral",   emoji:"🌤️",
-            sub:"Okay · Calm · Tired · Confused",
+            sub:"Okay · Calm · Confused",
             grad:"linear-gradient(135deg,#6B9BB8,#9B8BC4)",
             shadow:"0 4px 20px rgba(107,155,184,0.45)" },
           { valence:"difficult",label:"Difficult", emoji:"🌧️",
-            sub:"Anxious · Angry · Sad · Low · Overwhelmed · Irritated · Struggling",
+            sub:"Anxious · Angry · Sad · Low · Overwhelmed · Irritated · Struggling · Tired · Unwell · In Pain",
             grad:"linear-gradient(135deg,#C45B6A,#9B6BC4)",
             shadow:"0 4px 20px rgba(196,91,106,0.4)" },
         ].map(group=>(
@@ -1064,52 +1073,15 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
             </span>
           </div>
         )}
-        <button onClick={()=>rating&&setStep("physical")} disabled={!rating}
+        <button onClick={()=>rating&&setStep("followup")} disabled={!rating}
           style={{...btnStyle(emotion.color), opacity:rating?1:0.4, width:"100%"}}>
           Next →
         </button>
       </>}
 
-      {/* Step 2.5 — Physical state */}
-      {step === "physical" && emotion && <>
-        <button onClick={()=>setStep("rating")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
-        <h3 style={sectionTitle}>How's your body feeling?</h3>
-        <p style={{color:PALETTE.soft,fontSize:13,marginBottom:20}}>Physical state matters too — pick what fits, or skip.</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:24}}>
-          {PHYSICAL_STATES.map(p=>{
-            const isSelected = physical?.label===p.label;
-            return (
-              <button key={p.label} onClick={()=>setPhysical(p)}
-                style={{
-                  padding:"14px 10px",borderRadius:14,border:"none",cursor:"pointer",
-                  background: isSelected ? p.color : "#F5F3F0",
-                  color: isSelected ? "white" : PALETTE.mid,
-                  fontWeight:700,fontSize:14,textAlign:"center",
-                  transform: isSelected?"scale(1.04)":"scale(1)",
-                  transition:"all .15s",
-                  boxShadow: isSelected?`0 3px 10px ${p.color}66`:"none",
-                }}>
-                <div style={{fontSize:24,marginBottom:4}}>{p.emoji}</div>
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{setPhysical(null);setStep("followup");}}
-            style={{...btnStyle("#EEE",true),color:PALETTE.mid,flex:1}}>
-            Skip
-          </button>
-          <button onClick={()=>setStep("followup")} disabled={!physical}
-            style={{...btnStyle(physical?.color||emotion.color),flex:2,opacity:physical?1:0.4}}>
-            Next →
-          </button>
-        </div>
-      </>}
-
       {/* Step 3 — Follow-up question */}
       {step === "followup" && emotion && <>
-        <button onClick={()=>setStep("physical")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <button onClick={()=>setStep("rating")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
         <div style={{...card, background: emotion.valence==="positive"?`${PALETTE.honey}18`:`${PALETTE.lavender}18`, marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
             <BeeMascot size={28}/>

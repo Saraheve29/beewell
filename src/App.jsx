@@ -537,12 +537,22 @@ async function askBee(messages) {
       body:JSON.stringify({
         model:"claude-sonnet-4-6",
         max_tokens:1000,
-        system:`You are Bea — a warm, gentle bee therapist mascot for BeeWell, a mental wellness app.
-${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use their name naturally and sparingly where it feels warm — not in every message, and never forced.` : ""}
-You are non-judgmental, supportive, and use calm, encouraging language.
-Keep responses concise (2-4 sentences) and conversational.
+        system:`You are Bea — a warm, gentle bee therapist mascot for BeeWell, a mental wellness app. You are not a generic assistant — you know this person intimately through everything they've shared and every assessment they've completed, and you care genuinely about their wellbeing.
+${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use their name naturally and warmly where it feels right — not in every message, and never forced.` : ""}
+You are non-judgmental, supportive, warm and calm.
+Keep responses concise and conversational — one clear thought, occasionally two, never a wall of text.
+Never use bullet points, numbered lists, or markdown formatting (no **, no *, no headers) in conversational replies — speak the way a warm person speaks, in flowing sentences.
 Occasionally use 🐝 at the end of a thought, but sparingly.
-You are equipped to do real, ongoing therapeutic work across CBT, ACT, Schema Therapy, Compassion-Focused Therapy, grief support and more — engage fully and directly with whatever the person brings, continuing across sessions rather than deflecting. Only suggest outside professional or crisis support if there are genuine signs of active self-harm, suicidal ideation, or immediate danger to the person or someone else — never as a general caveat or to avoid doing deeper work.
+
+CRITICAL — accessibility and pacing: This person has autism and finds multiple or open-ended questions genuinely overwhelming to process — this is an accessibility need, not a preference to be gently overridden. If you need to ask something, ask exactly ONE question per response, never more. If several things feel worth asking, pick the single most important one and hold the rest for later. Support this pacing warmly, without pushing for more than one thing at a time even when it would be efficient to ask more.
+
+CRITICAL — order of response: Always validate and empathise with what the person just shared BEFORE moving to advice, a tool suggestion, or a question. Even one sentence of genuine acknowledgment first. Never open with analysis, a fix, or a question — feeling heard comes first, every time.
+
+CRITICAL — using what you know: You are not a stateless assistant meeting this person for the first time. You have a real, standing understanding of them built from every assessment they've completed and everything they've shared in past sessions (provided below when available). Actively draw on this — reference their actual values, their known schema patterns, their fatigue/pacing history, their goals, their past reparenting work — the way a therapist who has seen this client for months would, connecting today's conversation to what you already know rather than treating each message in isolation. Do this naturally, in your own words, never by listing facts or citing "your assessment showed X."
+
+Noticing patterns: When something in today's conversation echoes a pattern you already know about them (a recurring schema, a repeated thought loop, a fatigue crash after the same kind of activity, the same limiting belief resurfacing) — gently name the pattern rather than treating it as new each time. This is one of the most valuable things a long-term therapist offers: showing someone their own patterns back to them with care, not judgment.
+
+You are equipped to do real, ongoing therapeutic work across CBT, ACT, Schema Therapy, Compassion-Focused Therapy, grief support, chronic illness support and more — engage fully and directly with whatever the person brings, continuing across sessions rather than deflecting. Only suggest outside professional or crisis support if there are genuine signs of active self-harm, suicidal ideation, or immediate danger to the person or someone else — never as a general caveat or to avoid doing deeper work.
 Never give medical advice (e.g. medication, diagnosis).
 ${_beeContext ? `\nHere is your ongoing understanding of this specific person, built from everything they've shared and every assessment they've completed — draw on this naturally wherever it's relevant, the way a therapist would remember a client between sessions, without narrating that you're doing so:\n${_beeContext}` : ""}`,
         messages,
@@ -1022,7 +1032,7 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
         {/* Quick-access: stuck in a thought loop right now */}
         <button onClick={()=>onQuickLoop?.()}
           style={{
-            width:"100%",marginBottom:16,padding:"10px 14px",
+            width:"100%",marginBottom:8,padding:"10px 14px",
             background:"rgba(58,107,139,0.10)",
             border:"1px solid rgba(58,107,139,0.3)",borderRadius:12,cursor:"pointer",
             display:"flex",alignItems:"center",gap:8,
@@ -1365,10 +1375,16 @@ Based on BOTH the problem itself AND what you know about this person's specific 
 - Behavioural Activation (best for low motivation, withdrawal, or needing to take a small concrete step)
 - Willingness Meter (best for pain that can't be changed, needing to carry a feeling while still moving forward)
 - Grief Box (best when the problem involves loss of any kind — a person, relationship, or life that used to be)
+- Chronic Illness Grief (best when the problem involves grieving capability, identity, or the life someone expected, specifically because of an ongoing/chronic illness — distinct from Grief Box, which is for loss of a person/relationship)
+- Pacing Log (best when the problem is a chronic illness flare-up, especially CFS/ME, that seems linked to having overexerted — e.g. mentions "boom-bust", a flare after activity, or an ongoing condition they've mentioned before like CFS/ME/chronic fatigue)
+- Fatigue Severity Scale (best when someone wants to understand or track ongoing/chronic fatigue severity, not a one-off tired day)
+- Illness Acceptance (best when someone is fighting against or resisting an unchangeable chronic illness reality, and needs to redirect energy toward what's controllable)
 - Emotional Eating Support (best when the problem involves eating in response to feelings rather than hunger)
 - Loop Interrupt (best when the problem is a repetitive thought loop about someone else's actions, an argument, or distressing external content like conflict/news — not a self-critical thought)
-- Bea Chat (best for general processing, feeling heard, when nothing else clearly fits)
+- Bea Chat (best for general processing, feeling heard, when nothing else clearly fits — including short-term illness like flu, a cold, or a one-off unwell day that ISN'T part of an ongoing chronic condition; for these, just offer warm comfort and permission to rest directly in your reasoning, don't recommend a specialised tool)
 - Release to Sea (best for worries entirely outside their control, or things from the past they cannot change)
+
+IMPORTANT DISTINCTION: if someone mentions feeling "unwell," "tired," or "in pain" without more context, this is ambiguous between (a) a one-off illness like flu/a cold — which just needs warmth and permission to rest, best handled via Bea Chat — and (b) an ongoing chronic condition (CFS/ME, a flare-up, a pattern of crashes after activity) — which needs Pacing Log, Fatigue Severity Scale, or Illness Acceptance. If you don't have enough context to tell these apart, ask a clarifying question rather than guessing (e.g. "Is this a short-term thing like a cold or flu, or does this connect to an ongoing health condition?").
 
 The problem as written may be too brief or factual (e.g. "I have a meeting today") to confidently match a tool — it states an event but not what's actually distressing about it.
 
@@ -1494,6 +1510,10 @@ If nothing fits well, reply only: NONE_FIT`
       "Behavioural Activation": ()=>onSetTab("activate"),
       "Willingness Meter":      ()=>onSetTab("act"),
       "Grief Box":              ()=>onSetValuesJump?.("grief_q"),
+      "Chronic Illness Grief":  ()=>onSetValuesJump?.("illnessgrief_q"),
+      "Pacing Log":             ()=>onSetValuesJump?.("pacing_q"),
+      "Fatigue Severity Scale": ()=>onSetValuesJump?.("fatigue_q"),
+      "Illness Acceptance":     ()=>onSetValuesJump?.("acceptance_q"),
       "Emotional Eating Support": ()=>onSetValuesJump?.("eating_q"),
       "Loop Interrupt":           ()=>onSetValuesJump?.("loop_q"),
       "Bea Chat":               ()=>onSetTab("bea"),
@@ -3950,6 +3970,84 @@ const GRIEF_INVENTORY_QUESTIONS = [
    placeholder:"This doesn't need an answer yet if you're not ready."},
 ];
 
+// ── Fatigue Severity Scale — following the validated Chalder Fatigue Scale ──
+// structure (7 physical + 4 mental fatigue items, 0-3 scale, total 0-33).
+// Freshly worded rather than copying the copyrighted exact text, since that
+// instrument requires formal permission from King's College London for
+// systematic/redistributed use — this preserves the identical clinical
+// structure and scoring for personal tracking use.
+const FATIGUE_SCALE = [
+  {val:0, label:"Less than usual"},
+  {val:1, label:"No more than usual"},
+  {val:2, label:"More than usual"},
+  {val:3, label:"Much more than usual"},
+];
+const FATIGUE_QUESTIONS = [
+  {text:"Do you have problems with tiredness?", type:"physical"},
+  {text:"Do you need to rest more than you used to?", type:"physical"},
+  {text:"Do you feel sleepy or drowsy during the day?", type:"physical"},
+  {text:"Do you have problems starting things?", type:"physical"},
+  {text:"Do you lack energy?", type:"physical"},
+  {text:"Do you have less strength in your muscles?", type:"physical"},
+  {text:"Do you feel weak?", type:"physical"},
+  {text:"Do you have difficulty concentrating?", type:"mental"},
+  {text:"Do you have problems thinking clearly?", type:"mental"},
+  {text:"Do you make slips of the tongue when speaking?", type:"mental"},
+  {text:"Is your memory worse than usual?", type:"mental"},
+];
+const fatigueLevel = (total) => {
+  if(total<=10) return {label:"Minimal Fatigue", color:"#7BB369"};
+  if(total<=18) return {label:"Moderate Fatigue", color:"#D4AF37"};
+  if(total<=25) return {label:"Significant Fatigue", color:"#E8891A"};
+  return                {label:"Severe Fatigue", color:"#8B1A1A"};
+};
+
+// ── Pacing / Boom-Bust Log — core CFS/ME management tool ────────────────────
+// Tracks exertion against symptoms afterward, so patterns like "activity →
+// crash the next day" become visible and plannable around, rather than
+// discovered painfully each time.
+const EXERTION_LEVELS = [
+  {val:1, label:"Very Low", emoji:"🛌", desc:"Mostly resting"},
+  {val:2, label:"Low",      emoji:"🪑", desc:"Light activity, seated"},
+  {val:3, label:"Moderate", emoji:"🚶", desc:"Some movement, chores, short outings"},
+  {val:4, label:"High",     emoji:"🏃", desc:"Significant activity, socialising, exercise"},
+  {val:5, label:"Very High",emoji:"⚡", desc:"Major exertion — an event, sport, long day out"},
+];
+const CRASH_SEVERITY = [
+  {val:0, label:"No crash — felt fine after", color:"#7BB369"},
+  {val:1, label:"Mild dip",                   color:"#D4AF37"},
+  {val:2, label:"Noticeable crash",           color:"#E8891A"},
+  {val:3, label:"Severe flare-up",            color:"#8B1A1A"},
+];
+
+// ── Chronic Illness Grief — distinct from the death/loss Grief Box ──────────
+// Mourning the loss of pre-illness capability, identity, plans, or the life
+// you expected — a recognised but distinct form of grief that doesn't fit
+// the death-oriented framing of the main Grief Box.
+const ILLNESS_GRIEF_QUESTIONS = [
+  {field:"lost",     label:"What's Changed",     question:"What has your illness taken from you, or changed, that you're grieving? A capability, a role, a version of your future, your energy, your independence — anything.",
+   placeholder:"Be as specific or as broad as feels true…"},
+  {field:"hardest",  label:"The Hardest Part",   question:"What's the hardest part of this particular loss for you?",
+   placeholder:"There's no wrong answer — whatever is true for you right now."},
+  {field:"trigger",  label:"What Brought This Up", question:"Was there something specific that made this loss feel present today — an event, a comparison, a memory of how things used to be?",
+   placeholder:"e.g. Seeing others do something I used to be able to do…"},
+  {field:"stillhave",label:"What's Still True",   question:"Separate from what's changed — what's still true about who you are, even with this illness?",
+   placeholder:"This doesn't need to feel resolved — just what still feels true."},
+];
+
+// ── Illness Acceptance — ACT-informed, based on Illness Cognition concepts ──
+const ACCEPTANCE_QUESTIONS = [
+  {field:"fighting",  label:"What You're Fighting", question:"Is there a part of your illness you're currently fighting against or wishing were different, right now?",
+   placeholder:"e.g. Wishing I could still do what I used to without paying for it later…"},
+  {field:"cost",      label:"The Cost of Fighting", question:"What does fighting or resisting this cost you — emotionally, physically, or otherwise?",
+   placeholder:"Sometimes resistance itself uses energy we don't have to spare."},
+  {field:"withinControl", label:"Within Your Control", question:"Separate from the illness itself — what genuinely is within your control right now?",
+   placeholder:"e.g. How I pace today. Who I ask for help. What I say no to."},
+  {field:"valuedDespite", label:"What Still Matters", question:"What matters to you that you can still move toward, even in some small way, alongside this illness?",
+   placeholder:"Not despite pretending the illness isn't there — genuinely alongside it."},
+];
+
+
 // ── Emotional Eating — CBT-E informed ────────────────────────────────────────
 const EATING_TRIGGER_EMOTIONS = [
   {id:"sad",        emoji:"😢", label:"Sadness"},
@@ -4097,6 +4195,10 @@ function InnerWork(props) {
           ngseProfile={props.ngseProfile} onSaveNgse={props.onSaveNgse}
           tipiProfile={props.tipiProfile} onSaveTipi={props.onSaveTipi}
           rsesProfile={props.rsesProfile} onSaveRses={props.onSaveRses}
+          fatigueProfile={props.fatigueProfile} onSaveFatigue={props.onSaveFatigue}
+          pacingLog={props.pacingLog} onSavePacing={props.onSavePacing}
+          illnessGriefEntries={props.illnessGriefEntries} onSaveIllnessGrief={props.onSaveIllnessGrief}
+          acceptanceEntries={props.acceptanceEntries} onSaveAcceptance={props.onSaveAcceptance}
           bisBasProfile={props.bisBasProfile} onSaveBisBas={props.onSaveBisBas}
           procrastinationProfile={props.procrastinationProfile} onSaveProcrastination={props.onSaveProcrastination}
         />
@@ -4111,7 +4213,7 @@ function InnerWork(props) {
   );
 }
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses }) {
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses, fatigueProfile, onSaveFatigue, pacingLog, onSavePacing, illnessGriefEntries, onSaveIllnessGrief, acceptanceEntries, onSaveAcceptance }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
   const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
@@ -4154,6 +4256,31 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
       setGriefStep(0);
       setGriefAiReflection("");
       setView("grief_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "illnessgrief_q") {
+      setIllnessGriefAnswers({});
+      setIllnessGriefStep(0);
+      setIllnessGriefAiReply("");
+      setView("illnessgrief_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "pacing_q") {
+      setPacingExertion(null);
+      setPacingActivity("");
+      setPacingCrash(null);
+      setPacingNote("");
+      setPacingAiReply("");
+      setView("pacing_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "fatigue_q") {
+      setFatigueAnswers({});
+      setFatigueStep(0);
+      setView("fatigue_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "acceptance_q") {
+      setAcceptanceAnswers({});
+      setAcceptanceStep(0);
+      setAcceptanceAiReply("");
+      setView("acceptance_q");
       onJumpHandled?.();
     } else if(jumpToView === "rescript_q") {
       setRescriptAnswers({});
@@ -4247,6 +4374,31 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [rsesAnswers, setRsesAnswers] = useState({});
   const [rsesStep, setRsesStep] = useState(0);
   const [rsesLoading, setRsesLoading] = useState(false);
+
+  // Fatigue Scale state
+  const [fatigueAnswers, setFatigueAnswers] = useState({});
+  const [fatigueStep, setFatigueStep] = useState(0);
+  const [fatigueLoading, setFatigueLoading] = useState(false);
+
+  // Pacing / Boom-Bust Log state
+  const [pacingExertion, setPacingExertion] = useState(null);
+  const [pacingActivity, setPacingActivity] = useState("");
+  const [pacingCrash, setPacingCrash] = useState(null);
+  const [pacingNote, setPacingNote] = useState("");
+  const [pacingAiReply, setPacingAiReply] = useState("");
+  const [pacingLoading, setPacingLoading] = useState(false);
+
+  // Chronic Illness Grief state
+  const [illnessGriefAnswers, setIllnessGriefAnswers] = useState({});
+  const [illnessGriefStep, setIllnessGriefStep] = useState(0);
+  const [illnessGriefAiReply, setIllnessGriefAiReply] = useState("");
+  const [illnessGriefLoading, setIllnessGriefLoading] = useState(false);
+
+  // Illness Acceptance state
+  const [acceptanceAnswers, setAcceptanceAnswers] = useState({});
+  const [acceptanceStep, setAcceptanceStep] = useState(0);
+  const [acceptanceAiReply, setAcceptanceAiReply] = useState("");
+  const [acceptanceLoading, setAcceptanceLoading] = useState(false);
 
   // BIS/BAS state
   const [bisBasAnswers, setBisBasAnswers] = useState({});
@@ -5329,6 +5481,128 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     } finally { setRsesLoading(false); }
   };
 
+  // ── Score Fatigue Scale ───────────────────────────────────────────────────
+  const scoreFatigue = async () => {
+    setFatigueLoading(true);
+    const total = FATIGUE_QUESTIONS.reduce((s,_,i)=>s+(fatigueAnswers[i]??0),0);
+    const physicalTotal = FATIGUE_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.type==="physical")
+      .reduce((s,{i})=>s+(fatigueAnswers[i]??0),0);
+    const mentalTotal = FATIGUE_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.type==="mental")
+      .reduce((s,{i})=>s+(fatigueAnswers[i]??0),0);
+    const level = fatigueLevel(total);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, informed about chronic fatigue and ME/CFS. A person completed a fatigue severity scale (following the validated Chalder Fatigue Scale structure).
+Total: ${total}/33. Physical fatigue: ${physicalTotal}/21. Mental fatigue: ${mentalTotal}/12. Result: ${level.label}.
+
+Write a warm, validating 4-sentence response:
+1. Reflect the result honestly, without minimising
+2. Note whether physical or mental fatigue is more dominant and what that might mean day to day
+3. Point to the Pacing Log as the practical next step for tracking what triggers flares, and mention that overexertion on better days (the "boom-bust" cycle) is one of the most common and important patterns to watch for in CFS/ME
+4. End with one validating, non-judgmental sentence — fatigue like this is not laziness or a lack of effort
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), total, physicalTotal, mentalTotal, level, answers:{...fatigueAnswers}, summary:reply };
+      onSaveFatigue(profile);
+      setView("fatigue_profile");
+    } catch(e) {
+      onSaveFatigue({ id:uid(), date:today(), total, physicalTotal, mentalTotal, level, answers:{...fatigueAnswers}, summary:"" });
+      setView("fatigue_profile");
+    } finally { setFatigueLoading(false); }
+  };
+
+  // ── Save Pacing / Boom-Bust Log entry ────────────────────────────────────
+  const savePacingEntry = async () => {
+    if(!pacingExertion || !pacingActivity.trim()) return;
+    setPacingLoading(true);
+    const recentEntries = (pacingLog||[]).slice(0,5);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, informed about CFS/ME pacing and the boom-bust cycle. A person logged today's activity:
+
+Exertion level: ${pacingExertion.label} (${pacingExertion.desc})
+What they did: "${pacingActivity}"
+${pacingCrash!==null ? `How they felt afterward/the next day: ${CRASH_SEVERITY.find(c=>c.val===pacingCrash)?.label}` : "Crash not yet known — logged in the moment."}
+${pacingNote.trim() ? `Additional note: "${pacingNote}"` : ""}
+${recentEntries.length>0 ? `\nRecent pacing history:\n${recentEntries.map(e=>`- ${e.date}: ${e.exertionLabel} exertion ("${e.activity}") → ${e.crashLabel||"crash not logged"}`).join("\n")}` : ""}
+
+Write a brief, warm 3-4 sentence response:
+1. Acknowledge what they did without judgment — pacing isn't about avoiding all activity, it's about awareness
+2. If there's a pattern emerging from recent history (e.g. high exertion consistently followed by crashes), name it gently and factually
+3. One practical, specific suggestion for pacing going forward given this entry
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const entry = { id:uid(), date:today(), exertion:pacingExertion.val, exertionLabel:pacingExertion.label,
+        activity:pacingActivity.trim(), crash:pacingCrash, crashLabel: pacingCrash!==null ? CRASH_SEVERITY.find(c=>c.val===pacingCrash)?.label : null,
+        note:pacingNote.trim(), reply };
+      onSavePacing(log=>[entry,...(log||[])].slice(0,100));
+      setPacingAiReply(reply);
+    } catch(e) {
+      setPacingAiReply("Bea couldn't respond right now — your entry was still saved.");
+      const entry = { id:uid(), date:today(), exertion:pacingExertion.val, exertionLabel:pacingExertion.label,
+        activity:pacingActivity.trim(), crash:pacingCrash, crashLabel: pacingCrash!==null ? CRASH_SEVERITY.find(c=>c.val===pacingCrash)?.label : null,
+        note:pacingNote.trim(), reply:"" };
+      onSavePacing(log=>[entry,...(log||[])].slice(0,100));
+    } finally { setPacingLoading(false); }
+  };
+
+  // ── Chronic Illness Grief reflection ─────────────────────────────────────
+  const getIllnessGriefReflection = async (answers) => {
+    setIllnessGriefLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, informed about chronic illness grief — a recognised but distinct form of grief for the loss of pre-illness capability, identity, or the life someone expected, separate from bereavement grief.
+
+What's changed: "${answers.lost}"
+The hardest part: "${answers.hardest}"
+What brought this up: "${answers.trigger||"not specified"}"
+What's still true: "${answers.stillhave||"not yet identified"}"
+
+Write a warm, validating 4-5 sentence reflection:
+1. Acknowledge the specific loss they named as real grief, deserving the same weight as any other loss
+2. Validate that this kind of grief often gets minimised by others ("at least you're alive/it could be worse") and that this doesn't make it less real
+3. If they named something still true about themselves, affirm it warmly
+4. Note that this grief may return in waves, especially after events that highlight the contrast — and that this is normal, not a sign of not coping
+5. End with one gentle, grounding sentence
+
+Never rush them toward acceptance or positivity. No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      setIllnessGriefAiReply(reply);
+      const entry = { id:uid(), date:today(), answers:{...answers}, reply };
+      onSaveIllnessGrief(entries=>[entry,...(entries||[])]);
+    } catch(e) {
+      setIllnessGriefAiReply("Bea couldn't respond right now — please try again.");
+    } finally { setIllnessGriefLoading(false); }
+  };
+
+  // ── Illness Acceptance reflection ────────────────────────────────────────
+  const getAcceptanceReflection = async (answers) => {
+    setAcceptanceLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea, using ACT principles applied to chronic illness acceptance. This is about psychological acceptance of what can't currently be changed — not giving up or liking the illness, but reducing the extra suffering that comes from fighting reality itself.
+
+What they're fighting: "${answers.fighting}"
+The cost of fighting it: "${answers.cost}"
+What's within their control: "${answers.withinControl}"
+What still matters to them: "${answers.valuedDespite}"
+
+Write a warm, practical 4-5 sentence reflection:
+1. Validate that fighting against an unwanted reality is a completely natural response, not a flaw
+2. Gently distinguish acceptance from giving up — acceptance means directing energy toward what's actually controllable rather than what isn't
+3. Affirm the specific thing within their control that they named, and the value they identified
+4. Suggest one small, concrete way to move toward that value today, sized appropriately for their current capacity
+5. End with one grounding sentence
+
+No toxic positivity, no suggestions to seek outside help unless there are signs of crisis. No preamble.`}]);
+      setAcceptanceAiReply(reply);
+      const entry = { id:uid(), date:today(), answers:{...answers}, reply };
+      onSaveAcceptance(entries=>[entry,...(entries||[])]);
+    } catch(e) {
+      setAcceptanceAiReply("Bea couldn't respond right now — please try again.");
+    } finally { setAcceptanceLoading(false); }
+  };
+
   // ── Score BIS/BAS Scale ──────────────────────────────────────────────────
   const scoreBisBas = async () => {
     setBisBasLoading(true);
@@ -5915,6 +6189,30 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
         </div>
       </div>
 
+      {/* Fatigue Severity Scale */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #6B7B8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🔋</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Fatigue Severity Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {fatigueProfile ? `${fmtDate(fatigueProfile.date)} · ${fatigueProfile.level.label} (${fatigueProfile.total}/33)` : "11 questions · For CFS/ME, chronic illness, or ongoing tiredness"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          Measures physical and mental fatigue separately — the validated structure used in CFS/ME research and clinics.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setFatigueAnswers({});setFatigueStep(0);setView("fatigue_q");}}
+            style={{...btnStyle("#6B7B8B"),flex:1,color:"white"}}>
+            {fatigueProfile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {fatigueProfile && <button onClick={()=>setView("fatigue_profile")}
+            style={{...btnStyle("#6B7B8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
       {/* BIS/BAS Scale */}
       <div style={{...card,marginBottom:12,borderTop:"3px solid #5B9BD5"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -5983,6 +6281,69 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           </button>
           {loopEntries?.length>0 && <button onClick={()=>setView("loop_list")}
             style={{...btnStyle("#3A6B8B",true),flex:1}}>View History</button>}
+        </div>
+      </div>
+
+      {/* Pacing / Boom-Bust Log */}
+      <div style={{...card,marginTop:12,marginBottom:12,borderTop:"3px solid #6B7B8B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>📊</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Pacing Log</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {pacingLog?.length>0 ? `${pacingLog.length} entr${pacingLog.length===1?"y":"ies"} logged` : "Track exertion vs. crashes — spot the boom-bust pattern"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setPacingExertion(null);setPacingActivity("");setPacingCrash(null);setPacingNote("");setPacingAiReply("");setView("pacing_q");}}
+            style={{...btnStyle("#6B7B8B"),flex:1,color:"white"}}>
+            Log Today
+          </button>
+          {pacingLog?.length>0 && <button onClick={()=>setView("pacing_list")}
+            style={{...btnStyle("#6B7B8B",true),flex:1}}>View Log</button>}
+        </div>
+      </div>
+
+      {/* Chronic Illness Grief */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #5B7B9B"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>💙</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Chronic Illness Grief</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {illnessGriefEntries?.length>0 ? `${illnessGriefEntries.length} entr${illnessGriefEntries.length===1?"y":"ies"}` : "For grieving what illness has changed or taken — separate from loss/death grief"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setIllnessGriefAnswers({});setIllnessGriefStep(0);setIllnessGriefAiReply("");setView("illnessgrief_q");}}
+            style={{...btnStyle("#5B7B9B"),flex:1,color:"white"}}>
+            + New Entry
+          </button>
+          {illnessGriefEntries?.length>0 && <button onClick={()=>setView("illnessgrief_list")}
+            style={{...btnStyle("#5B7B9B",true),flex:1}}>View Entries</button>}
+        </div>
+      </div>
+
+      {/* Illness Acceptance */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #7BB369"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌿</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Illness Acceptance</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {acceptanceEntries?.length>0 ? `${acceptanceEntries.length} entr${acceptanceEntries.length===1?"y":"ies"}` : "ACT-based work with what can't currently be changed"}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setAcceptanceAnswers({});setAcceptanceStep(0);setAcceptanceAiReply("");setView("acceptance_q");}}
+            style={{...btnStyle("#7BB369"),flex:1,color:"white"}}>
+            Begin
+          </button>
+          {acceptanceEntries?.length>0 && <button onClick={()=>setView("acceptance_list")}
+            style={{...btnStyle("#7BB369",true),flex:1}}>View Entries</button>}
         </div>
       </div>
       </>}
@@ -9238,6 +9599,346 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     </div>
   );
 
+  // ── FATIGUE SCALE QUESTIONNAIRE ──────────────────────────────────────────
+  if(view==="fatigue_q") {
+    const i = fatigueStep;
+    const total = FATIGUE_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = FATIGUE_QUESTIONS.every((_,idx)=>fatigueAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🔋 Fatigue Severity Scale</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Compared to how you usually feel when well, over the past month…
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#6B7B8B",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #6B7B8B"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{FATIGUE_QUESTIONS[i].text}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {FATIGUE_SCALE.map(opt=>{
+            const sel = fatigueAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setFatigueAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setFatigueStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#6B7B8B":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #6B7B8B66":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setFatigueStep(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>fatigueAnswers[i]!==undefined&&setFatigueStep(s=>s+1)} disabled={fatigueAnswers[i]===undefined}
+              style={{...btnStyle("#6B7B8B"),flex:1,opacity:fatigueAnswers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreFatigue} disabled={!allAnswered||fatigueLoading}
+              style={{...btnStyle("#6B7B8B"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {fatigueLoading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── FATIGUE SCALE RESULTS ────────────────────────────────────────────────
+  if(view==="fatigue_profile" && fatigueProfile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🔋 My Fatigue Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(fatigueProfile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${fatigueProfile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:fatigueProfile.level.color}}>{fatigueProfile.total}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 33</div>
+        <div style={{display:"inline-block",background:fatigueProfile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {fatigueProfile.level.label}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+        <div style={{...card,padding:"10px 12px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:PALETTE.soft}}>Physical Fatigue</div>
+          <div style={{fontSize:18,fontWeight:700,color:PALETTE.dark}}>{fatigueProfile.physicalTotal}/21</div>
+        </div>
+        <div style={{...card,padding:"10px 12px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:PALETTE.soft}}>Mental Fatigue</div>
+          <div style={{fontSize:18,fontWeight:700,color:PALETTE.dark}}>{fatigueProfile.mentalTotal}/12</div>
+        </div>
+      </div>
+      {fatigueProfile.summary && (
+        <div style={{...card,marginBottom:16,background:"#6B7B8B0D",border:"1.5px solid #6B7B8B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#6B7B8B",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{fatigueProfile.summary}</p>
+        </div>
+      )}
+      <button onClick={()=>{setPacingExertion(null);setPacingActivity("");setPacingCrash(null);setPacingNote("");setPacingAiReply("");setView("pacing_q");}}
+        style={{...btnStyle("#6B7B8B"),width:"100%",marginBottom:8,color:"white"}}>
+        📊 Log Today's Pacing
+      </button>
+      <button onClick={()=>{setFatigueAnswers({});setFatigueStep(0);setView("fatigue_q");}}
+        style={{...btnStyle("#6B7B8B",true),width:"100%"}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── PACING LOG ENTRY ──────────────────────────────────────────────────────
+  if(view==="pacing_q") {
+    if(pacingAiReply) return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>📊 Entry Saved</h3>
+        <div style={{...card,marginBottom:16,background:"#6B7B8B0D",border:"1.5px solid #6B7B8B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#6B7B8B",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{pacingAiReply}</p>
+        </div>
+        <button onClick={()=>setView("pacing_list")} style={{...btnStyle("#6B7B8B",true),width:"100%"}}>View Full Log</button>
+      </div>
+    );
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>📊 Log Today's Pacing</h3>
+        <label style={labelStyle}>How much did you exert yourself today?</label>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+          {EXERTION_LEVELS.map(ex=>(
+            <button key={ex.val} onClick={()=>setPacingExertion(ex)}
+              style={{padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",
+                background:pacingExertion?.val===ex.val?"#6B7B8B":"#F5F3F0",
+                color:pacingExertion?.val===ex.val?"white":PALETTE.mid,
+                display:"flex",alignItems:"center",gap:10,textAlign:"left"}}>
+              <span style={{fontSize:22}}>{ex.emoji}</span>
+              <div>
+                <div style={{fontWeight:700,fontSize:14}}>{ex.label}</div>
+                <div style={{fontSize:11,opacity:0.85}}>{ex.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <label style={labelStyle}>What did you do?</label>
+        <textarea value={pacingActivity} onChange={e=>setPacingActivity(e.target.value)}
+          placeholder="e.g. Went to a cricket match with friends"
+          style={{...textareaStyle,minHeight:70,marginBottom:16}}/>
+        <label style={labelStyle}>How did you feel afterward or the next day? (optional — log later if not known yet)</label>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+          {CRASH_SEVERITY.map(c=>(
+            <button key={c.val} onClick={()=>setPacingCrash(c.val)}
+              style={{padding:"10px 14px",borderRadius:10,border:"none",cursor:"pointer",
+                background:pacingCrash===c.val?c.color:"#F5F3F0",
+                color:pacingCrash===c.val?"white":PALETTE.mid,fontWeight:600,fontSize:13,textAlign:"left"}}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <label style={labelStyle}>Anything else? (optional)</label>
+        <textarea value={pacingNote} onChange={e=>setPacingNote(e.target.value)}
+          placeholder="Any other notes…"
+          style={{...textareaStyle,minHeight:60,marginBottom:16}}/>
+        <button onClick={savePacingEntry} disabled={!pacingExertion||!pacingActivity.trim()||pacingLoading}
+          style={{...btnStyle("#6B7B8B"),width:"100%",opacity:(pacingExertion&&pacingActivity.trim())?1:0.4,color:"white"}}>
+          {pacingLoading?"🐝 Bea is looking at this…":"Save Entry →"}
+        </button>
+      </div>
+    );
+  }
+
+  // ── PACING LOG LIST ───────────────────────────────────────────────────────
+  if(view==="pacing_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>📊 Pacing Log</h3>
+      {pacingLog?.map(e=>{
+        const exertion = EXERTION_LEVELS.find(x=>x.val===e.exertion);
+        const crash = CRASH_SEVERITY.find(c=>c.val===e.crash);
+        return (
+          <div key={e.id} style={{...card,marginBottom:10,borderLeft:`3px solid ${crash?.color||"#6B7B8B"}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <span style={{fontSize:18}}>{exertion?.emoji}</span>
+              <span style={{fontWeight:700,color:PALETTE.dark,fontSize:13}}>{e.exertionLabel} exertion</span>
+              <span style={{fontSize:11,color:PALETTE.soft,marginLeft:"auto"}}>{fmtDate(e.date)}</span>
+            </div>
+            <p style={{margin:"0 0 6px",fontSize:13,color:PALETTE.dark}}>{e.activity}</p>
+            {e.crashLabel && <p style={{margin:0,fontSize:12,color:crash?.color,fontWeight:600}}>{e.crashLabel}</p>}
+          </div>
+        );
+      })}
+      {(!pacingLog || pacingLog.length===0) && <div style={emptyState}>No entries yet.</div>}
+      <button onClick={()=>{setPacingExertion(null);setPacingActivity("");setPacingCrash(null);setPacingNote("");setPacingAiReply("");setView("pacing_q");}}
+        style={{...btnStyle("#6B7B8B"),width:"100%",marginTop:8,color:"white"}}>
+        + New Entry
+      </button>
+    </div>
+  );
+
+  // ── CHRONIC ILLNESS GRIEF ─────────────────────────────────────────────────
+  if(view==="illnessgrief_q") {
+    if(illnessGriefAiReply) return (
+      <div>
+        <button onClick={()=>setIllnessGriefAiReply("")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit</button>
+        <h3 style={sectionTitle}>💙 Your Reflection</h3>
+        <div style={{...card,marginBottom:16,background:"#5B7B9B0D",border:"1.5px solid #5B7B9B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#5B7B9B",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{illnessGriefAiReply}</p>
+        </div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#5B7B9B",true),width:"100%"}}>Done</button>
+      </div>
+    );
+
+    const steps = ILLNESS_GRIEF_QUESTIONS;
+    const q = steps[illnessGriefStep];
+    const isLast = illnessGriefStep === steps.length-1;
+    return (
+      <div>
+        <button onClick={()=>{ if(illnessGriefStep===0) setView("home"); else setIllnessGriefStep(s=>s-1); }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>💙 Chronic Illness Grief</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          This is a space for grieving what illness has changed — a real, valid form of grief distinct from bereavement.
+        </p>
+        <div style={{display:"flex",gap:4,marginBottom:16}}>
+          {steps.map((_,idx)=>(
+            <div key={idx} style={{flex:1,height:4,borderRadius:2,background:idx<=illnessGriefStep?"#5B7B9B":"#EEE"}}/>
+          ))}
+        </div>
+        <div style={{...card,marginBottom:14,padding:18,borderLeft:"3px solid #5B7B9B"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#5B7B9B",letterSpacing:1,marginBottom:6}}>{q.label.toUpperCase()}</div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{q.question}</p>
+        </div>
+        <textarea value={illnessGriefAnswers[q.field]||""} onChange={e=>setIllnessGriefAnswers(a=>({...a,[q.field]:e.target.value}))}
+          placeholder={q.placeholder} style={{...textareaStyle,minHeight:90,marginBottom:14}}/>
+        <div style={{display:"flex",gap:8}}>
+          {!isLast ? (
+            <button onClick={()=>setIllnessGriefStep(s=>s+1)} style={{...btnStyle("#5B7B9B"),flex:1,color:"white"}}>
+              {illnessGriefStep<2?"Next →":"Next (optional) →"}
+            </button>
+          ) : (
+            <button onClick={()=>getIllnessGriefReflection(illnessGriefAnswers)}
+              disabled={!illnessGriefAnswers.lost?.trim()||illnessGriefLoading}
+              style={{...btnStyle("#5B7B9B"),flex:1,opacity:illnessGriefAnswers.lost?.trim()?1:0.4,color:"white"}}>
+              {illnessGriefLoading?"🐝 Bea is reflecting…":"Get Bea's Reflection →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── CHRONIC ILLNESS GRIEF LIST ────────────────────────────────────────────
+  if(view==="illnessgrief_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>💙 Chronic Illness Grief</h3>
+      {illnessGriefEntries?.map(e=>(
+        <div key={e.id} style={{...card,marginBottom:10,borderLeft:"3px solid #5B7B9B"}}>
+          <div style={{fontSize:11,color:PALETTE.soft,marginBottom:6}}>{fmtDate(e.date)}</div>
+          <p style={{margin:"0 0 8px",fontSize:13,color:PALETTE.dark,fontStyle:"italic"}}>"{e.answers?.lost?.slice(0,100)}"</p>
+          {e.reply && <p style={{margin:0,fontSize:12,color:"#5B7B9B"}}>{e.reply}</p>}
+        </div>
+      ))}
+      {(!illnessGriefEntries || illnessGriefEntries.length===0) && <div style={emptyState}>No entries yet.</div>}
+      <button onClick={()=>{setIllnessGriefAnswers({});setIllnessGriefStep(0);setIllnessGriefAiReply("");setView("illnessgrief_q");}}
+        style={{...btnStyle("#5B7B9B"),width:"100%",marginTop:8,color:"white"}}>+ New Entry</button>
+    </div>
+  );
+
+  // ── ILLNESS ACCEPTANCE ────────────────────────────────────────────────────
+  if(view==="acceptance_q") {
+    if(acceptanceAiReply) return (
+      <div>
+        <button onClick={()=>setAcceptanceAiReply("")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Edit</button>
+        <h3 style={sectionTitle}>🌿 Your Reflection</h3>
+        <div style={{...card,marginBottom:16,background:"#7BB3690D",border:"1.5px solid #7BB36933"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#7BB369",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{acceptanceAiReply}</p>
+        </div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#7BB369",true),width:"100%"}}>Done</button>
+      </div>
+    );
+
+    const steps = ACCEPTANCE_QUESTIONS;
+    const q = steps[acceptanceStep];
+    const isLast = acceptanceStep === steps.length-1;
+    return (
+      <div>
+        <button onClick={()=>{ if(acceptanceStep===0) setView("home"); else setAcceptanceStep(s=>s-1); }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌿 Illness Acceptance</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:16,lineHeight:1.5}}>
+          Acceptance here means directing energy toward what's controllable — not liking the illness or giving up.
+        </p>
+        <div style={{display:"flex",gap:4,marginBottom:16}}>
+          {steps.map((_,idx)=>(
+            <div key={idx} style={{flex:1,height:4,borderRadius:2,background:idx<=acceptanceStep?"#7BB369":"#EEE"}}/>
+          ))}
+        </div>
+        <div style={{...card,marginBottom:14,padding:18,borderLeft:"3px solid #7BB369"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#7BB369",letterSpacing:1,marginBottom:6}}>{q.label.toUpperCase()}</div>
+          <p style={{margin:0,fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{q.question}</p>
+        </div>
+        <textarea value={acceptanceAnswers[q.field]||""} onChange={e=>setAcceptanceAnswers(a=>({...a,[q.field]:e.target.value}))}
+          placeholder={q.placeholder} style={{...textareaStyle,minHeight:90,marginBottom:14}}/>
+        <div style={{display:"flex",gap:8}}>
+          {!isLast ? (
+            <button onClick={()=>acceptanceAnswers[q.field]?.trim()&&setAcceptanceStep(s=>s+1)}
+              disabled={!acceptanceAnswers[q.field]?.trim()}
+              style={{...btnStyle("#7BB369"),flex:1,opacity:acceptanceAnswers[q.field]?.trim()?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={()=>getAcceptanceReflection(acceptanceAnswers)}
+              disabled={!acceptanceAnswers[q.field]?.trim()||acceptanceLoading}
+              style={{...btnStyle("#7BB369"),flex:1,opacity:acceptanceAnswers[q.field]?.trim()?1:0.4,color:"white"}}>
+              {acceptanceLoading?"🐝 Bea is reflecting…":"Get Bea's Reflection →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── ILLNESS ACCEPTANCE LIST ───────────────────────────────────────────────
+  if(view==="acceptance_list") return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🌿 Illness Acceptance</h3>
+      {acceptanceEntries?.map(e=>(
+        <div key={e.id} style={{...card,marginBottom:10,borderLeft:"3px solid #7BB369"}}>
+          <div style={{fontSize:11,color:PALETTE.soft,marginBottom:6}}>{fmtDate(e.date)}</div>
+          <p style={{margin:"0 0 8px",fontSize:13,color:PALETTE.dark,fontStyle:"italic"}}>"{e.answers?.fighting?.slice(0,100)}"</p>
+          {e.reply && <p style={{margin:0,fontSize:12,color:"#7BB369"}}>{e.reply}</p>}
+        </div>
+      ))}
+      {(!acceptanceEntries || acceptanceEntries.length===0) && <div style={emptyState}>No entries yet.</div>}
+      <button onClick={()=>{setAcceptanceAnswers({});setAcceptanceStep(0);setAcceptanceAiReply("");setView("acceptance_q");}}
+        style={{...btnStyle("#7BB369"),width:"100%",marginTop:8,color:"white"}}>+ New Entry</button>
+    </div>
+  );
+
   // ── MASTER SUMMARY ───────────────────────────────────────────────────────
   if(view==="master_summary" && masterSummary) return (
     <div>
@@ -10934,6 +11635,10 @@ export default function BeeWell() {
   const [ngseProfile, setNgseProfile] = usePersistedState("ngseProfile", null);
   const [tipiProfile, setTipiProfile] = usePersistedState("tipiProfile", null);
   const [rsesProfile, setRsesProfile] = usePersistedState("rsesProfile", null);
+  const [fatigueProfile, setFatigueProfile] = usePersistedState("fatigueProfile", null);
+  const [pacingLog, setPacingLog] = usePersistedState("pacingLog", []);
+  const [illnessGriefEntries, setIllnessGriefEntries] = usePersistedState("illnessGriefEntries", []);
+  const [acceptanceEntries, setAcceptanceEntries] = usePersistedState("acceptanceEntries", []);
   const [bisBasProfile, setBisBasProfile] = usePersistedState("bisBasProfile", null);
   const [procrastinationProfile, setProcrastinationProfile] = usePersistedState("procrastinationProfile", null);
   const [phq9Profile, setPhq9Profile] = usePersistedState("phq9Profile", null);
@@ -11279,6 +11984,14 @@ export default function BeeWell() {
           onSaveTipi={setTipiProfile}
           rsesProfile={rsesProfile}
           onSaveRses={setRsesProfile}
+          fatigueProfile={fatigueProfile}
+          onSaveFatigue={setFatigueProfile}
+          pacingLog={pacingLog}
+          onSavePacing={setPacingLog}
+          illnessGriefEntries={illnessGriefEntries}
+          onSaveIllnessGrief={setIllnessGriefEntries}
+          acceptanceEntries={acceptanceEntries}
+          onSaveAcceptance={setAcceptanceEntries}
           bisBasProfile={bisBasProfile}
           onSaveBisBas={setBisBasProfile}
           procrastinationProfile={procrastinationProfile}

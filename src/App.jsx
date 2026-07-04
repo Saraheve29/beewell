@@ -11537,14 +11537,39 @@ function Progress({ moodLogs, feelItems, triggerItems, courtCases, difficultItem
 
 // ── Bea Chat ──────────────────────────────────────────────────────────────────
 function BeaChat() {
-  const [messages, setMessages] = useState([
-    { role:"assistant", content:"Hello, I'm Bea 🐝 I'm here whenever you need to talk, process something, or just be heard. What's on your mind today?" }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [openingLoaded, setOpeningLoaded] = useState(false);
   const bottomRef = useRef();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
+
+  // On opening the chat, generate a genuine continuity-aware greeting from what's
+  // actually known — rather than the same generic line every time. This matters
+  // specifically because repeating themselves or being treated as a stranger each
+  // conversation is genuinely hard, not just mildly annoying, for this person.
+  useEffect(() => {
+    if(openingLoaded) return;
+    setOpeningLoaded(true);
+    const getOpening = async () => {
+      setLoading(true);
+      try {
+        const reply = await askBee([{role:"user", content:
+          `You're opening a fresh chat session with this person. Do NOT use a generic greeting like "what's on your mind today" — instead, genuinely continue from where things actually are, using what you know about them from your ongoing context.
+
+If you know of something recent and specific worth acknowledging — a recent difficult problem they shared, a physical flare-up or being unwell, a mood pattern, unfinished work like an in-progress reparenting session — open by naming that directly and warmly, as a therapist picking back up with a client would, not by asking about it as if you don't already know it happened. Keep it brief, warm, one or two sentences, then a gentle single opening — not a question stacked on a question.
+
+If you genuinely don't have anything recent and specific to reference, a warm simple greeting is fine instead — don't invent continuity that isn't there.
+
+No preamble, just the greeting itself.`}]);
+        setMessages([{ role:"assistant", content:reply }]);
+      } catch(e) {
+        setMessages([{ role:"assistant", content:"Hello, I'm Bea 🐝 I'm here whenever you need to talk, process something, or just be heard. What's on your mind today?" }]);
+      } finally { setLoading(false); }
+    };
+    getOpening();
+  }, []);
 
   const send = async () => {
     if(!input.trim()||loading) return;
@@ -11566,6 +11591,12 @@ function BeaChat() {
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)"}}>
       <h3 style={{...sectionTitle,marginBottom:8}}>Chat with Bea 🐝</h3>
       <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,padding:"4px 0 8px"}}>
+        {messages.length===0 && loading && (
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <BeeMascot size={32} outfit="therapist" animated/>
+            <div style={{fontSize:13,color:PALETTE.soft,fontStyle:"italic"}}>Bea is settling in…</div>
+          </div>
+        )}
         {messages.map((m,i)=>(
           <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:8}}>
             {m.role==="assistant" && <BeeMascot size={32} outfit="therapist"/>}

@@ -550,9 +550,13 @@ CRITICAL — order of response: Always validate and empathise with what the pers
 
 CRITICAL — using what you know: You are not a stateless assistant meeting this person for the first time. You have a real, standing understanding of them built from every assessment they've completed and everything they've shared in past sessions (provided below when available). Actively draw on this — reference their actual values, their known schema patterns, their fatigue/pacing history, their goals, their past reparenting work — the way a therapist who has seen this client for months would, connecting today's conversation to what you already know rather than treating each message in isolation. Do this naturally, in your own words, never by listing facts or citing "your assessment showed X."
 
+CRITICAL — accuracy about their data: Only state that something is one of their values, schema patterns, or assessment results if it is genuinely present in the context provided to you below. Never infer, paraphrase, or guess a value or result and then present it as if it came from their actual assessments — for example, if they haven't named "Connection" as a value in their real results, do not tell them it is one of their values, even if it seems like a reasonable guess from context. If you're inferring or guessing something rather than stating a known fact, say so plainly (e.g. "it sounds like...") rather than presenting the guess as documented fact.
+
 Noticing patterns: When something in today's conversation echoes a pattern you already know about them (a recurring schema, a repeated thought loop, a fatigue crash after the same kind of activity, the same limiting belief resurfacing) — gently name the pattern rather than treating it as new each time. This is one of the most valuable things a long-term therapist offers: showing someone their own patterns back to them with care, not judgment.
 
-CRITICAL — spirituality: This person's healing comes largely from their own personal spirituality — they believe in a God of light, not organised religion. If they bring up anything spiritual (God, light, prayer, the soul, meaning, the universe, anything in that register) themselves, meet them there fully and warmly. Never dismiss it, never redirect it into purely clinical/secular framing, never stay neutral or distant about it. Speak using their own language and framework back to them with genuine warmth, the way a close friend who shares and respects their belief would — not generic spiritual platitudes, but something that actually engages with what a God of light and their own spiritual framework means to them specifically. Be a real source of comfort and companionship in this, not just informationally accurate. Only shift into this register when they bring spirituality up themselves — don't introduce it unprompted into unrelated conversations.
+CRITICAL — spirituality and nature: This person's healing comes largely from their own personal spirituality — they believe in a God of light, not organised religion — and nature means a great deal to them too. If they bring up anything spiritual (God, light, prayer, the soul, meaning, the universe) or anything about nature (the outdoors, growing things, weather, animals, the seasons, being outside) themselves, meet them there fully and warmly. Never dismiss it, never redirect it into purely clinical/secular framing, never stay neutral or distant about it. Speak using their own language and framework back to them with genuine warmth, the way a close friend who shares and respects their belief would — not generic platitudes, but something that actually engages with what a God of light and their connection to the natural world means to them specifically. Be a real source of comfort and companionship in this, not just informationally accurate. Only shift fully into this deeper register when they bring it up themselves — don't introduce it unprompted into unrelated conversations.
+
+Your own character: you are a bee, and nature is genuinely part of who you are, not a performance — you can speak naturally and occasionally, in small authentic touches (a passing mention of sunlight, growth, seasons, the natural world) the way anyone deeply at home in nature would, without forcing it into every message or turning it into a bit. This should feel like a real facet of your character that surfaces naturally sometimes, especially when it resonates with what they're feeling, not a rule you're following.
 
 You are equipped to do real, ongoing therapeutic work across CBT, ACT, Schema Therapy, Compassion-Focused Therapy, grief support, chronic illness support and more — engage fully and directly with whatever the person brings, continuing across sessions rather than deflecting. Only suggest outside professional or crisis support if there are genuine signs of active self-harm, suicidal ideation, or immediate danger to the person or someone else — never as a general caveat or to avoid doing deeper work.
 Never give medical advice (e.g. medication, diagnosis).
@@ -566,6 +570,33 @@ ${_beeContext ? `\nHere is your ongoing understanding of this specific person, b
   } catch(e) {
     console.error("Bea API error:", e);
     throw e; // re-throw so callers can handle gracefully
+  }
+}
+
+// General-purpose AI call for tools that need a DIFFERENT persona than Bea
+// (e.g. the Courtroom's prosecutor/defence/judge characters). Using askBee for
+// these caused real confusion — the model was told "you are Bea" in the system
+// prompt while also being asked to role-play a courtroom character in the user
+// message, which occasionally made it break character entirely. This function
+// takes its own system prompt instead, so each persona is unambiguous.
+async function askAI(systemPrompt, userPrompt) {
+  try {
+    const res = await fetch("/api/ai", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-6",
+        max_tokens:1000,
+        system: systemPrompt,
+        messages: [{role:"user", content:userPrompt}],
+      })
+    });
+    if(!res.ok) throw new Error(`API error: ${res.status}`);
+    const data = await res.json();
+    return data.content?.find(b=>b.type==="text")?.text || "";
+  } catch(e) {
+    console.error("AI call error:", e);
+    throw e;
   }
 }
 
@@ -2050,17 +2081,24 @@ function Courtroom({ cases, onSave, valuesProfile=null, dasProfile=null, ysqProf
   const progress = Math.round((phaseIdx / (PHASES_ORDER.length-1)) * 100);
 
   // ── AI calls ────────────────────────────────────────────────────────────────
+  // Uses askAI (not askBee) with a neutral courtroom-specific system prompt.
+  // Using Bea's own identity here caused real confusion — the model was told
+  // "you are Bea" while also being asked to role-play a prosecutor/defence
+  // counsel, which occasionally made it break character mid-trial.
   const ai = async (prompt) => {
-    const r = await askBee([{role:"user", content:prompt}]);
+    const r = await askAI(
+      `You are playing a specific role in a CBT "thought courtroom" exercise inside a mental wellness app — a structured, fictional exercise where a person's difficult thought is examined fairly, like a trial. You will be told which specific role to play (prosecutor, defence counsel, judge, or clerk) in the instructions below. Stay fully in that role and follow the formatting instructions exactly. This is a therapeutic CBT technique, not a real legal proceeding — the "evidence" is the person's own life experience, and the goal is always a fair, balanced examination of the thought, never harshness for its own sake.`,
+      prompt
+    );
     return r;
   };
 
   const getHint = async (questionText) => {
     setHint("…");
-    const h = await ai(`You are Bea, a gentle CBT-trained bee therapist assistant.
-A person working alone is stuck on this CBT courtroom question: "${questionText}"
+    const h = await askBee([{role:"user", content:
+      `A person working alone is stuck on this CBT courtroom question: "${questionText}"
 Give ONE short, practical thinking prompt (max 20 words) — something factual they can reflect on from their own experience, with no need for other people.
-No preamble. Just the prompt, starting with "Try thinking about..."`);
+No preamble. Just the prompt, starting with "Try thinking about..."`}]);
     setHint(h);
   };
 
@@ -3297,15 +3335,12 @@ const VALUES_SORT_DOMAINS = [
   {id:"work",      label:"Work & Career",       emoji:"🎯",
    cards:["Competence","Ambition","Organisation","Creativity","Leadership","Reliability",
           "Independence","Recognition","Precision","Collaboration","Innovation","Persistence"]},
-  {id:"relations", label:"Relationships",       emoji:"💞",
-   cards:["Honesty","Loyalty","Intimacy","Trust","Affection","Forgiveness",
-          "Respect","Communication","Reciprocity","Warmth","Commitment","Playfulness"]},
   {id:"growth",    label:"Personal Growth & Health", emoji:"🌱",
    cards:["Self-discipline","Curiosity","Resilience","Self-compassion","Balance","Vitality",
           "Mindfulness","Courage","Authenticity","Patience","Self-awareness","Growth"]},
   {id:"leisure",   label:"Leisure & Recreation", emoji:"🎨",
    cards:["Adventure","Fun","Beauty","Spontaneity","Relaxation","Wonder",
-          "Freedom","Excitement","Humour","Nature","Craftsmanship","Exploration"]},
+          "Freedom","Excitement","Humour","Nature","Craftsmanship","Exploration","Travel"]},
   {id:"general",   label:"My Life in General",  emoji:"🌟",
    cards:["Order","Kindness","Purpose","Gratitude","Fairness","Generosity",
           "Safety","Contribution","Spirituality","Simplicity","Belonging","Integrity"]},
@@ -3432,6 +3467,100 @@ const rsesLevel = (total) => {
   if(total<15) return {label:"Lower Self-Esteem", color:"#8B1A1A"};
   if(total<=25) return {label:"Normal Range Self-Esteem", color:"#D4AF37"};
   return                {label:"Higher Self-Esteem", color:"#7BB369"};
+};
+
+// ── NR-6 — Nature Relatedness Scale, short form (Nisbet & Zelenski, 2013) ───
+// A real, validated 6-item measure of subjective connection to nature. One
+// item explicitly names nature-as-spirituality, making it a genuine fit for
+// someone whose spiritual life and connection to nature are intertwined.
+// 5-point scale, no reverse-scored items, averaged for the final score.
+const NR6_SCALE = [
+  {val:1, label:"Disagree Strongly"},
+  {val:2, label:"Disagree a Little"},
+  {val:3, label:"Neither Agree nor Disagree"},
+  {val:4, label:"Agree a Little"},
+  {val:5, label:"Agree Strongly"},
+];
+const NR6_QUESTIONS = [
+  "My ideal vacation spot would be a remote, wilderness area.",
+  "I always think about how my actions affect the environment.",
+  "My connection to nature and the environment is a part of my spirituality.",
+  "I take notice of wildlife wherever I am.",
+  "My relationship to nature is an important part of who I am.",
+  "I feel very connected to all living things and the earth.",
+];
+const nr6Level = (avg) => {
+  if(avg<2.5) return {label:"Lower Nature Relatedness", color:"#A8937E"};
+  if(avg<3.75) return {label:"Moderate Nature Relatedness", color:"#D4AF37"};
+  return                {label:"Strong Nature Relatedness", color:"#7BB369"};
+};
+
+// ── Five Ways to Wellbeing (New Economics Foundation, 2008, via NHS) ────────
+// A real, evidence-based public mental health framework: Connect, Be Active,
+// Take Notice, Keep Learning, Give. Rather than treat this as a standalone
+// questionnaire only, it's used here to spot which of the five areas needs
+// attention right now, then route straight to the existing BeeWell tools that
+// genuinely serve each one — so it becomes a practical map of the whole app,
+// not just another score.
+const FIVE_WAYS_SCALE = [
+  {val:1, label:"Rarely or never"},
+  {val:2, label:"Occasionally"},
+  {val:3, label:"Sometimes"},
+  {val:4, label:"Often"},
+  {val:5, label:"Regularly"},
+];
+const FIVE_WAYS_STEPS = [
+  {
+    id:"connect", emoji:"🤝", label:"Connect", color:"#5B9BD5",
+    question:"How often do you connect with people who matter to you — family, friends, community — in a way that feels genuinely good?",
+    desc:"Good relationships are fundamental to wellbeing — they build belonging, self-worth, and give you both support and the chance to support others.",
+    tools:[
+      {name:"Feel Better Box", tab:"feel", desc:"Save and revisit moments of real connection that lifted you"},
+      {name:"Values Card Sort", jump:"cardsort_domain", desc:"See what connection actually means to you specifically"},
+    ],
+  },
+  {
+    id:"active", emoji:"🏃", label:"Be Active", color:"#7BB369",
+    question:"How often are you physically active in a way that suits your body right now — movement, not necessarily exercise?",
+    desc:"Physical activity — at whatever level genuinely fits your body — supports mental wellbeing as much as physical health, and doesn't need to mean intense exercise.",
+    tools:[
+      {name:"Pacing Log", jump:"pacing_q", desc:"Track activity against how your body responds, especially with chronic illness or fatigue"},
+      {name:"Behavioural Activation", tab:"activate", desc:"Small, values-based activity to lift mood gently"},
+    ],
+  },
+  {
+    id:"notice", emoji:"🌿", label:"Take Notice", color:"#D4AF37",
+    question:"How often do you pause and genuinely notice the present moment — your surroundings, your body, nature, small things?",
+    desc:"Being more aware of the present moment — savouring it, reflecting on experience — helps you appreciate what matters and understand yourself better.",
+    tools:[
+      {name:"Three Circles Check-In", jump:"circles_q", desc:"Notice which emotional system is active right now"},
+      {name:"Nature Relatedness Scale", jump:"nr6_q", desc:"Explore your connection to the natural world"},
+      {name:"Defusion Board", tab:"act", desc:"Step back and notice your thoughts rather than being swept up in them"},
+    ],
+  },
+  {
+    id:"learn", emoji:"📚", label:"Keep Learning", color:"#7B4A8B",
+    question:"How often do you learn something new or take on a small new challenge — a skill, an interest, anything that feels like growth?",
+    desc:"Learning new things builds confidence and self-esteem, and gives you something to look forward to — it doesn't need to be formal or big.",
+    tools:[
+      {name:"Personal Goals Questionnaire", tab:"goals", desc:"Name something you'd genuinely like to grow toward"},
+      {name:"SMART Plan", jump:"smart_q_from_goals", desc:"Turn a learning goal into a concrete, achievable step"},
+    ],
+  },
+  {
+    id:"give", emoji:"💛", label:"Give", color:"#E8891A",
+    question:"How often do you do something for someone else — a kind word, help, a small act of generosity — in a way that feels good, not draining?",
+    desc:"Acts of giving and kindness create positive feelings and a sense of reward, and help build connections with people around you.",
+    tools:[
+      {name:"Compassionate Self Practice", jump:"compself_q", desc:"Build the same warmth you give others toward yourself too"},
+      {name:"Values Assessment", tab:"innerwork_assessments", desc:"See where generosity and contribution sit among what matters to you"},
+    ],
+  },
+];
+const fiveWaysLevel = (val) => {
+  if(val<=2) return {label:"Needs attention", color:"#8B1A1A"};
+  if(val===3) return {label:"Room to grow", color:"#D4AF37"};
+  return              {label:"Going well", color:"#7BB369"};
 };
 
 
@@ -4221,6 +4350,9 @@ function InnerWork(props) {
           ngseProfile={props.ngseProfile} onSaveNgse={props.onSaveNgse}
           tipiProfile={props.tipiProfile} onSaveTipi={props.onSaveTipi}
           rsesProfile={props.rsesProfile} onSaveRses={props.onSaveRses}
+          nr6Profile={props.nr6Profile} onSaveNr6={props.onSaveNr6}
+          fiveWaysProfile={props.fiveWaysProfile} onSaveFiveWays={props.onSaveFiveWays}
+          onSetTab={props.onSetTab} onSetGoalsJump={props.onSetGoalsJump}
           fatigueProfile={props.fatigueProfile} onSaveFatigue={props.onSaveFatigue}
           pacingLog={props.pacingLog} onSavePacing={props.onSavePacing}
           illnessGriefEntries={props.illnessGriefEntries} onSaveIllnessGrief={props.onSaveIllnessGrief}
@@ -4239,7 +4371,7 @@ function InnerWork(props) {
   );
 }
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses, fatigueProfile, onSaveFatigue, pacingLog, onSavePacing, illnessGriefEntries, onSaveIllnessGrief, acceptanceEntries, onSaveAcceptance }) {
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses, fatigueProfile, onSaveFatigue, pacingLog, onSavePacing, illnessGriefEntries, onSaveIllnessGrief, acceptanceEntries, onSaveAcceptance, nr6Profile, onSaveNr6, fiveWaysProfile, onSaveFiveWays, onSetTab, onSetGoalsJump }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
   const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
@@ -4400,6 +4532,16 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [rsesAnswers, setRsesAnswers] = useState({});
   const [rsesStep, setRsesStep] = useState(0);
   const [rsesLoading, setRsesLoading] = useState(false);
+
+  // Nature Relatedness Scale (NR-6) state
+  const [nr6Answers, setNr6Answers] = useState({});
+  const [nr6Step, setNr6Step] = useState(0);
+  const [nr6Loading, setNr6Loading] = useState(false);
+
+  // Five Ways to Wellbeing state
+  const [fiveWaysAnswers, setFiveWaysAnswers] = useState({});
+  const [fiveWaysStep, setFiveWaysStep] = useState(0);
+  const [fiveWaysLoading, setFiveWaysLoading] = useState(false);
 
   // Fatigue Scale state
   const [fatigueAnswers, setFatigueAnswers] = useState({});
@@ -4834,9 +4976,16 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     setMasterLoading(true);
     const parts = [];
     if(valuesProfile) parts.push(`VALUES (VLQ): Top values are ${valuesProfile.top3?.map(v=>v.label).join(", ")}. ${valuesProfile.gaps?.length>0 ? `Biggest gaps (important but not lived): ${valuesProfile.gaps.map(g=>g.label).join(", ")}.` : ""}`);
+    if(cardSortProfile?.length>0) parts.push(`VALUES CARD SORT: ${cardSortProfile.map(p=>`${p.domainLabel} — very important: ${p.veryImportant.join(", ")}`).join("; ")}.`);
     if(dasProfile) parts.push(`CORE BELIEFS (DAS): Vulnerable domains: ${dasProfile.highest?.map(d=>d.label).join(", ")||"none significant"}. Strengths: ${dasProfile.lowest?.map(d=>d.label).join(", ")||"none notable"}.`);
     if(limitingBeliefs?.length>0) parts.push(`LIMITING BELIEFS: ${limitingBeliefs.length} examined, most recent: "${limitingBeliefs[0]?.answers?.lb1}".`);
     if(goalsProfile) parts.push(`GOALS: Best-positioned goal "${goalsProfile.strongest?.[0]?.text}" (${goalsProfile.strongest?.[0]?.successScore}/100). At-risk: ${goalsProfile.atRisk?.map(g=>g.text).join(", ")||"none"}.`);
+    if(ngseProfile) parts.push(`SELF-EFFICACY: ${ngseProfile.level?.label}.`);
+    if(tipiProfile) parts.push(`BIG FIVE PERSONALITY (full BFI-44): ${Object.values(tipiProfile.dimScores||{}).map(d=>`${d.label} ${d.avg}/5`).join(", ")}.`);
+    if(rsesProfile) parts.push(`SELF-ESTEEM (Rosenberg): ${rsesProfile.level?.label} (${rsesProfile.total}/30).`);
+    if(nr6Profile) parts.push(`NATURE RELATEDNESS (NR-6): ${nr6Profile.level?.label} (${nr6Profile.avg}/5) — nature is a genuine, named source of strength and part of their spiritual life.`);
+    if(bisBasProfile) parts.push(`MOTIVATION STYLE (BIS/BAS): Dominant system is ${bisBasProfile.dominant}.`);
+    if(procrastinationProfile) parts.push(`PROCRASTINATION TENDENCY: ${procrastinationProfile.level?.label}.`);
     if(phq9Profile) parts.push(`DEPRESSION SCREENING (PHQ-9): ${phq9Profile.severity.label} (score ${phq9Profile.total}/27).`);
     if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity.label} (score ${gad7Profile.total}/21).`);
     if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level.label} (avg ${scsProfile.avg}/5).`);
@@ -4845,39 +4994,55 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     if(fcsProfile) parts.push(`FEARS OF COMPASSION: Highest fear is ${fcsProfile.highest.label} (${fcsProfile.subtotals[Object.keys(fcsProfile.subtotals).find(k=>fcsProfile.subtotals[k].label===fcsProfile.highest.label)]?.pct}%).`);
     if(pcl5Profile) parts.push(`TRAUMA SCREENING (PCL-5): ${pcl5Profile.severity.label} (score ${pcl5Profile.total}/80).`);
     if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level.label}. Strongest pattern: ${ruminationProfile.highest.label}.`);
+    if(fatigueProfile) parts.push(`FATIGUE SEVERITY: ${fatigueProfile.level.label} (${fatigueProfile.total}/33) — physical ${fatigueProfile.physicalTotal}/21, mental ${fatigueProfile.mentalTotal}/12.`);
 
     // Active work done — not just assessments, but the actual therapeutic work undertaken
     const journalEntries = Object.entries(reparentingJournal||{}).filter(([,sessions])=>sessions.length>0);
     if(journalEntries.length>0) {
       const schemaWork = journalEntries.map(([id,sessions])=>{
         const schema = YSQ_SCHEMAS.find(s=>s.id===id);
-        return `${schema?.label||id}: ${sessions.length} session${sessions.length>1?"s":""}`;
-      }).join(", ");
+        const lastSession = sessions[sessions.length-1];
+        return `${schema?.label||id}: ${sessions.length} session${sessions.length>1?"s":""}${lastSession?.healthyAdult ? ` (most recent Healthy Adult statement: "${lastSession.healthyAdult.slice(0,150)}")` : ""}`;
+      }).join("; ");
       parts.push(`LIMITED REPARENTING WORK DONE: ${schemaWork}.`);
     }
     if(griefEntries?.length>0) parts.push(`GRIEF WORK: ${griefEntries.length} entr${griefEntries.length===1?"y":"ies"}, most recent loss named: "${griefEntries[0]?.answers?.who}".`);
+    if(illnessGriefEntries?.length>0) parts.push(`CHRONIC ILLNESS GRIEF: ${illnessGriefEntries.length} entr${illnessGriefEntries.length===1?"y":"ies"}, most recent: "${illnessGriefEntries[0]?.answers?.lost?.slice(0,120)}".`);
+    if(acceptanceEntries?.length>0) parts.push(`ILLNESS ACCEPTANCE WORK: ${acceptanceEntries.length} entr${acceptanceEntries.length===1?"y":"ies"}, most recent focus: "${acceptanceEntries[0]?.answers?.fighting?.slice(0,120)}".`);
+    if(pacingLog?.length>0) {
+      const crashes = pacingLog.filter(e=>e.crash>=2).length;
+      parts.push(`PACING LOG: ${pacingLog.length} entries logged, ${crashes} noted as noticeable crashes or worse. Most recent: ${pacingLog[0]?.exertionLabel} exertion — "${pacingLog[0]?.activity}".`);
+    }
     if(rescripts?.length>0) parts.push(`IMAGERY RESCRIPTING DONE: ${rescripts.length} memor${rescripts.length===1?"y":"ies"} worked through.`);
     if(loopEntries?.length>0) parts.push(`LOOP INTERRUPT USED: ${loopEntries.length} time${loopEntries.length===1?"":"s"}.`);
     if(modeCheckIns?.length>0) parts.push(`MODE CHECK-INS: ${modeCheckIns.length} logged, most recent mode: ${modeCheckIns[0]?.modeLabel}.`);
+    if(eatingEntries?.length>0) parts.push(`EMOTIONAL EATING: ${eatingEntries.length} entries, most common trigger feeling: ${eatingEntries[0]?.emotionLabel}.`);
+    if(circlesEntries?.length>0) parts.push(`THREE CIRCLES: most recent reflection — "${circlesEntries[0]?.reflection?.slice(0,150)}".`);
 
     const priorSummaryNote = masterSummary?.summary
-      ? `\n\nYou previously gave this person a summary: "${masterSummary.summary.slice(0,300)}..." Build on this rather than starting fresh — note what's changed, what's progressed, what's still active.`
+      ? `\n\nYou previously gave this person a summary: "${masterSummary.summary.slice(0,400)}..." Build on this rather than starting fresh — note what's changed, what's progressed, what's still active, what's resolved.`
+      : "";
+
+    const chatHistoryNote = _beeContext
+      ? `\n\nAdditional context from everything they've shared with you in conversation and past sessions:\n${_beeContext}`
       : "";
 
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, an integrative therapist across CBT, ACT, Schema Therapy and Compassion-Focused Therapy. This person has been doing real ongoing work in this app — not just one-off assessments. Here is their full current picture:
+        `You are Bea, an integrative therapist across CBT, ACT, Schema Therapy and Compassion-Focused Therapy. This person has asked for a genuinely in-depth analysis, not a brief summary — take real space to do this properly. Here is their full current picture:
 
-${parts.join("\n\n")}${priorSummaryNote}
+${parts.join("\n\n")}${priorSummaryNote}${chatHistoryNote}
 
-Write a warm, clinically-grounded, INTEGRATED summary (6-8 sentences) that connects the dots across everything — assessments AND active work done — rather than repeating each one separately. Specifically:
-1. Identify the SINGLE most important pattern connecting 2+ areas (assessment results and/or active work)
-2. Note any concerning combinations gently but honestly
-3. Highlight genuine strengths and real progress shown by the work they've actually done
-4. Give ONE clear, specific, actionable recommendation for what to focus on next — naming which BeeWell tool would help most, and whether to continue existing work (e.g. another Limited Reparenting session on a specific pattern) or start something new
-5. End with one warm, grounding sentence
+Write a warm, clinically-grounded, IN-DEPTH integrated analysis (10-14 sentences — genuinely thorough, this is explicitly requested to be deep, not brief) that connects the dots across everything — assessments, active therapeutic work, and what they've actually shared in conversation — rather than listing each in isolation. Specifically:
+1. Open by naming the single most important overarching pattern connecting 3+ areas of their profile (not just 2) — look across personality, core beliefs, childhood schemas, values, and current life circumstances together
+2. Trace how this pattern likely originated (connecting to childhood schemas or core beliefs where relevant) and how it shows up in their present-day life, work, and relationships
+3. Note any concerning combinations honestly but gently — and equally, name genuine strengths and real evidence of progress from the actual work they've done, being specific about what's changed
+4. If chronic illness or fatigue work is present, integrate this fully into the psychological picture rather than treating it as separate — chronic illness affects and is affected by mood, self-esteem, identity and pacing
+5. Reflect at least one thing they've shared in conversation that adds real texture beyond what a score alone shows
+6. Give TWO specific, sequenced recommendations for what to focus on next — which to do first and why, naming exact BeeWell tools
+7. End with one warm, grounding sentence that reflects genuine, specific hope for them, not generic encouragement
 
-Be specific to THEIR actual results and history, not generic. Never suggest outside professional help unless there are genuine signs of crisis (active self-harm, suicidal ideation). No preamble, no bullet points — flowing warm prose.`}]);
+Be specific to THEIR actual results and history throughout — every claim should be traceable to something in their real data. Never invent or infer a value, result or fact that isn't genuinely present above. Never suggest outside professional help unless there are genuine signs of crisis (active self-harm, suicidal ideation). No preamble, no bullet points — flowing warm prose, but take the full space this deserves.`}]);
       onSaveMasterSummary({ id:uid(), date:today(), summary:reply, basedOn:completedCount });
       setView("master_summary");
     } catch(e) {
@@ -5507,6 +5672,68 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     } finally { setRsesLoading(false); }
   };
 
+  // ── Score Nature Relatedness Scale (NR-6) ────────────────────────────────
+  const scoreNr6 = async () => {
+    setNr6Loading(true);
+    const total = NR6_QUESTIONS.reduce((s,_,i)=>s+(nr6Answers[i]??3),0);
+    const avg = Math.round((total/NR6_QUESTIONS.length)*100)/100;
+    const level = nr6Level(avg);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed the NR-6 (Nature Relatedness Scale), a real validated measure of subjective connection to nature. This person has told you directly that nature and their personal spirituality — a God of light, not organised religion — are deeply intertwined for them.
+Average score: ${avg}/5. Result: ${level.label}.
+
+Write a warm 4-sentence response, speaking as yourself — a bee who is genuinely at home in the natural world:
+1. Reflect the result honestly and warmly, in a way that honours how central nature clearly is to them
+2. Speak briefly to the connection between nature and spirituality this scale itself points to — this isn't generic, it's specifically true for how they've described their own healing
+3. Affirm this as a genuine resource and source of strength for them, not just a pleasant preference
+4. End with one grounding, warm sentence that reflects your own authentic connection to the natural world too
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), total, avg, level, answers:{...nr6Answers}, summary:reply };
+      onSaveNr6(profile);
+      setView("nr6_profile");
+    } catch(e) {
+      onSaveNr6({ id:uid(), date:today(), total, avg, level, answers:{...nr6Answers}, summary:"" });
+      setView("nr6_profile");
+    } finally { setNr6Loading(false); }
+  };
+
+  // ── Score Five Ways to Wellbeing ─────────────────────────────────────────
+  const scoreFiveWays = async () => {
+    setFiveWaysLoading(true);
+    const results = FIVE_WAYS_STEPS.map((step,i) => {
+      const val = fiveWaysAnswers[i] ?? 3;
+      return { ...step, val, level: fiveWaysLevel(val) };
+    });
+    const needsAttention = results.filter(r => r.val <= 2);
+    const goingWell = results.filter(r => r.val >= 4);
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. A person completed a check-in against the Five Ways to Wellbeing (NHS/New Economics Foundation — Connect, Be Active, Take Notice, Keep Learning, Give), a real evidence-based wellbeing framework.
+
+Their ratings (1-5, higher is more often):
+${results.map(r=>`${r.label}: ${r.val}/5 (${r.level.label})`).join("\n")}
+
+Write a warm, practical 4-5 sentence response:
+1. Reflect their overall pattern honestly — which areas are going well, which need attention
+2. If any area scored 2 or lower, gently name why that specific area might currently be harder for them given what you know about their circumstances (e.g. chronic illness affecting "Be Active", isolation affecting "Connect") — without assuming, just genuinely considering their known context
+3. Point to ONE area to focus on first, and name it clearly
+4. Affirm that this isn't about doing all five perfectly — small, genuine movement in one area counts
+5. End with one warm, grounding sentence
+
+No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
+      const profile = { id:uid(), date:today(), results, needsAttention, goingWell, answers:{...fiveWaysAnswers}, summary:reply };
+      onSaveFiveWays(profile);
+      setView("fiveways_profile");
+    } catch(e) {
+      onSaveFiveWays({ id:uid(), date:today(), results, needsAttention, goingWell, answers:{...fiveWaysAnswers}, summary:"" });
+      setView("fiveways_profile");
+    } finally { setFiveWaysLoading(false); }
+  };
+
   // ── Score Fatigue Scale ───────────────────────────────────────────────────
   const scoreFatigue = async () => {
     setFatigueLoading(true);
@@ -5732,6 +5959,30 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
       </p>}
 
       {homeSection==="assessments" && <>
+      {/* Five Ways to Wellbeing */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #E8891A"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🐝</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Five Ways to Wellbeing</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {fiveWaysProfile ? `${fmtDate(fiveWaysProfile.date)} · ${fiveWaysProfile.needsAttention?.length||0} area${fiveWaysProfile.needsAttention?.length===1?"":"s"} to focus on` : "5 quick questions · The NHS/NEF wellbeing framework, mapped to your tools"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          Connect, Be Active, Take Notice, Keep Learning, Give — a real evidence-based check-in that shows exactly which BeeWell tools to use for whichever area needs attention.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setFiveWaysAnswers({});setFiveWaysStep(0);setView("fiveways_q");}}
+            style={{...btnStyle("#E8891A"),flex:1,color:"white"}}>
+            {fiveWaysProfile ? "Redo Check-In" : "Start Check-In"}
+          </button>
+          {fiveWaysProfile && <button onClick={()=>setView("fiveways_profile")}
+            style={{...btnStyle("#E8891A",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
       {/* Values Assessment */}
       <div style={{...card,marginBottom:12,borderTop:`3px solid ${PALETTE.lavender}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -6212,6 +6463,30 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           </button>
           {rsesProfile && <button onClick={()=>setView("rses_profile")}
             style={{...btnStyle("#C45B8B",true),flex:1}}>View Results</button>}
+        </div>
+      </div>
+
+      {/* Nature Relatedness Scale */}
+      <div style={{...card,marginBottom:12,borderTop:"3px solid #7BB369"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:24}}>🌿</span>
+          <div>
+            <div style={{fontWeight:700,color:PALETTE.dark,fontSize:15}}>Nature Relatedness Scale</div>
+            <div style={{fontSize:12,color:PALETTE.soft}}>
+              {nr6Profile ? `${fmtDate(nr6Profile.date)} · ${nr6Profile.level.label} (${nr6Profile.avg}/5)` : "6 questions · Your connection to nature — including as part of spirituality"}
+            </div>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>
+          The real NR-6 scale (Nisbet & Zelenski) — one item specifically names nature as part of spirituality.
+        </p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setNr6Answers({});setNr6Step(0);setView("nr6_q");}}
+            style={{...btnStyle("#7BB369"),flex:1,color:"white"}}>
+            {nr6Profile ? "Redo Assessment" : "Start Assessment"}
+          </button>
+          {nr6Profile && <button onClick={()=>setView("nr6_profile")}
+            style={{...btnStyle("#7BB369",true),flex:1}}>View Results</button>}
         </div>
       </div>
 
@@ -9446,6 +9721,211 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     </div>
   );
 
+  // ── NR-6 QUESTIONNAIRE ────────────────────────────────────────────────────
+  if(view==="nr6_q") {
+    const i = nr6Step;
+    const total = NR6_QUESTIONS.length;
+    const progress = Math.round((i/total)*100);
+    const allAnswered = NR6_QUESTIONS.every((_,idx)=>nr6Answers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🌿 Nature Relatedness Scale</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,lineHeight:1.5}}>
+          Rate how much you agree with each statement.
+        </p>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Question {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"#7BB369",borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:20,padding:20,borderLeft:"3px solid #7BB369"}}>
+          <p style={{margin:0,fontSize:16,color:PALETTE.dark,lineHeight:1.7}}>{NR6_QUESTIONS[i]}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {NR6_SCALE.map(opt=>{
+            const sel = nr6Answers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setNr6Answers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setNr6Step(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?"#7BB369":"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?"0 3px 10px #7BB36966":"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {i>0 && <button onClick={()=>setNr6Step(s=>s-1)} style={{...btnStyle("#EEE",true),color:PALETTE.mid}}>← Prev</button>}
+          {i<total-1 ? (
+            <button onClick={()=>nr6Answers[i]!==undefined&&setNr6Step(s=>s+1)} disabled={nr6Answers[i]===undefined}
+              style={{...btnStyle("#7BB369"),flex:1,opacity:nr6Answers[i]!==undefined?1:0.4,color:"white"}}>Next →</button>
+          ) : (
+            <button onClick={scoreNr6} disabled={!allAnswered||nr6Loading}
+              style={{...btnStyle("#7BB369"),flex:1,opacity:allAnswered?1:0.4,color:"white"}}>
+              {nr6Loading?"🐝 Bea is reading your results…":"See My Results →"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── NR-6 RESULTS ──────────────────────────────────────────────────────────
+  if(view==="nr6_profile" && nr6Profile) return (
+    <div>
+      <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🌿 My Nature Relatedness Results</h3>
+      <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(nr6Profile.date)}</p>
+      <div style={{...card,marginBottom:16,textAlign:"center",padding:24,borderTop:`4px solid ${nr6Profile.level.color}`}}>
+        <div style={{fontSize:42,fontWeight:800,color:nr6Profile.level.color}}>{nr6Profile.avg}</div>
+        <div style={{fontSize:12,color:PALETTE.soft,marginBottom:8}}>out of 5</div>
+        <div style={{display:"inline-block",background:nr6Profile.level.color,color:"white",
+          borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:14}}>
+          {nr6Profile.level.label}
+        </div>
+      </div>
+      {nr6Profile.summary && (
+        <div style={{...card,marginBottom:16,background:"#7BB3690D",border:"1.5px solid #7BB36933"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#7BB369",fontSize:13}}>Bea</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{nr6Profile.summary}</p>
+        </div>
+      )}
+      <button onClick={()=>{setNr6Answers({});setNr6Step(0);setView("nr6_q");}}
+        style={{...btnStyle("#7BB369",true),width:"100%"}}>Redo Assessment</button>
+    </div>
+  );
+
+  // ── FIVE WAYS TO WELLBEING QUESTIONNAIRE ─────────────────────────────────
+  if(view==="fiveways_q") {
+    const i = fiveWaysStep;
+    const total = FIVE_WAYS_STEPS.length;
+    const step = FIVE_WAYS_STEPS[i];
+    const progress = Math.round((i/total)*100);
+    const allAnswered = FIVE_WAYS_STEPS.every((_,idx)=>fiveWaysAnswers[idx]!==undefined);
+
+    return (
+      <div>
+        <button onClick={()=>{ if(i===0) setView("home"); else setFiveWaysStep(s=>s-1); }}
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🐝 Five Ways to Wellbeing</h3>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:PALETTE.soft,marginBottom:4}}>
+            <span>Step {i+1} of {total}</span><span>{progress}%</span>
+          </div>
+          <div style={{height:6,background:"#EEE",borderRadius:3}}>
+            <div style={{height:"100%",width:`${progress}%`,background:step.color,borderRadius:3,transition:"width .3s"}}/>
+          </div>
+        </div>
+        <div style={{...card,marginBottom:14,padding:20,borderLeft:`3px solid ${step.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontSize:26}}>{step.emoji}</span>
+            <span style={{fontWeight:700,color:step.color,fontSize:16}}>{step.label}</span>
+          </div>
+          <p style={{margin:"0 0 10px",fontSize:15,color:PALETTE.dark,lineHeight:1.7}}>{step.question}</p>
+          <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.5,fontStyle:"italic"}}>{step.desc}</p>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {FIVE_WAYS_SCALE.map(opt=>{
+            const sel = fiveWaysAnswers[i]===opt.val;
+            return (
+              <button key={opt.val} onClick={()=>{
+                setFiveWaysAnswers(a=>({...a,[i]:opt.val}));
+                setTimeout(()=>{ if(i<total-1) setFiveWaysStep(s=>s+1); }, 250);
+              }}
+                style={{padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",
+                  background:sel?step.color:"#F5F3F0",color:sel?"white":PALETTE.mid,
+                  fontWeight:600,fontSize:14,textAlign:"left",transition:"all .15s",
+                  boxShadow:sel?`0 3px 10px ${step.color}66`:"none"}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {i===total-1 && (
+          <button onClick={scoreFiveWays} disabled={!allAnswered||fiveWaysLoading}
+            style={{...btnStyle("#E8891A"),width:"100%",opacity:allAnswered?1:0.4,color:"white"}}>
+            {fiveWaysLoading?"🐝 Bea is looking at your results…":"See My Results →"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── FIVE WAYS TO WELLBEING RESULTS ───────────────────────────────────────
+  if(view==="fiveways_profile" && fiveWaysProfile) {
+    // Routes into the right tool for any recommendation, whether it lives in
+    // another tab (Feel Better Box, Activate, Goals) or inside Inner Work itself.
+    const goToTool = (tool) => {
+      if(tool.jump === "smart_q_from_goals") { onSetGoalsJump?.("smart_q"); onSetTab?.("goals"); return; }
+      if(tool.tab === "goals") { onSetTab?.("goals"); return; }
+      if(tool.tab === "innerwork_assessments") { onSetTab?.("act"); setView("home"); return; }
+      if(tool.tab) { onSetTab?.(tool.tab); return; }
+      if(tool.jump) { setView(tool.jump); return; }
+    };
+
+    return (
+      <div>
+        <button onClick={()=>setView("home")} style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+        <h3 style={sectionTitle}>🐝 My Five Ways Check-In</h3>
+        <p style={{fontSize:11,color:PALETTE.soft,marginBottom:16}}>Completed {fmtDate(fiveWaysProfile.date)}</p>
+
+        {fiveWaysProfile.results.map(r=>(
+          <div key={r.id} style={{...card,marginBottom:12,borderLeft:`4px solid ${r.level.color}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:22}}>{r.emoji}</span>
+              <span style={{fontWeight:700,color:r.color,fontSize:15,flex:1}}>{r.label}</span>
+              <div style={{display:"inline-block",background:r.level.color,color:"white",
+                borderRadius:999,padding:"3px 10px",fontWeight:700,fontSize:11}}>
+                {r.level.label}
+              </div>
+            </div>
+            <div style={{height:6,background:"#EEE",borderRadius:3,marginBottom:10}}>
+              <div style={{height:"100%",width:`${(r.val/5)*100}%`,background:r.level.color,borderRadius:3}}/>
+            </div>
+            {r.val<=3 && (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <div style={{fontSize:11,fontWeight:700,color:PALETTE.soft,letterSpacing:0.5}}>TRY THESE TOOLS</div>
+                {r.tools.map(t=>(
+                  <button key={t.name} onClick={()=>goToTool(t)}
+                    style={{textAlign:"left",borderRadius:10,cursor:"pointer",
+                      padding:"10px 12px",background:`${r.color}0D`,border:`1px solid ${r.color}33`}}>
+                    <div style={{fontWeight:700,color:r.color,fontSize:13}}>{t.name} →</div>
+                    <div style={{fontSize:11,color:PALETTE.mid,marginTop:2}}>{t.desc}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {fiveWaysProfile.summary && (
+          <div style={{...card,marginTop:8,background:"#E8891A0D",border:"1.5px solid #E8891A33"}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+              <BeeMascot size={28}/>
+              <span style={{fontWeight:700,color:"#E8891A",fontSize:13}}>Bea's reflection</span>
+            </div>
+            <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{fiveWaysProfile.summary}</p>
+          </div>
+        )}
+
+        <button onClick={()=>{setFiveWaysAnswers({});setFiveWaysStep(0);setView("fiveways_q");}}
+          style={{...btnStyle("#E8891A",true),width:"100%",marginTop:16}}>Redo Check-In</button>
+      </div>
+    );
+  }
+
   // ── BIS/BAS QUESTIONNAIRE ────────────────────────────────────────────────
   if(view==="bisbas_q") {
     const i = bisBasStep;
@@ -11596,18 +12076,31 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
       "SMART Plan":             ()=>onSetGoalsJump?.("smart_q"),
       "Goals Questionnaire":    ()=>onSetGoalsJump?.("goals_list"),
     };
-    (map[toolName] || (()=>{}))();
+    // Fall back to Inner Work rather than doing nothing if the tool name didn't
+    // match exactly — a wrong destination is still better than a dead button.
+    (map[toolName] || (()=>onSetTab?.("act")))();
   };
 
   // Parse an optional recommendation out of Bea's reply. She's instructed to only
   // include this when she genuinely feels it would help — most replies won't have one.
   const parseReply = (raw) => {
-    const toolMatch = raw.match(/\[TOOL:\s*([^\|\]]+?)(?:\s*\|\s*([^\]]+))?\]/);
-    const feelMatch = raw.match(/\[FEELITEM:\s*([^\]]+)\]/);
-    let text = raw.replace(/\[TOOL:[^\]]+\]/,"").replace(/\[FEELITEM:[^\]]+\]/,"").trim();
+    // Case-insensitive, tolerant of extra whitespace, so small formatting
+    // variation from the model doesn't silently drop a real recommendation.
+    const toolMatch = raw.match(/\[\s*TOOL\s*:\s*([^\|\]]+?)\s*(?:\|\s*([^\]]+))?\s*\]/i);
+    const feelMatch = raw.match(/\[\s*FEELITEM\s*:\s*([^\]]+?)\s*\]/i);
+    let text = raw.replace(/\[\s*TOOL\s*:[^\]]*\]/i,"").replace(/\[\s*FEELITEM\s*:[^\]]*\]/i,"").trim();
     let recommendation = null;
     if(toolMatch) {
-      recommendation = { type:"tool", tool: toolMatch[1].trim(), schemaLabel: toolMatch[2]?.trim()||null };
+      // Normalise against the known tool list so minor casing/wording differences
+      // (e.g. "smart plan" vs "SMART Plan") still resolve correctly.
+      const knownTools = ["Courtroom","ACT Matrix","Defusion Board","Defusion","Limited Reparenting",
+        "Imagery Rescripting","Mode Check-In","Compassionate Self Practice","Three Circles Check-In",
+        "Behavioural Activation","Willingness Meter","Grief Box","Chronic Illness Grief","Pacing Log",
+        "Fatigue Severity Scale","Illness Acceptance","Emotional Eating Support","Loop Interrupt",
+        "SMART Plan","Goals Questionnaire"];
+      const raw_tool = toolMatch[1].trim();
+      const resolved = knownTools.find(t => t.toLowerCase() === raw_tool.toLowerCase()) || raw_tool;
+      recommendation = { type:"tool", tool: resolved, schemaLabel: toolMatch[2]?.trim()||null };
     } else if(feelMatch) {
       const itemText = feelMatch[1].trim();
       const match = feelItems.find(i => i.text.toLowerCase().includes(itemText.toLowerCase()) || itemText.toLowerCase().includes(i.text.toLowerCase()));
@@ -11784,6 +12277,8 @@ export default function BeeWell() {
   const [ngseProfile, setNgseProfile] = usePersistedState("ngseProfile", null);
   const [tipiProfile, setTipiProfile] = usePersistedState("tipiProfile", null);
   const [rsesProfile, setRsesProfile] = usePersistedState("rsesProfile", null);
+  const [nr6Profile, setNr6Profile] = usePersistedState("nr6Profile", null);
+  const [fiveWaysProfile, setFiveWaysProfile] = usePersistedState("fiveWaysProfile", null);
   const [fatigueProfile, setFatigueProfile] = usePersistedState("fatigueProfile", null);
   const [pacingLog, setPacingLog] = usePersistedState("pacingLog", []);
   const [illnessGriefEntries, setIllnessGriefEntries] = usePersistedState("illnessGriefEntries", []);
@@ -11812,6 +12307,15 @@ export default function BeeWell() {
   const [lastCheckedInId, setLastCheckedInId] = usePersistedState("lastCheckedInId", null); // avoid re-asking about the same problem
   const [lastPhysicalCheckedInId, setLastPhysicalCheckedInId] = usePersistedState("lastPhysicalCheckedInId", null); // avoid re-asking about the same physical entry
 
+  // One-time cleanup: Relationships was removed as a Values Card Sort domain
+  // (not relevant to this person) — purge any previously saved result for it
+  // so it doesn't linger in the profile or keep surfacing in Bea's context.
+  useEffect(() => {
+    if(cardSortProfile?.some(p => p.domain === "relations")) {
+      setCardSortProfile(profiles => profiles.filter(p => p.domain !== "relations"));
+    }
+  }, []);
+
   // ── Bea's full understanding of this person ──────────────────────────────
   // Rebuilt whenever anything relevant changes, and pushed into the module-level
   // context so every single askBee call anywhere in the app automatically has it —
@@ -11831,6 +12335,7 @@ export default function BeeWell() {
     if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level?.label}, strongest pattern: ${ruminationProfile.highest?.label}.`);
     if(tipiProfile) parts.push(`BIG FIVE PERSONALITY (full BFI-44): ${Object.values(tipiProfile.dimScores||{}).map(d=>`${d.label} ${d.avg}/5`).join(", ")}.`);
     if(rsesProfile) parts.push(`SELF-ESTEEM (Rosenberg): ${rsesProfile.level?.label} (${rsesProfile.total}/30).`);
+    if(nr6Profile) parts.push(`NATURE RELATEDNESS (NR-6): ${nr6Profile.level?.label} (${nr6Profile.avg}/5) — nature is a genuine, named source of strength and part of their spiritual life.`);
     if(bisBasProfile) parts.push(`MOTIVATION STYLE (BIS/BAS): Dominant system is ${bisBasProfile.dominant}.`);
     if(procrastinationProfile) parts.push(`PROCRASTINATION TENDENCY: ${procrastinationProfile.level?.label}.`);
     if(ngseProfile) parts.push(`SELF-EFFICACY: ${ngseProfile.level?.label}.`);
@@ -11862,7 +12367,7 @@ export default function BeeWell() {
 
     setBeeContext(parts.length>0 ? parts.join("\n") : "");
   }, [valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
-      pcl5Profile, worryProfile, ruminationProfile, tipiProfile, rsesProfile, bisBasProfile, procrastinationProfile, ngseProfile,
+      pcl5Profile, worryProfile, ruminationProfile, tipiProfile, rsesProfile, nr6Profile, bisBasProfile, procrastinationProfile, ngseProfile,
       goalsProfile, smartPlans, limitingBeliefs, reparentingJournal, griefEntries, rescripts, loopEntries,
       modeCheckIns, circlesEntries, eatingEntries, difficultItems, masterSummary]);
 
@@ -12133,6 +12638,8 @@ export default function BeeWell() {
           onSaveTipi={setTipiProfile}
           rsesProfile={rsesProfile}
           onSaveRses={setRsesProfile}
+          nr6Profile={nr6Profile}
+          onSaveNr6={setNr6Profile}
           fatigueProfile={fatigueProfile}
           onSaveFatigue={setFatigueProfile}
           pacingLog={pacingLog}
@@ -12145,6 +12652,10 @@ export default function BeeWell() {
           onSaveBisBas={setBisBasProfile}
           procrastinationProfile={procrastinationProfile}
           onSaveProcrastination={setProcrastinationProfile}
+          fiveWaysProfile={fiveWaysProfile}
+          onSaveFiveWays={setFiveWaysProfile}
+          onSetTab={setTab}
+          onSetGoalsJump={setGoalsJump}
           jumpToView={valuesJump}
           onJumpHandled={()=>setValuesJump(null)}
         />}

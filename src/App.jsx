@@ -1116,10 +1116,34 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
 
       {/* History chart */}
       {step === "emotion" && logs.length > 1 && <>
-        <h3 style={{...sectionTitle,marginTop:28}}>Your last 14 days</h3>
-        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:80,padding:"0 4px"}}>
+        <h3 style={{...sectionTitle,marginTop:28}}>Your Mood — Last 14 Days</h3>
+        <p style={{fontSize:12,color:PALETTE.soft,marginBottom:12,textAlign:"center"}}>
+          Each bar is a day you logged — taller means you rated that feeling more strongly.
+        </p>
+
+        {/* Legend explaining the bars — colours vary by specific emotion, grouped here by general feel */}
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:16,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:10,height:10,borderRadius:3,background:"linear-gradient(135deg,#F5A623,#7BB369)"}}/>
+            <span style={{fontSize:11,color:PALETTE.soft}}>Positive</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:10,height:10,borderRadius:3,background:"linear-gradient(135deg,#6B9BB8,#A8937E)"}}/>
+            <span style={{fontSize:11,color:PALETTE.soft}}>Neutral</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:10,height:10,borderRadius:3,background:"linear-gradient(135deg,#E8737A,#7B90CC)"}}/>
+            <span style={{fontSize:11,color:PALETTE.soft}}>Difficult</span>
+          </div>
+        </div>
+        <p style={{fontSize:10,color:PALETTE.soft,marginBottom:12,textAlign:"center",fontStyle:"italic"}}>
+          Each specific emotion has its own shade within these groups — the emoji above each bar shows exactly which one.
+        </p>
+
+        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:100,padding:"0 4px"}}>
           {last14.map(d=>(
-            <div key={d.key} title={d.emotion?`${d.emotion.label} — ${d.rating}/10`:""} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
+            <div key={d.key} title={d.emotion?`${d.emotion.label} — ${d.rating}/10`:"No entry"} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
+              {d.emotion && <span style={{fontSize:11,marginBottom:3}}>{d.emotion.emoji}</span>}
               <div style={{
                 width:"100%",borderRadius:4,
                 background:d.rating ? (d.emotion?.color||PALETTE.honey) : "#EEE",
@@ -1129,10 +1153,10 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
             </div>
           ))}
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:PALETTE.soft}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontSize:10,color:PALETTE.soft}}>
           <span>{last14[0].label}</span><span>Today</span>
         </div>
-        <p style={{fontSize:11,color:PALETTE.soft,marginTop:4,textAlign:"center"}}>Bars taller = stronger intensity</p>
+        <p style={{fontSize:11,color:PALETTE.soft,marginTop:8,textAlign:"center"}}>Tap or hold a bar to see that day's exact mood and rating</p>
       </>}
     </div>
   );

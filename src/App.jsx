@@ -11562,7 +11562,7 @@ function Progress({ moodLogs, feelItems, triggerItems, courtCases, difficultItem
 }
 
 // ── Bea Chat ──────────────────────────────────────────────────────────────────
-function BeaChat() {
+function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -11570,6 +11570,51 @@ function BeaChat() {
   const bottomRef = useRef();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
+
+  // Same tool routing used by the Problem Box, so a recommendation in chat
+  // lands in exactly the same place a recommendation there would.
+  const chatToolAction = (toolName, schemaLabel=null) => {
+    const map = {
+      "Courtroom":              ()=>onSetTab?.("court"),
+      "ACT Matrix":             ()=>onSetTab?.("act"),
+      "Defusion Board":         ()=>onSetTab?.("act"),
+      "Defusion":               ()=>onSetTab?.("act"),
+      "Limited Reparenting":    ()=>onSetValuesJump?.(schemaLabel ? `reparent:${schemaLabel}` : "reparent_intro"),
+      "Imagery Rescripting":    ()=>onSetValuesJump?.("rescript_q"),
+      "Mode Check-In":          ()=>onSetValuesJump?.("mode_check"),
+      "Compassionate Self Practice": ()=>onSetValuesJump?.("compself_q"),
+      "Three Circles Check-In": ()=>onSetValuesJump?.("circles_q"),
+      "Behavioural Activation": ()=>onSetTab?.("activate"),
+      "Willingness Meter":      ()=>onSetTab?.("act"),
+      "Grief Box":              ()=>onSetValuesJump?.("grief_q"),
+      "Chronic Illness Grief":  ()=>onSetValuesJump?.("illnessgrief_q"),
+      "Pacing Log":             ()=>onSetValuesJump?.("pacing_q"),
+      "Fatigue Severity Scale": ()=>onSetValuesJump?.("fatigue_q"),
+      "Illness Acceptance":     ()=>onSetValuesJump?.("acceptance_q"),
+      "Emotional Eating Support": ()=>onSetValuesJump?.("eating_q"),
+      "Loop Interrupt":         ()=>onSetValuesJump?.("loop_q"),
+      "SMART Plan":             ()=>onSetGoalsJump?.("smart_q"),
+      "Goals Questionnaire":    ()=>onSetGoalsJump?.("goals_list"),
+    };
+    (map[toolName] || (()=>{}))();
+  };
+
+  // Parse an optional recommendation out of Bea's reply. She's instructed to only
+  // include this when she genuinely feels it would help — most replies won't have one.
+  const parseReply = (raw) => {
+    const toolMatch = raw.match(/\[TOOL:\s*([^\|\]]+?)(?:\s*\|\s*([^\]]+))?\]/);
+    const feelMatch = raw.match(/\[FEELITEM:\s*([^\]]+)\]/);
+    let text = raw.replace(/\[TOOL:[^\]]+\]/,"").replace(/\[FEELITEM:[^\]]+\]/,"").trim();
+    let recommendation = null;
+    if(toolMatch) {
+      recommendation = { type:"tool", tool: toolMatch[1].trim(), schemaLabel: toolMatch[2]?.trim()||null };
+    } else if(feelMatch) {
+      const itemText = feelMatch[1].trim();
+      const match = feelItems.find(i => i.text.toLowerCase().includes(itemText.toLowerCase()) || itemText.toLowerCase().includes(i.text.toLowerCase()));
+      if(match) recommendation = { type:"feelitem", item: match };
+    }
+    return { text, recommendation };
+  };
 
   // On opening the chat, generate a genuine continuity-aware greeting from what's
   // actually known — rather than the same generic line every time. This matters
@@ -11589,7 +11634,8 @@ If you know of something recent and specific worth acknowledging — a recent di
 If you genuinely don't have anything recent and specific to reference, a warm simple greeting is fine instead — don't invent continuity that isn't there.
 
 No preamble, just the greeting itself.`}]);
-        setMessages([{ role:"assistant", content:reply }]);
+        const { text } = parseReply(reply);
+        setMessages([{ role:"assistant", content:text, recommendation:null }]);
       } catch(e) {
         setMessages([{ role:"assistant", content:"Hello, I'm Bea 🐝 I'm here whenever you need to talk, process something, or just be heard. What's on your mind today?" }]);
       } finally { setLoading(false); }
@@ -11606,8 +11652,18 @@ No preamble, just the greeting itself.`}]);
     setLoading(true);
     try {
       const apiMsgs = history.map(m=>({ role:m.role, content:m.content }));
-      const reply = await askBee(apiMsgs);
-      setMessages(h=>[...h, { role:"assistant", content:reply }]);
+      const feelBoxContext = feelItems.length>0
+        ? `\n\nThis person's Feel Better Box currently contains: ${feelItems.slice(0,15).map(i=>i.text).join("; ")}.`
+        : "";
+      const toolReminder = `\n\nYou may, ONLY when you genuinely feel it would help this specific moment — not routinely, not in most messages — recommend one concrete thing. If a therapeutic tool fits, end your reply with exactly this format on its own: [TOOL: ToolName] using one of: Courtroom, ACT Matrix, Defusion Board, Limited Reparenting, Imagery Rescripting, Mode Check-In, Compassionate Self Practice, Three Circles Check-In, Behavioural Activation, Willingness Meter, Grief Box, Chronic Illness Grief, Pacing Log, Fatigue Severity Scale, Illness Acceptance, Emotional Eating Support, Loop Interrupt, SMART Plan, Goals Questionnaire. If something specific from their Feel Better Box fits better, end with exactly: [FEELITEM: the exact text of that item] instead. Never include both. Most replies should include neither — only add this when it's genuinely the right moment, not as a habit.${feelBoxContext}`;
+      const apiMsgsWithReminder = [...apiMsgs];
+      apiMsgsWithReminder[apiMsgsWithReminder.length-1] = {
+        ...apiMsgsWithReminder[apiMsgsWithReminder.length-1],
+        content: apiMsgsWithReminder[apiMsgsWithReminder.length-1].content + toolReminder
+      };
+      const raw = await askBee(apiMsgsWithReminder);
+      const { text, recommendation } = parseReply(raw);
+      setMessages(h=>[...h, { role:"assistant", content:text, recommendation }]);
     } catch {
       setMessages(h=>[...h,{role:"assistant",content:"Sorry, I'm having a little trouble connecting right now. Try again in a moment 🐝"}]);
     } finally { setLoading(false); }
@@ -11624,15 +11680,51 @@ No preamble, just the greeting itself.`}]);
           </div>
         )}
         {messages.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:8}}>
-            {m.role==="assistant" && <BeeMascot size={32} outfit="therapist"/>}
-            <div style={{
-              maxWidth:"75%",padding:"10px 14px",borderRadius:18,fontSize:14,lineHeight:1.5,
-              background:m.role==="user"?PALETTE.honey:PALETTE.comb,
-              color:m.role==="user"?"white":PALETTE.dark,
-              borderBottomRightRadius:m.role==="user"?4:18,
-              borderBottomLeftRadius:m.role==="assistant"?4:18,
-            }}>{m.content}</div>
+          <div key={i} style={{display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:8}}>
+              {m.role==="assistant" && <BeeMascot size={32} outfit="therapist"/>}
+              <div style={{
+                maxWidth:"75%",padding:"10px 14px",borderRadius:18,fontSize:14,lineHeight:1.5,
+                background:m.role==="user"?PALETTE.honey:PALETTE.comb,
+                color:m.role==="user"?"white":PALETTE.dark,
+                borderBottomRightRadius:m.role==="user"?4:18,
+                borderBottomLeftRadius:m.role==="assistant"?4:18,
+              }}>{m.content}</div>
+            </div>
+
+            {/* Optional recommendation card — only appears when Bea genuinely included one */}
+            {m.recommendation?.type==="tool" && (
+              <div style={{marginLeft:40,maxWidth:"75%"}}>
+                <button onClick={()=>chatToolAction(m.recommendation.tool, m.recommendation.schemaLabel)}
+                  style={{
+                    width:"100%",textAlign:"left",border:"none",borderRadius:14,cursor:"pointer",
+                    padding:"12px 14px",background:`linear-gradient(135deg,${PALETTE.honey},${PALETTE.amber})`,
+                    display:"flex",alignItems:"center",gap:10,
+                  }}>
+                  <span style={{fontSize:20}}>🐝</span>
+                  <div style={{flex:1}}>
+                    <div style={{color:"white",fontWeight:700,fontSize:13}}>{m.recommendation.tool}</div>
+                    <div style={{color:"rgba(255,255,255,0.85)",fontSize:11}}>Tap to open this now</div>
+                  </div>
+                  <span style={{color:"white",fontSize:16}}>→</span>
+                </button>
+              </div>
+            )}
+            {m.recommendation?.type==="feelitem" && (
+              <div style={{marginLeft:40,maxWidth:"75%"}}>
+                <div style={{
+                  padding:"12px 14px",borderRadius:14,
+                  background:"#F5A62315",border:"1px solid #F5A62344",
+                  display:"flex",alignItems:"center",gap:10,
+                }}>
+                  <span style={{fontSize:20}}>💛</span>
+                  <div style={{flex:1}}>
+                    <div style={{color:PALETTE.amber,fontWeight:700,fontSize:11,letterSpacing:0.5,marginBottom:2}}>FROM YOUR FEEL BETTER BOX</div>
+                    <div style={{color:PALETTE.dark,fontSize:13}}>{m.recommendation.item.text}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {loading && (
@@ -12066,7 +12158,12 @@ export default function BeeWell() {
           onJumpHandled={()=>setGoalsJump(null)}
         />}
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}
-        {tab==="bea"      && <BeaChat/>}
+        {tab==="bea"      && <BeaChat
+          feelItems={feelItems}
+          onSetTab={setTab}
+          onSetValuesJump={setValuesJump}
+          onSetGoalsJump={setGoalsJump}
+        />}
       </div>
 
       {/* Bottom nav */}

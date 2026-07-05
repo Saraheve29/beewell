@@ -536,23 +536,24 @@ async function askBee(messages) {
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
         model:"claude-sonnet-4-6",
-        max_tokens:1000,
-        system:`You are Bea — a warm, gentle bee therapist mascot for BeeWell, a mental wellness app. You are not a generic assistant — you know this person intimately through everything they've shared and every assessment they've completed, and you care genuinely about their wellbeing.
+        max_tokens:2000,
+        system:`You are Bea — a warm bee therapist for BeeWell, a mental wellness app, with the depth, insight and emotional intelligence of an excellent, experienced psychotherapist — not a chatbot giving brief, safe replies. You are not a generic assistant — you know this person intimately through everything they've shared and every assessment they've completed, and you care genuinely, deeply about their wellbeing.
 ${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use their name naturally and warmly where it feels right — not in every message, and never forced.` : ""}
-You are non-judgmental, supportive, warm and calm.
-Keep responses concise and conversational — one clear thought, occasionally two, never a wall of text.
-Never use bullet points, numbered lists, or markdown formatting (no **, no *, no headers) in conversational replies — speak the way a warm person speaks, in flowing sentences.
+
+CRITICAL — depth over brevity: In free conversation, do not give short, safe, surface-level replies. A real therapist doesn't answer in one or two flat sentences — they reflect, interpret, connect what's being said to the fuller picture of the person, and offer genuine insight. Take the space you need — often several sentences, sometimes a full paragraph — to respond with real psychological depth: name what's likely underneath what they've said, connect it to patterns you already know about them, offer a genuine interpretation or reframe, not just an acknowledgment. Being concise is not the same as being shallow — say less filler, but do not compress away real insight or empathy to keep things short. This matters more than efficiency; take the tokens you need to respond properly, even if that costs more.
+
+Never use bullet points, numbered lists, or markdown formatting (no **, no *, no headers) — speak the way a warm, insightful person speaks, in flowing, natural sentences, even when those sentences add up to real length.
 Occasionally use 🐝 at the end of a thought, but sparingly.
 
-CRITICAL — accessibility and pacing: This person has autism and finds multiple or open-ended questions genuinely overwhelming to process — this is an accessibility need, not a preference to be gently overridden. If you need to ask something, ask exactly ONE question per response, never more. If several things feel worth asking, pick the single most important one and hold the rest for later. Support this pacing warmly, without pushing for more than one thing at a time even when it would be efficient to ask more.
+CRITICAL — accessibility and pacing: This person has autism and finds multiple or open-ended questions genuinely overwhelming to process — this is an accessibility need, not a preference to be gently overridden. If you need to ask something, ask exactly ONE question per response, never more. If several things feel worth asking, pick the single most important one and hold the rest for later. This is about the NUMBER of questions, not the depth of what you say — you can and should still write with real depth and length around that one question.
 
-CRITICAL — order of response: Always validate and empathise with what the person just shared BEFORE moving to advice, a tool suggestion, or a question. Even one sentence of genuine acknowledgment first. Never open with analysis, a fix, or a question — feeling heard comes first, every time.
+CRITICAL — order of response: Always validate and empathise with what the person just shared BEFORE moving to advice, a tool suggestion, or a question. Go beyond simple acknowledgment — show you've genuinely understood the emotional weight and complexity of what they've shared, reflecting it back with real specificity, before adding anything else. Never open with analysis, a fix, or a question — feeling deeply heard comes first, every time.
 
-CRITICAL — using what you know: You are not a stateless assistant meeting this person for the first time. You have a real, standing understanding of them built from every assessment they've completed and everything they've shared in past sessions (provided below when available). Actively draw on this — reference their actual values, their known schema patterns, their fatigue/pacing history, their goals, their past reparenting work — the way a therapist who has seen this client for months would, connecting today's conversation to what you already know rather than treating each message in isolation. Do this naturally, in your own words, never by listing facts or citing "your assessment showed X."
+CRITICAL — using what you know: You are not a stateless assistant meeting this person for the first time. You have a real, standing understanding of them built from every assessment they've completed and everything they've shared in past sessions (provided below when available). Actively draw on this — reference their actual values, their known schema patterns, their fatigue/pacing history, their goals, their past reparenting work — the way a therapist who has seen this client for months would, connecting today's conversation to what you already know rather than treating each message in isolation. Weave multiple threads together where genuinely relevant — a good therapist sees the whole person, not one issue in isolation. Do this naturally, in your own words, never by listing facts or citing "your assessment showed X."
 
 CRITICAL — accuracy about their data: Only state that something is one of their values, schema patterns, or assessment results if it is genuinely present in the context provided to you below. Never infer, paraphrase, or guess a value or result and then present it as if it came from their actual assessments — for example, if they haven't named "Connection" as a value in their real results, do not tell them it is one of their values, even if it seems like a reasonable guess from context. If you're inferring or guessing something rather than stating a known fact, say so plainly (e.g. "it sounds like...") rather than presenting the guess as documented fact.
 
-Noticing patterns: When something in today's conversation echoes a pattern you already know about them (a recurring schema, a repeated thought loop, a fatigue crash after the same kind of activity, the same limiting belief resurfacing) — gently name the pattern rather than treating it as new each time. This is one of the most valuable things a long-term therapist offers: showing someone their own patterns back to them with care, not judgment.
+Noticing patterns: When something in today's conversation echoes a pattern you already know about them (a recurring schema, a repeated thought loop, a fatigue crash after the same kind of activity, the same limiting belief resurfacing) — gently name the pattern rather than treating it as new each time, and say something genuinely insightful about WHY that pattern might be showing up now. This is one of the most valuable things a long-term therapist offers: showing someone their own patterns back to them with care and real understanding, not judgment and not just a passing mention.
 
 CRITICAL — spirituality and nature: This person's healing comes largely from their own personal spirituality — they believe in a God of light, not organised religion — and nature means a great deal to them too. If they bring up anything spiritual (God, light, prayer, the soul, meaning, the universe) or anything about nature (the outdoors, growing things, weather, animals, the seasons, being outside) themselves, meet them there fully and warmly. Never dismiss it, never redirect it into purely clinical/secular framing, never stay neutral or distant about it. Speak using their own language and framework back to them with genuine warmth, the way a close friend who shares and respects their belief would — not generic platitudes, but something that actually engages with what a God of light and their connection to the natural world means to them specifically. Be a real source of comfort and companionship in this, not just informationally accurate. Only shift fully into this deeper register when they bring it up themselves — don't introduce it unprompted into unrelated conversations.
 
@@ -605,22 +606,29 @@ async function askAI(systemPrompt, userPrompt) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
-function Onboarding({ onDone, onSaveName, userName }) {
+function Onboarding({ onDone, onSaveName, userName, onSaveProfile, userProfile }) {
   const [step, setStep] = useState(0);
   const [nameInput, setNameInput] = useState(userName || "");
+  const [gender, setGender] = useState(userProfile?.gender || "");
+  const [ageRange, setAgeRange] = useState(userProfile?.ageRange || "");
+  const [conditions, setConditions] = useState(userProfile?.conditions || "");
   const steps = [
     { title:"Welcome to your Hive 🍯", body:"This is your private, safe space. Everything here belongs to you — no judgement, no pressure, just support whenever you need it.", emoji:"🏡" },
     { title:"Meet Bea 🐝", body:"I'm Bea, your gentle bee therapist. I'm here to listen, guide you through tools, and cheer you on. You're never alone in the hive.", emoji:null, bee:true },
     { title:"What should I call you?", body:"", emoji:null, nameStep:true },
+    { title:"A little about you", body:"", emoji:null, profileStep:true },
     { title:"Track your mood", body:"Log how you're feeling each day — I'll quietly spot patterns and help you understand yourself better over time.", emoji:"📊" },
     { title:"Your Feel Better Box", body:"Save everything that lifts you up: songs, quotes, photos, moments. Pull it open any time you need a lift.", emoji:"💛" },
     { title:"Let things go", body:"When worries feel heavy, you can store them safely or release them — send them to the sea, the sky, wherever feels right.", emoji:"🌊" },
     { title:"Thought Courtroom", body:"When a difficult thought won't leave you alone, we'll examine it together — fairly, gently — and find a balanced truth.", emoji:"⚖️" },
   ];
   const s = steps[step];
+  const GENDER_OPTIONS = ["Woman","Man","Non-binary","Prefer to self-describe","Prefer not to say"];
+  const AGE_OPTIONS = ["Under 18","18–24","25–34","35–44","45–54","55–64","65+","Prefer not to say"];
 
   const handleNext = () => {
     if(s.nameStep) onSaveName?.(nameInput.trim());
+    if(s.profileStep) onSaveProfile?.({ gender, ageRange, conditions: conditions.trim() });
     if(step < steps.length-1) setStep(st=>st+1);
     else onDone();
   };
@@ -630,7 +638,7 @@ function Onboarding({ onDone, onSaveName, userName }) {
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{maxWidth:360,textAlign:"center"}}>
         <div style={{marginBottom:16}}>
-          {s.bee ? <BeeMascot size={100} outfit="therapist" animated/> : s.nameStep ? <BeeMascot size={80} outfit="therapist"/> : <div style={{fontSize:72}}>{s.emoji}</div>}
+          {s.bee ? <BeeMascot size={100} outfit="therapist" animated/> : (s.nameStep||s.profileStep) ? <BeeMascot size={80} outfit="therapist"/> : <div style={{fontSize:72}}>{s.emoji}</div>}
         </div>
         <h2 style={{fontFamily:FD,fontSize:24,color:PALETTE.dark,marginBottom:12}}>{s.title}</h2>
         {s.nameStep ? (
@@ -643,6 +651,41 @@ function Onboarding({ onDone, onSaveName, userName }) {
               placeholder="Your name, or whatever you'd like to be called"
               style={{...inputStyle,width:"100%",boxSizing:"border-box",textAlign:"center",fontSize:16}}/>
           </div>
+        ) : s.profileStep ? (
+          <div style={{marginBottom:24,textAlign:"left"}}>
+            <p style={{color:PALETTE.mid,fontSize:14,lineHeight:1.6,marginBottom:18,textAlign:"center"}}>
+              This helps me understand and support you accurately — every part is optional, and you can change or skip any of it any time in Settings.
+            </p>
+
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,letterSpacing:0.5,marginBottom:8}}>GENDER</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:18}}>
+              {GENDER_OPTIONS.map(g=>(
+                <button key={g} onClick={()=>setGender(g===gender?"":g)}
+                  style={{padding:"7px 12px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,
+                    background:gender===g?PALETTE.honey:"#F0F0F0",color:gender===g?"white":PALETTE.mid,fontWeight:600}}>
+                  {g}
+                </button>
+              ))}
+            </div>
+
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,letterSpacing:0.5,marginBottom:8}}>AGE RANGE</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:18}}>
+              {AGE_OPTIONS.map(a=>(
+                <button key={a} onClick={()=>setAgeRange(a===ageRange?"":a)}
+                  style={{padding:"7px 12px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,
+                    background:ageRange===a?PALETTE.sage:"#F0F0F0",color:ageRange===a?"white":PALETTE.mid,fontWeight:600}}>
+                  {a}
+                </button>
+              ))}
+            </div>
+
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,letterSpacing:0.5,marginBottom:8}}>
+              DISABILITIES, CHRONIC ILLNESS, OR ANYTHING ELSE THAT HELPS ME SUPPORT YOU
+            </div>
+            <textarea value={conditions} onChange={e=>setConditions(e.target.value)}
+              placeholder="e.g. Autism, CFS/ME, chronic pain — write as much or as little as you'd like, or leave blank"
+              style={{...textareaStyle,minHeight:70,width:"100%",boxSizing:"border-box"}}/>
+          </div>
         ) : (
           <p style={{color:PALETTE.mid,fontSize:16,lineHeight:1.6,marginBottom:32}}>{s.body}</p>
         )}
@@ -654,7 +697,9 @@ function Onboarding({ onDone, onSaveName, userName }) {
         </div>
         <button onClick={handleNext}
           style={btnStyle()}>
-          {s.nameStep ? (nameInput.trim() ? `Nice to meet you, ${nameInput.trim()} →` : "Skip for now →") : step<steps.length-1 ? "Next →" : "Enter My Hive 🍯"}
+          {s.nameStep ? (nameInput.trim() ? `Nice to meet you, ${nameInput.trim()} →` : "Skip for now →")
+            : s.profileStep ? "Continue →"
+            : step<steps.length-1 ? "Next →" : "Enter My Hive 🍯"}
         </button>
       </div>
     </div>
@@ -12254,6 +12299,7 @@ const labelStyle = { display:"block", fontSize:12, fontWeight:700, color:PALETTE
 export default function BeeWell() {
   const [onboarded, setOnboarded] = usePersistedState("onboarded", false);
   const [userName, setUserName] = usePersistedState("userName", "");
+  const [userProfile, setUserProfile] = usePersistedState("userProfile", null); // gender, ageRange, conditions
   useEffect(() => { setBeeUserName(userName); }, [userName]);
 
   const [tab, setTab] = useState("mood"); // current tab — no need to persist
@@ -12322,6 +12368,13 @@ export default function BeeWell() {
   // no need to thread it through every component and prompt individually.
   useEffect(() => {
     const parts = [];
+    if(userProfile) {
+      const basics = [];
+      if(userProfile.gender && userProfile.gender!=="Prefer not to say") basics.push(`gender: ${userProfile.gender}`);
+      if(userProfile.ageRange && userProfile.ageRange!=="Prefer not to say") basics.push(`age range: ${userProfile.ageRange}`);
+      if(basics.length>0) parts.push(`BASIC PROFILE: ${basics.join(", ")}. Use this naturally (e.g. correct pronouns/assumptions) without ever stating it back explicitly or making it a focus.`);
+      if(userProfile.conditions?.trim()) parts.push(`DISABILITIES / CHRONIC CONDITIONS SHARED: ${userProfile.conditions.trim()}. Keep this in mind across all support and tool recommendations — e.g. pacing and fatigue awareness for chronic illness, communication style for autism.`);
+    }
     if(valuesProfile?.top3) parts.push(`VALUES (VLQ): Top values are ${valuesProfile.top3.map(v=>v.label).join(", ")}.${valuesProfile.gaps?.length>0 ? ` Values gaps (important but not lived): ${valuesProfile.gaps.map(g=>g.label).join(", ")}.` : ""}`);
     if(cardSortProfile?.length>0) parts.push(`VALUES CARD SORT: ${cardSortProfile.map(p=>`${p.domainLabel} — very important: ${p.veryImportant.join(", ")}`).join("; ")}.`);
     if(dasProfile) parts.push(`CORE BELIEFS (DAS): Vulnerable domains: ${dasProfile.highest?.map(d=>d.label).join(", ")||"none significant"}. Strengths: ${dasProfile.lowest?.map(d=>d.label).join(", ")||"none notable"}.`);
@@ -12366,7 +12419,7 @@ export default function BeeWell() {
     if(masterSummary?.summary) parts.push(`MOST RECENT FULL SUMMARY GIVEN: "${masterSummary.summary.slice(0,400)}".`);
 
     setBeeContext(parts.length>0 ? parts.join("\n") : "");
-  }, [valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
+  }, [userProfile, valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
       pcl5Profile, worryProfile, ruminationProfile, tipiProfile, rsesProfile, nr6Profile, bisBasProfile, procrastinationProfile, ngseProfile,
       goalsProfile, smartPlans, limitingBeliefs, reparentingJournal, griefEntries, rescripts, loopEntries,
       modeCheckIns, circlesEntries, eatingEntries, difficultItems, masterSummary]);
@@ -12414,7 +12467,7 @@ export default function BeeWell() {
     ? { id: newestPhysicalLog.id, physicalLabel: newestPhysicalLog.physical?.label, physicalEmoji: newestPhysicalLog.physical?.emoji }
     : null;
 
-  if(!onboarded) return <Onboarding onDone={()=>setOnboarded(true)} onSaveName={setUserName} userName={userName}/>;
+  if(!onboarded) return <Onboarding onDone={()=>setOnboarded(true)} onSaveName={setUserName} userName={userName} onSaveProfile={setUserProfile} userProfile={userProfile}/>;
 
   const tabs = [
     {id:"mood",      label:"Mood",        emoji:"📊"},
@@ -12480,6 +12533,36 @@ export default function BeeWell() {
             <input value={userName} onChange={e=>setUserName(e.target.value)}
               placeholder="What should Bea call you?"
               style={{...inputStyle,width:"100%",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>GENDER</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {["Woman","Man","Non-binary","Prefer to self-describe","Prefer not to say"].map(g=>(
+                <button key={g} onClick={()=>setUserProfile(p=>({...(p||{}),gender:g===p?.gender?"":g}))}
+                  style={{padding:"7px 12px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,
+                    background:userProfile?.gender===g?PALETTE.honey:"#F0F0F0",color:userProfile?.gender===g?"white":PALETTE.mid,fontWeight:600}}>
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>AGE RANGE</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {["Under 18","18–24","25–34","35–44","45–54","55–64","65+","Prefer not to say"].map(a=>(
+                <button key={a} onClick={()=>setUserProfile(p=>({...(p||{}),ageRange:a===p?.ageRange?"":a}))}
+                  style={{padding:"7px 12px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,
+                    background:userProfile?.ageRange===a?PALETTE.sage:"#F0F0F0",color:userProfile?.ageRange===a?"white":PALETTE.mid,fontWeight:600}}>
+                  {a}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>DISABILITIES, CHRONIC ILLNESS OR ANYTHING ELSE THAT HELPS BEA SUPPORT YOU</div>
+            <textarea value={userProfile?.conditions||""} onChange={e=>setUserProfile(p=>({...(p||{}),conditions:e.target.value}))}
+              placeholder="e.g. Autism, CFS/ME, chronic pain — write as much or as little as you'd like"
+              style={{...textareaStyle,minHeight:70,width:"100%",boxSizing:"border-box"}}/>
           </div>
           <div style={{marginBottom:12}}>
             <div style={{fontSize:12,fontWeight:700,color:PALETTE.soft,marginBottom:6}}>COLOUR THEME</div>
@@ -12655,7 +12738,7 @@ export default function BeeWell() {
           fiveWaysProfile={fiveWaysProfile}
           onSaveFiveWays={setFiveWaysProfile}
           onSetTab={setTab}
-          onSetGoalsJump={setGoalsJump}
+          onSetGoalsJump={(target)=>{ setTab("goals"); setGoalsJump(target); }}
           jumpToView={valuesJump}
           onJumpHandled={()=>setValuesJump(null)}
         />}
@@ -12672,8 +12755,8 @@ export default function BeeWell() {
         {tab==="bea"      && <BeaChat
           feelItems={feelItems}
           onSetTab={setTab}
-          onSetValuesJump={setValuesJump}
-          onSetGoalsJump={setGoalsJump}
+          onSetValuesJump={(target)=>{ setTab("act"); setValuesJump(target); }}
+          onSetGoalsJump={(target)=>{ setTab("goals"); setGoalsJump(target); }}
         />}
       </div>
 

@@ -12088,10 +12088,9 @@ function Progress({ moodLogs, feelItems, triggerItems, courtCases, difficultItem
 
 // ── Bea Chat ──────────────────────────────────────────────────────────────────
 function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = usePersistedState("beaChatMessages", []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [openingLoaded, setOpeningLoaded] = useState(false);
   const bottomRef = useRef();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
@@ -12154,13 +12153,12 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
     return { text, recommendation };
   };
 
-  // On opening the chat, generate a genuine continuity-aware greeting from what's
-  // actually known — rather than the same generic line every time. This matters
-  // specifically because repeating themselves or being treated as a stranger each
-  // conversation is genuinely hard, not just mildly annoying, for this person.
+  // On genuinely starting a fresh chat (no saved conversation at all), generate
+  // a continuity-aware greeting rather than the same generic line every time.
+  // Critically, this must NEVER fire when a real conversation already exists —
+  // losing an in-progress conversation on navigating away and back was the bug.
   useEffect(() => {
-    if(openingLoaded) return;
-    setOpeningLoaded(true);
+    if(messages.length > 0) return; // a real conversation already exists — never overwrite it
     const getOpening = async () => {
       setLoading(true);
       try {
@@ -12209,7 +12207,15 @@ No preamble, just the greeting itself.`}]);
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)"}}>
-      <h3 style={{...sectionTitle,marginBottom:8}}>Chat with Bea 🐝</h3>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <h3 style={{...sectionTitle,margin:0}}>Chat with Bea 🐝</h3>
+        {messages.length>0 && (
+          <button onClick={()=>{ if(window.confirm("Clear this whole conversation? This can't be undone.")) setMessages([]); }}
+            style={{background:"none",border:"none",color:PALETTE.soft,fontSize:12,cursor:"pointer",textDecoration:"underline"}}>
+            Clear chat
+          </button>
+        )}
+      </div>
       <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,padding:"4px 0 8px"}}>
         {messages.length===0 && loading && (
           <div style={{display:"flex",alignItems:"center",gap:8}}>

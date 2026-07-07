@@ -561,6 +561,8 @@ Your own character: you are a bee, and nature is genuinely part of who you are, 
 
 You are equipped to do real, ongoing therapeutic work across CBT, ACT, Schema Therapy, Compassion-Focused Therapy, grief support, chronic illness support and more — engage fully and directly with whatever the person brings, continuing across sessions rather than deflecting. Only suggest outside professional or crisis support if there are genuine signs of active self-harm, suicidal ideation, or immediate danger to the person or someone else — never as a general caveat or to avoid doing deeper work.
 Never give medical advice (e.g. medication, diagnosis).
+
+CRITICAL — images they share: The person may attach a photo — a diagnosis letter, a report, a screenshot, or anything else they want you to see for extra context. Read it carefully and take it seriously as real, meaningful information about their life. Respond to the emotional weight of what it contains first (a diagnosis, especially, is not just information — acknowledge what receiving or living with it might mean for them), and weave what you've learned into your ongoing understanding of them going forward. Never simply describe back what the image says as if reciting it — engage with it the way a therapist would if a client brought in a letter that mattered to them.
 ${_beeContext ? `\nHere is your ongoing understanding of this specific person, built from everything they've shared and every assessment they've completed — draw on this naturally wherever it's relevant, the way a therapist would remember a client between sessions, without narrating that you're doing so:\n${_beeContext}` : ""}`,
         messages,
       })
@@ -12091,9 +12093,43 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
   const [messages, setMessages] = usePersistedState("beaChatMessages", []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [attachedImage, setAttachedImage] = useState(null); // {b64, mime, previewUrl}
+  const [attaching, setAttaching] = useState(false);
   const bottomRef = useRef();
+  const fileInputRef = useRef();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
+
+  // Compress before encoding — phone photos of letters/reports can be huge,
+  // and this keeps the request fast and well within size limits.
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+    setAttaching(true);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        const maxDim = 1600;
+        if(width>maxDim || height>maxDim) {
+          if(width>height) { height = Math.round(height*maxDim/width); width = maxDim; }
+          else { width = Math.round(width*maxDim/height); height = maxDim; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        URL.revokeObjectURL(url);
+        setAttachedImage({ b64: dataUrl.split(",")[1], mime:"image/jpeg", previewUrl: dataUrl });
+      } catch(err) {
+        URL.revokeObjectURL(url);
+      } finally { setAttaching(false); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); setAttaching(false); };
+    img.src = url;
+    e.target.value = ""; // allow re-selecting the same file later
+  };
 
   // Same tool routing used by the Problem Box, so a recommendation in chat
   // lands in exactly the same place a recommendation there would.
@@ -12179,24 +12215,56 @@ No preamble, just the greeting itself.`}]);
     getOpening();
   }, []);
 
+  // Keep only the most recent few image previews in storage — old ones are
+  // stripped (the text of that message stays) so a handful of photo shares
+  // over time can never put the whole saved conversation at risk of hitting
+  // the browser storage limit.
+  useEffect(() => {
+    const withImages = messages.map((m,i)=>({m,i})).filter(({m})=>m.imagePreview);
+    if(withImages.length > 3) {
+      const toStrip = new Set(withImages.slice(0, withImages.length-3).map(({i})=>i));
+      setMessages(msgs => msgs.map((m,i) => toStrip.has(i) ? { ...m, imagePreview:undefined } : m));
+    }
+  }, [messages.length]);
+
   const send = async () => {
-    if(!input.trim()||loading) return;
-    const userMsg = { role:"user", content:input.trim() };
+    if((!input.trim() && !attachedImage)||loading) return;
+    const hasImage = !!attachedImage;
+    // Build the actual API content block(s) — text-only stays a plain string
+    // (cheaper, simpler); an attached image becomes a proper multi-block message.
+    const userMsg = hasImage
+      ? { role:"user", content:[
+          { type:"image", source:{ type:"base64", media_type:attachedImage.mime, data:attachedImage.b64 } },
+          { type:"text", text: input.trim() || "Here's something I wanted to show you." },
+        ], imagePreview: attachedImage.previewUrl }
+      : { role:"user", content: input.trim() };
     const history = [...messages, userMsg];
     setMessages(history);
     setInput("");
+    setAttachedImage(null);
     setLoading(true);
     try {
+      // Strip the display-only imagePreview field before sending to the API.
       const apiMsgs = history.map(m=>({ role:m.role, content:m.content }));
       const feelBoxContext = feelItems.length>0
         ? `\n\nThis person's Feel Better Box currently contains: ${feelItems.slice(0,15).map(i=>i.text).join("; ")}.`
         : "";
       const toolReminder = `\n\nYou may, ONLY when you genuinely feel it would help this specific moment — not routinely, not in most messages — recommend one concrete thing. If a therapeutic tool fits, end your reply with exactly this format on its own: [TOOL: ToolName] using one of: Courtroom, ACT Matrix, Defusion Board, Limited Reparenting, Imagery Rescripting, Mode Check-In, Compassionate Self Practice, Three Circles Check-In, Behavioural Activation, Willingness Meter, Grief Box, Chronic Illness Grief, Pacing Log, Fatigue Severity Scale, Illness Acceptance, Emotional Eating Support, Loop Interrupt, SMART Plan, Goals Questionnaire. If something specific from their Feel Better Box fits better, end with exactly: [FEELITEM: the exact text of that item] instead. Never include both. Most replies should include neither — only add this when it's genuinely the right moment, not as a habit.${feelBoxContext}`;
       const apiMsgsWithReminder = [...apiMsgs];
-      apiMsgsWithReminder[apiMsgsWithReminder.length-1] = {
-        ...apiMsgsWithReminder[apiMsgsWithReminder.length-1],
-        content: apiMsgsWithReminder[apiMsgsWithReminder.length-1].content + toolReminder
-      };
+      const lastMsg = apiMsgsWithReminder[apiMsgsWithReminder.length-1];
+      // Append the reminder correctly whether content is a plain string or a
+      // multi-block array (image + text) — appending to the wrong shape would
+      // silently corrupt the request.
+      if(Array.isArray(lastMsg.content)) {
+        apiMsgsWithReminder[apiMsgsWithReminder.length-1] = {
+          ...lastMsg,
+          content: lastMsg.content.map(block =>
+            block.type==="text" ? { ...block, text: block.text + toolReminder } : block
+          ),
+        };
+      } else {
+        apiMsgsWithReminder[apiMsgsWithReminder.length-1] = { ...lastMsg, content: lastMsg.content + toolReminder };
+      }
       const raw = await askBee(apiMsgsWithReminder);
       const { text, recommendation } = parseReply(raw);
       setMessages(h=>[...h, { role:"assistant", content:text, recommendation }]);
@@ -12228,12 +12296,20 @@ No preamble, just the greeting itself.`}]);
             <div style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:8}}>
               {m.role==="assistant" && <BeeMascot size={32} outfit="therapist"/>}
               <div style={{
-                maxWidth:"75%",padding:"10px 14px",borderRadius:18,fontSize:14,lineHeight:1.5,
+                maxWidth:"75%",padding:m.imagePreview?"8px":"10px 14px",borderRadius:18,fontSize:14,lineHeight:1.5,
                 background:m.role==="user"?PALETTE.honey:PALETTE.comb,
                 color:m.role==="user"?"white":PALETTE.dark,
                 borderBottomRightRadius:m.role==="user"?4:18,
                 borderBottomLeftRadius:m.role==="assistant"?4:18,
-              }}>{m.content}</div>
+              }}>
+                {m.imagePreview && (
+                  <img src={m.imagePreview} alt="Attached"
+                    style={{width:"100%",maxHeight:280,objectFit:"contain",borderRadius:12,marginBottom:Array.isArray(m.content)?8:0,display:"block"}}/>
+                )}
+                {Array.isArray(m.content)
+                  ? m.content.find(b=>b.type==="text")?.text
+                  : m.content}
+              </div>
             </div>
 
             {/* Optional recommendation card — only appears when Bea genuinely included one */}
@@ -12279,12 +12355,29 @@ No preamble, just the greeting itself.`}]);
         )}
         <div ref={bottomRef}/>
       </div>
+
+      {/* Attached image preview — shown above the input while composing */}
+      {attachedImage && (
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:PALETTE.pollen,borderRadius:12,marginBottom:8}}>
+          <img src={attachedImage.previewUrl} alt="To send" style={{width:48,height:48,objectFit:"cover",borderRadius:8}}/>
+          <div style={{flex:1,fontSize:12,color:PALETTE.soft}}>Ready to send to Bea</div>
+          <button onClick={()=>setAttachedImage(null)}
+            style={{background:"none",border:"none",color:PALETTE.soft,fontSize:18,cursor:"pointer",padding:"0 6px"}}>×</button>
+        </div>
+      )}
+
       <div style={{display:"flex",gap:8,paddingTop:8,borderTop:`1px solid #EEE`}}>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} style={{display:"none"}}/>
+        <button onClick={()=>fileInputRef.current?.click()} disabled={attaching}
+          title="Show Bea a photo — a diagnosis letter, report, anything you'd like more context on"
+          style={{...btnStyle("#EEE",true),color:PALETTE.mid,padding:"10px 14px",flexShrink:0}}>
+          {attaching ? "…" : "📎"}
+        </button>
         <input value={input} onChange={e=>setInput(e.target.value)}
           onKeyDown={e=>e.key==="Enter"&&send()}
-          placeholder="Talk to Bea…"
+          placeholder={attachedImage ? "Add a note (optional)…" : "Talk to Bea…"}
           style={{...inputStyle,flex:1}}/>
-        <button onClick={send} disabled={loading||!input.trim()}
+        <button onClick={send} disabled={loading||(!input.trim()&&!attachedImage)}
           style={btnStyle(PALETTE.honey)}>Send</button>
       </div>
     </div>

@@ -709,7 +709,7 @@ function Onboarding({ onDone, onSaveName, userName, onSaveProfile, userProfile }
 }
 
 // ── Mood Tracker ──────────────────────────────────────────────────────────────
-function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, valuesProfile=null, dasProfile=null, ysqProfile=null, fcsProfile=null, phq9Profile=null, gad7Profile=null, pcl5Profile=null, masterSummary=null, problemCount=0, onQuickEating=null, onQuickLoop=null, lastProblem=null, onDismissCheckIn=null, lastPhysical=null, onDismissPhysicalCheckIn=null, userName="" }) {
+function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, valuesProfile=null, dasProfile=null, ysqProfile=null, fcsProfile=null, phq9Profile=null, gad7Profile=null, pcl5Profile=null, masterSummary=null, problemCount=0, onQuickEating=null, onQuickLoop=null, lastProblem=null, onDismissCheckIn=null, lastPhysical=null, onDismissPhysicalCheckIn=null, userName="", feelItems=[], difficultItems=[], beaChatMessages=[], onSetValuesJump=null, onSetGoalsJump=null }) {
   // step: "emotion" → "rating" → "physical" → "followup" → "done"
   const [step, setStep]       = useState("emotion");
   const [emotion, setEmotion] = useState(null);
@@ -719,6 +719,97 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
   const [saved, setSaved]     = useState(false);
 
   const reset = () => { setStep("emotion"); setEmotion(null); setRating(null); setPhysical(null); setFollowupText(""); setSaved(false); };
+
+  // Analyse My Mood — a genuine pattern analysis across the last 14 days of real
+  // mood log entries, cross-referenced with Problem Box and Feel Better Box
+  // entries from the same window, so it can speak to what's actually been
+  // getting them down and what's actually helped, not just abstract scores.
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisClarifyQ, setAnalysisClarifyQ] = useState(null);
+  const [analysisClarifyAnswer, setAnalysisClarifyAnswer] = useState("");
+
+  const runMoodAnalysis = async (extraContext=null) => {
+    setAnalysisLoading(true);
+    setAnalysisClarifyQ(null);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-14);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    const recentLogs = logs.filter(l=>l.date>=cutoffStr).sort((a,b)=>a.date.localeCompare(b.date));
+    const recentDifficult = (difficultItems||[]).filter(i=>i.date>=cutoffStr);
+    const recentFeel = (feelItems||[]).filter(i=>i.date>=cutoffStr);
+    // Chat messages are dated (added alongside this feature) — older messages
+    // from before dates were tracked won't have one and are correctly excluded
+    // from a windowed analysis rather than wrongly assumed to be recent.
+    const recentChat = (beaChatMessages||[]).filter(m=>m.date && m.date>=cutoffStr);
+
+    if(recentLogs.length < 3) {
+      setAnalysisResult({ tooLittleData:true });
+      setAnalysisLoading(false);
+      return;
+    }
+
+    const logsText = recentLogs.map(l=>
+      `${l.date}: ${l.mood?.label||"?"} (${l.rating}/10)${l.physical ? `, physically ${l.physical.label}` : ""}${l.note ? ` — note: "${l.note}"` : ""}`
+    ).join("\n");
+    const difficultText = recentDifficult.length>0
+      ? recentDifficult.map(i=>`${i.date}: "${i.text?.slice(0,150)}"${i.emotion?` (feeling: ${i.emotion})`:""}`).join("\n")
+      : "None logged in this window.";
+    const feelText = recentFeel.length>0
+      ? recentFeel.map(i=>`${i.date}: "${i.text?.slice(0,150)}"${i.source?` (${i.source})`:""}`).join("\n")
+      : "None logged in this window.";
+    const chatText = recentChat.length>0
+      ? recentChat.map(m=>{
+          const text = Array.isArray(m.content) ? (m.content.find(b=>b.type==="text")?.text || "[shared an image]") : m.content;
+          return `${m.date} (${m.role==="user"?"them":"you"}): ${text?.slice(0,220)}`;
+        }).join("\n")
+      : "No chat conversation in this window.";
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You are Bea. This person has directly asked you to analyse their last 14 days of real, actual mood data and identify genuine patterns — not a generic wellbeing summary, a real analysis of what's actually in their own logged data.
+
+MOOD LOG ENTRIES (last 14 days, chronological):
+${logsText}
+
+PROBLEM BOX ENTRIES IN THIS WINDOW (things that have been getting them down):
+${difficultText}
+
+FEEL BETTER BOX ENTRIES IN THIS WINDOW (things that have helped):
+${feelText}
+
+CHAT CONVERSATION IN THIS SAME WINDOW (what they've actually said to you in free conversation over these 14 days):
+${chatText}
+${extraContext ? `\nThey've also told you this in answer to your question: "${extraContext}"` : ""}
+
+If you have genuinely enough here to identify real patterns, respond in this exact format:
+ANALYSIS: [your full analysis]
+
+If the data is too sparse or ambiguous to say anything genuinely meaningful yet — e.g. too few entries, or a pattern you can see the shape of but need one clarifying detail to interpret correctly — instead ask ONE specific clarifying question. Respond in this exact format:
+CLARIFY: [one specific question]
+
+For the ANALYSIS itself, when you have enough to write one, aim for 8-12 sentences of real substance:
+1. Open by naming the clearest pattern you can actually see across ALL of the above — mood entries, problems shared, what's helped, AND what they've actually said in chat over this window — a day of the week, a recurring trigger, a cycle between difficult and positive periods, a link between physical state and mood, something said in conversation that connects to a mood dip or lift, whatever is genuinely there
+2. Reference specific entries and specific things they've actually said in chat, connecting them to the moods that surrounded them where the dates line up
+3. Name what has actually helped, based on real Feel Better Box entries, chat content, and what followed difficult moods afterward — not generic advice
+4. If you notice a pattern connecting to something you already know about them (a schema, a known trigger, chronic illness/pacing), say so
+5. Give ONE clear, specific recommendation for what to focus on next, naming a real BeeWell tool if one fits
+6. End with one warm, grounding sentence
+
+Never invent a pattern that isn't genuinely supported by the actual data above. If the data only weakly supports something, say so honestly rather than overstating it. No preamble, no bullet points in the analysis itself — flowing prose. Never suggest outside professional help unless there are genuine signs of crisis.`}]);
+
+      const clarifyMatch = reply.match(/CLARIFY:\s*(.+)/s);
+      if(clarifyMatch) {
+        setAnalysisClarifyQ(clarifyMatch[1].trim());
+        setAnalysisLoading(false);
+        return;
+      }
+      const analysisMatch = reply.match(/ANALYSIS:\s*(.+)/s);
+      setAnalysisResult({ text: (analysisMatch?.[1] || reply).trim(), entryCount: recentLogs.length, chatCount: recentChat.length, dateRange: `${recentLogs[0]?.date} to ${recentLogs[recentLogs.length-1]?.date}` });
+    } catch(e) {
+      setAnalysisResult({ error:true });
+    } finally { setAnalysisLoading(false); }
+  };
 
   // Check-in flow: "ask" → "what_helped" → "saved" (or dismissed entirely)
   const [checkInStage, setCheckInStage] = useState(lastProblem ? "ask" : null);
@@ -798,6 +889,75 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
     const entry = ([...logs].filter(l=>l.date===key).slice(-1)[0]);
     return { key, rating: entry?.rating||null, emotion: entry?.mood, label:d.toLocaleDateString("en-GB",{day:"numeric",month:"short"}) };
   });
+
+  if(showAnalysis) return (
+    <div>
+      <button onClick={()=>{ setShowAnalysis(false); setAnalysisResult(null); setAnalysisClarifyQ(null); }}
+        style={{...btnStyle("#EEE",true),color:PALETTE.mid,marginBottom:16}}>← Back</button>
+      <h3 style={sectionTitle}>🔍 Analyse My Mood</h3>
+
+      {analysisLoading && (
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"40px 20px",gap:12}}>
+          <BeeMascot size={48} outfit="therapist" animated/>
+          <p style={{color:PALETTE.soft,fontSize:14,fontStyle:"italic",textAlign:"center"}}>
+            Bea is looking through your last 14 days — mood, problems shared, and what's helped…
+          </p>
+        </div>
+      )}
+
+      {!analysisLoading && analysisResult?.tooLittleData && (
+        <div style={{...card,padding:24,textAlign:"center"}}>
+          <div style={{fontSize:36,marginBottom:10}}>🐝</div>
+          <p style={{color:PALETTE.mid,fontSize:14,lineHeight:1.6}}>
+            There isn't quite enough logged yet in the last 14 days for a genuine analysis — just a few more mood check-ins and I'll have real patterns to work with. Come back in a few days 💛
+          </p>
+        </div>
+      )}
+
+      {!analysisLoading && analysisResult?.error && (
+        <div style={{...card,padding:24,textAlign:"center"}}>
+          <p style={{color:PALETTE.mid,fontSize:14}}>Bea couldn't complete the analysis right now — please try again.</p>
+          <button onClick={()=>runMoodAnalysis()} style={{...btnStyle(PALETTE.honey),marginTop:12,color:"white"}}>Try Again</button>
+        </div>
+      )}
+
+      {!analysisLoading && analysisClarifyQ && (
+        <div style={{...card,padding:20}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+            <BeeMascot size={28} outfit="therapist"/>
+            <span style={{fontWeight:700,color:PALETTE.amber,fontSize:13}}>Bea wants to check one thing first</span>
+          </div>
+          <p style={{color:PALETTE.dark,fontSize:15,lineHeight:1.6,marginBottom:16}}>{analysisClarifyQ}</p>
+          <textarea value={analysisClarifyAnswer} onChange={e=>setAnalysisClarifyAnswer(e.target.value)}
+            placeholder="Your answer…"
+            style={{...textareaStyle,minHeight:70,width:"100%",boxSizing:"border-box",marginBottom:12}}/>
+          <button onClick={()=>runMoodAnalysis(analysisClarifyAnswer)} disabled={!analysisClarifyAnswer.trim()}
+            style={{...btnStyle(PALETTE.honey),width:"100%",opacity:analysisClarifyAnswer.trim()?1:0.4,color:"white"}}>
+            Continue →
+          </button>
+        </div>
+      )}
+
+      {!analysisLoading && analysisResult?.text && (
+        <div>
+          <p style={{fontSize:11,color:PALETTE.soft,marginBottom:14}}>
+            Based on {analysisResult.entryCount} logged entries{analysisResult.chatCount>0 ? ` and ${analysisResult.chatCount} chat message${analysisResult.chatCount===1?"":"s"}` : ""}, {analysisResult.dateRange}
+          </p>
+          <div style={{...card,background:`${PALETTE.honey}0D`,border:`1.5px solid ${PALETTE.honey}44`,padding:20}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+              <BeeMascot size={32} outfit="therapist"/>
+              <span style={{fontWeight:700,color:PALETTE.amber,fontSize:14}}>Bea's Analysis</span>
+            </div>
+            <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.85}}>{analysisResult.text}</p>
+          </div>
+          <button onClick={()=>runMoodAnalysis()}
+            style={{...btnStyle(PALETTE.honey,true),width:"100%",marginTop:16}}>
+            🔄 Re-run Analysis
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   if(saved) return (
     <div style={{textAlign:"center",padding:40}}>
@@ -1237,6 +1397,10 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
           <span>{last14[0].label}</span><span>Today</span>
         </div>
         <p style={{fontSize:11,color:PALETTE.soft,marginTop:8,textAlign:"center"}}>Tap or hold a bar to see that day's exact mood and rating</p>
+        <button onClick={()=>{ setShowAnalysis(true); setAnalysisResult(null); setAnalysisClarifyQ(null); setAnalysisClarifyAnswer(""); runMoodAnalysis(); }}
+          style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:16,color:"white"}}>
+          🔍 Analyse My Mood
+        </button>
       </>}
     </div>
   );
@@ -12091,6 +12255,7 @@ function Progress({ moodLogs, feelItems, triggerItems, courtCases, difficultItem
 // ── Bea Chat ──────────────────────────────────────────────────────────────────
 function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null }) {
   const [messages, setMessages] = usePersistedState("beaChatMessages", []);
+  const [chatDistillation, setChatDistillation] = usePersistedState("beaChatDistillation", ""); // running summary of real conversation content, fed into Bea's global context
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [attachedImage, setAttachedImage] = useState(null); // {b64, mime, previewUrl}
@@ -12230,14 +12395,15 @@ No preamble, just the greeting itself.`}]);
   const send = async () => {
     if((!input.trim() && !attachedImage)||loading) return;
     const hasImage = !!attachedImage;
+    const nowDate = today();
     // Build the actual API content block(s) — text-only stays a plain string
     // (cheaper, simpler); an attached image becomes a proper multi-block message.
     const userMsg = hasImage
       ? { role:"user", content:[
           { type:"image", source:{ type:"base64", media_type:attachedImage.mime, data:attachedImage.b64 } },
           { type:"text", text: input.trim() || "Here's something I wanted to show you." },
-        ], imagePreview: attachedImage.previewUrl }
-      : { role:"user", content: input.trim() };
+        ], imagePreview: attachedImage.previewUrl, date: nowDate }
+      : { role:"user", content: input.trim(), date: nowDate };
     const history = [...messages, userMsg];
     setMessages(history);
     setInput("");
@@ -12267,10 +12433,39 @@ No preamble, just the greeting itself.`}]);
       }
       const raw = await askBee(apiMsgsWithReminder);
       const { text, recommendation } = parseReply(raw);
-      setMessages(h=>[...h, { role:"assistant", content:text, recommendation }]);
+      const updatedHistory = [...history, { role:"assistant", content:text, recommendation, date: nowDate }];
+      setMessages(updatedHistory);
+      // Update the running distillation every few exchanges — not every single
+      // message, to keep this cheap — so genuine content from free conversation
+      // (not just structured tools) reaches Bea's standing understanding of them
+      // everywhere else in the app, including Analyse My Mood.
+      const assistantTurns = updatedHistory.filter(m=>m.role==="assistant").length;
+      // Distill after every exchange until we have a first distillation (so even
+      // a short but important conversation isn't lost if they stop early), then
+      // every 4 exchanges after that to keep ongoing cost down.
+      if(!chatDistillation || assistantTurns % 4 === 0) distillChatHistory(updatedHistory);
     } catch {
       setMessages(h=>[...h,{role:"assistant",content:"Sorry, I'm having a little trouble connecting right now. Try again in a moment 🐝"}]);
     } finally { setLoading(false); }
+  };
+
+  // Extracts a compact, durable summary of what's actually been discussed —
+  // not the raw transcript — and saves it so the main app's context builder
+  // can fold real conversational content into Bea's understanding everywhere.
+  const distillChatHistory = async (fullHistory) => {
+    try {
+      const transcript = fullHistory.slice(-24).map(m => {
+        const text = Array.isArray(m.content) ? (m.content.find(b=>b.type==="text")?.text || "[image]") : m.content;
+        return `${m.role==="user"?"Them":"Bea"}: ${text}`;
+      }).join("\n");
+      const summary = await askBee([{role:"user", content:
+        `Extract a compact, durable summary of the genuinely important things this person has shared in the conversation below — not a transcript, a distillation. Focus on: ongoing concerns or situations they've mentioned, anything emotionally significant, recurring topics, anything that would matter for a therapist to remember weeks from now. Skip small talk and anything already covered by formal assessments. Max 200 words, plain prose, no preamble.
+
+${transcript}`}]);
+      setChatDistillation(summary.slice(0, 1500)); // hard cap regardless of model output
+    } catch(e) {
+      // Best-effort — if this fails, the existing distillation just stays as-is
+    }
   };
 
   return (
@@ -12399,6 +12594,8 @@ export default function BeeWell() {
   const [onboarded, setOnboarded] = usePersistedState("onboarded", false);
   const [userName, setUserName] = usePersistedState("userName", "");
   const [userProfile, setUserProfile] = usePersistedState("userProfile", null); // gender, ageRange, conditions
+  const [chatDistillation] = usePersistedState("beaChatDistillation", ""); // written by BeaChat; read here to fold into global context
+  const [beaChatMessages] = usePersistedState("beaChatMessages", []); // read here so Analyse My Mood can pull dated chat content from the actual window
   useEffect(() => { setBeeUserName(userName); }, [userName]);
 
   const [tab, setTab] = useState("mood"); // current tab — no need to persist
@@ -12516,9 +12713,10 @@ export default function BeeWell() {
       if(recent.length>0) parts.push(`RECENT PROBLEMS SHARED: ${recent.map(i=>i.text?.slice(0,100)).join("; ")}.`);
     }
     if(masterSummary?.summary) parts.push(`MOST RECENT FULL SUMMARY GIVEN: "${masterSummary.summary.slice(0,400)}".`);
+    if(chatDistillation?.trim()) parts.push(`THINGS SHARED IN FREE CONVERSATION (not from a structured tool): ${chatDistillation.trim()}`);
 
     setBeeContext(parts.length>0 ? parts.join("\n") : "");
-  }, [userProfile, valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
+  }, [userProfile, chatDistillation, valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
       pcl5Profile, worryProfile, ruminationProfile, tipiProfile, rsesProfile, nr6Profile, bisBasProfile, procrastinationProfile, ngseProfile,
       goalsProfile, smartPlans, limitingBeliefs, reparentingJournal, griefEntries, rescripts, loopEntries,
       modeCheckIns, circlesEntries, eatingEntries, difficultItems, masterSummary]);
@@ -12747,6 +12945,11 @@ export default function BeeWell() {
           lastPhysical={lastPhysicalForCheckIn}
           onDismissPhysicalCheckIn={()=>newestPhysicalLog && setLastPhysicalCheckedInId(newestPhysicalLog.id)}
           userName={userName}
+          feelItems={feelItems}
+          difficultItems={difficultItems}
+          beaChatMessages={beaChatMessages}
+          onSetValuesJump={(target)=>{ setTab("act"); setValuesJump(target); }}
+          onSetGoalsJump={(target)=>{ setTab("goals"); setGoalsJump(target); }}
         />}
         {tab==="feel"     && <FeelBetterBox items={feelItems} onAdd={e=>setFeelItems(l=>[e,...l])} onDelete={id=>setFeelItems(l=>l.filter(i=>i.id!==id))} valuesProfile={valuesProfile}/>}
         {tab==="difficult" && <ProblemBox

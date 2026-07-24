@@ -729,6 +729,9 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisClarifyQ, setAnalysisClarifyQ] = useState(null);
   const [analysisClarifyAnswer, setAnalysisClarifyAnswer] = useState("");
+  // Persisted (not plain useState) so it survives navigating away and back,
+  // and app restarts — needed to reliably nudge again after 14 real days.
+  const [lastAnalysisDate, setLastAnalysisDate] = usePersistedState("lastMoodAnalysisDate", null);
 
   const runMoodAnalysis = async (extraContext=null) => {
     setAnalysisLoading(true);
@@ -806,6 +809,7 @@ Never invent a pattern that isn't genuinely supported by the actual data above. 
       }
       const analysisMatch = reply.match(/ANALYSIS:\s*(.+)/s);
       setAnalysisResult({ text: (analysisMatch?.[1] || reply).trim(), entryCount: recentLogs.length, chatCount: recentChat.length, dateRange: `${recentLogs[0]?.date} to ${recentLogs[recentLogs.length-1]?.date}` });
+      setLastAnalysisDate(today());
     } catch(e) {
       setAnalysisResult({ error:true });
     } finally { setAnalysisLoading(false); }
@@ -1397,6 +1401,34 @@ Never invent a pattern that isn't genuinely supported by the actual data above. 
           <span>{last14[0].label}</span><span>Today</span>
         </div>
         <p style={{fontSize:11,color:PALETTE.soft,marginTop:8,textAlign:"center"}}>Tap or hold a bar to see that day's exact mood and rating</p>
+
+        {(() => {
+          // Due once 14 real days have passed since the last analysis. If no
+          // analysis has ever been run, anchor to the earliest logged mood
+          // instead, so someone who just started isn't nudged on day one.
+          const daysSince = (dateStr) => Math.floor((new Date(today()) - new Date(dateStr)) / 86400000);
+          const anchor = lastAnalysisDate || (logs.length>0 ? [...logs].sort((a,b)=>a.date.localeCompare(b.date))[0]?.date : null);
+          const isDue = anchor && daysSince(anchor) >= 14;
+          if(!isDue) return null;
+          return (
+            <div style={{...card,marginTop:16,background:`${PALETTE.honey}15`,border:`1.5px solid ${PALETTE.honey}55`,padding:16}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                <span style={{fontSize:22}}>🐝</span>
+                <div>
+                  <div style={{fontWeight:700,color:PALETTE.amber,fontSize:14,marginBottom:4}}>
+                    {lastAnalysisDate ? "It's been 14 days since your last check-in" : "You've got 14 days of mood logs now"}
+                  </div>
+                  <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
+                    {lastAnalysisDate
+                      ? "A fresh two weeks of data is ready — want Bea to look for what's changed since your last analysis?"
+                      : "That's enough for Bea to spot real patterns now — want her to take a look?"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         <button onClick={()=>{ setShowAnalysis(true); setAnalysisResult(null); setAnalysisClarifyQ(null); setAnalysisClarifyAnswer(""); runMoodAnalysis(); }}
           style={{...btnStyle(PALETTE.honey),width:"100%",marginTop:16,color:"white"}}>
           🔍 Analyse My Mood

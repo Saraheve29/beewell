@@ -146,6 +146,40 @@ function BeeMascot({ size=64, outfit="default", animated=false }) {
   );
 }
 
+// ── Small copy-to-clipboard button, used on every message bubble (Bea's and
+// the person's own) across chat, reply threads, and reparenting sessions ─────
+function CopyButton({ text, dark=false }) {
+  const [copied, setCopied] = useState(false);
+  const doCopy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for older/unsupported browsers
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    setCopied(true);
+    setTimeout(()=>setCopied(false), 1500);
+  };
+  return (
+    <button onClick={doCopy} title="Copy"
+      style={{
+        background:"none", border:"none", cursor:"pointer", padding:"2px 4px",
+        fontSize:12, lineHeight:1, flexShrink:0,
+        color: dark ? "rgba(255,255,255,0.85)" : PALETTE.soft,
+        opacity: 0.75,
+      }}>
+      {copied ? "✓" : "⧉"}
+    </button>
+  );
+}
+
 // ── Breathing circle ─────────────────────────────────────────────────────────
 function BreathingCircle() {
   const [phase, setPhase] = useState("inhale");
@@ -732,6 +766,9 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
   // Persisted (not plain useState) so it survives navigating away and back,
   // and app restarts — needed to reliably nudge again after 14 real days.
   const [lastAnalysisDate, setLastAnalysisDate] = usePersistedState("lastMoodAnalysisDate", null);
+  const [moodAnalysisThread, setMoodAnalysisThread] = usePersistedState("moodAnalysisThread", []);
+  const [moodReplyInput, setMoodReplyInput] = useState("");
+  const [moodReplyLoading, setMoodReplyLoading] = useState(false);
 
   const runMoodAnalysis = async (extraContext=null) => {
     setAnalysisLoading(true);
@@ -810,9 +847,34 @@ Never invent a pattern that isn't genuinely supported by the actual data above. 
       const analysisMatch = reply.match(/ANALYSIS:\s*(.+)/s);
       setAnalysisResult({ text: (analysisMatch?.[1] || reply).trim(), entryCount: recentLogs.length, chatCount: recentChat.length, dateRange: `${recentLogs[0]?.date} to ${recentLogs[recentLogs.length-1]?.date}` });
       setLastAnalysisDate(today());
+      setMoodAnalysisThread([]); // a fresh analysis is a fresh conversation
     } catch(e) {
       setAnalysisResult({ error:true });
     } finally { setAnalysisLoading(false); }
+  };
+
+  // Real back-and-forth on the mood analysis, same principle as Master Summary —
+  // Bea sees the full analysis plus what's been said since, so she can actually
+  // engage rather than just repeat herself.
+  const sendMoodAnalysisReply = async () => {
+    if(!moodReplyInput.trim() || !analysisResult?.text) return;
+    const userMsg = moodReplyInput.trim();
+    const newThread = [...moodAnalysisThread, {from:"user", text:userMsg}];
+    setMoodAnalysisThread(newThread);
+    setMoodReplyInput("");
+    setMoodReplyLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You previously gave this person an analysis of their last 14 days of mood, problems, and what's helped: "${analysisResult.text}"
+
+The conversation since then:
+${newThread.map(m=>`${m.from==="user"?"Them":"You"}: ${m.text}`).join("\n")}
+
+Respond directly and with real depth to what they just said — engage with pushback, questions, or requests to go deeper on something specific, genuinely, rather than just restating your analysis. If they're questioning or disagreeing with something you said, take that seriously and reconsider rather than defending it reflexively. Continue the conversation naturally.`}]);
+      setMoodAnalysisThread([...newThread, {from:"bea", text:reply}]);
+    } catch(e) {
+      setMoodAnalysisThread([...newThread, {from:"bea", text:"I couldn't respond right now — try again?"}]);
+    } finally { setMoodReplyLoading(false); }
   };
 
   // Check-in flow: "ask" → "what_helped" → "saved" (or dismissed entirely)
@@ -950,10 +1012,59 @@ Never invent a pattern that isn't genuinely supported by the actual data above. 
           <div style={{...card,background:`${PALETTE.honey}0D`,border:`1.5px solid ${PALETTE.honey}44`,padding:20}}>
             <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
               <BeeMascot size={32} outfit="therapist"/>
-              <span style={{fontWeight:700,color:PALETTE.amber,fontSize:14}}>Bea's Analysis</span>
+              <span style={{fontWeight:700,color:PALETTE.amber,fontSize:14,flex:1}}>Bea's Analysis</span>
+              <CopyButton text={analysisResult.text}/>
             </div>
             <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.85}}>{analysisResult.text}</p>
           </div>
+
+          {/* Reply thread — a real conversation about the analysis, not one-shot */}
+          {moodAnalysisThread.length>0 && (
+            <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
+              {moodAnalysisThread.map((msg,i)=>(
+                <div key={i} style={{
+                  alignSelf: msg.from==="user" ? "flex-end" : "flex-start",
+                  maxWidth:"88%",
+                  background: msg.from==="user" ? PALETTE.honey : "white",
+                  color: msg.from==="user" ? "white" : PALETTE.dark,
+                  border: msg.from==="bea" ? `1px solid ${PALETTE.honey}33` : "none",
+                  borderRadius:12, padding:"10px 14px", fontSize:14, lineHeight:1.7,
+                }}>
+                  {msg.from==="bea" && (
+                    <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                      <BeeMascot size={20}/>
+                      <span style={{fontWeight:700,color:PALETTE.amber,fontSize:11}}>Bea</span>
+                    </div>
+                  )}
+                  <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+                    <span style={{flex:1}}>{msg.text}</span>
+                    <CopyButton text={msg.text} dark={msg.from==="user"}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {moodReplyLoading && (
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
+              <BeeMascot size={24} outfit="therapist" animated/>
+              <span style={{fontSize:12,color:PALETTE.soft,fontStyle:"italic"}}>Bea is thinking…</span>
+            </div>
+          )}
+
+          <div style={{...card,marginTop:12,background:`${PALETTE.honey}0A`,border:`1px solid ${PALETTE.honey}33`}}>
+            <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1,marginBottom:8}}>
+              {moodAnalysisThread.length===0 ? "RESPOND TO THIS ANALYSIS" : "KEEP GOING — REPLY TO BEA"}
+            </div>
+            <textarea value={moodReplyInput} onChange={e=>setMoodReplyInput(e.target.value)}
+              placeholder="Does this feel accurate? Push back, ask her to go deeper on something, or just talk it through…"
+              style={{...textareaStyle,minHeight:80,marginBottom:10}}/>
+            <button onClick={sendMoodAnalysisReply} disabled={!moodReplyInput.trim()||moodReplyLoading}
+              style={{...btnStyle(PALETTE.honey),width:"100%",opacity:moodReplyInput.trim()?1:0.4,color:"white"}}>
+              {moodReplyLoading?"🐝 Bea is thinking…":"Send →"}
+            </button>
+          </div>
+
           <button onClick={()=>runMoodAnalysis()}
             style={{...btnStyle(PALETTE.honey,true),width:"100%",marginTop:16}}>
             🔄 Re-run Analysis
@@ -4741,6 +4852,11 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   const [worryAnswers, setWorryAnswers] = useState({});
   const [worryStep, setWorryStep]   = useState(0);
   const [masterLoading, setMasterLoading] = useState(false);
+  // Persisted (not plain useState) so a reply thread on the Master Summary
+  // survives navigating away and back, same fix as the earlier chat bug.
+  const [masterThread, setMasterThread] = usePersistedState("masterSummaryThread", []);
+  const [masterReplyInput, setMasterReplyInput] = useState("");
+  const [masterReplyLoading, setMasterReplyLoading] = useState(false);
 
   // YSQ state
   const [ysqAnswers, setYsqAnswers] = useState({}); // {itemGlobalIndex: 1-6}
@@ -5287,11 +5403,37 @@ Write a warm, clinically-grounded, IN-DEPTH integrated analysis (10-14 sentences
 
 Be specific to THEIR actual results and history throughout — every claim should be traceable to something in their real data. Never invent or infer a value, result or fact that isn't genuinely present above. Never suggest outside professional help unless there are genuine signs of crisis (active self-harm, suicidal ideation). No preamble, no bullet points — flowing warm prose, but take the full space this deserves.`}]);
       onSaveMasterSummary({ id:uid(), date:today(), summary:reply, basedOn:completedCount });
+      setMasterThread([]); // a fresh summary is a fresh conversation
       setView("master_summary");
     } catch(e) {
       onSaveMasterSummary({ id:uid(), date:today(), summary:"Bea couldn't generate a summary right now — please try again.", basedOn:completedCount });
+      setMasterThread([]);
       setView("master_summary");
     } finally { setMasterLoading(false); }
+  };
+
+  // Real back-and-forth on the Master Summary — Bea sees the full analysis she
+  // gave plus the conversation since, so she can actually engage with pushback,
+  // questions, or "tell me more about X" rather than just restating herself.
+  const sendMasterReply = async () => {
+    if(!masterReplyInput.trim()) return;
+    const userMsg = masterReplyInput.trim();
+    const newThread = [...masterThread, {from:"user", text:userMsg}];
+    setMasterThread(newThread);
+    setMasterReplyInput("");
+    setMasterReplyLoading(true);
+    try {
+      const reply = await askBee([{role:"user", content:
+        `You previously gave this person your full integrated analysis: "${masterSummary.summary}"
+
+The conversation since then:
+${newThread.map(m=>`${m.from==="user"?"Them":"You"}: ${m.text}`).join("\n")}
+
+Respond directly and with real depth to what they just said — engage with pushback, questions, or requests to go deeper on something specific, genuinely, rather than just restating your analysis. If they're questioning or disagreeing with something you said, take that seriously and reconsider rather than defending it reflexively. Continue the conversation naturally.`}]);
+      setMasterThread([...newThread, {from:"bea", text:reply}]);
+    } catch(e) {
+      setMasterThread([...newThread, {from:"bea", text:"I couldn't respond right now — try again?"}]);
+    } finally { setMasterReplyLoading(false); }
   };
 
   // ── Score YSQ ─────────────────────────────────────────────────────────
@@ -6202,6 +6344,54 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
       </p>}
 
       {homeSection==="assessments" && <>
+      {/* Monthly re-check nudge — only for assessments where monthly retesting is
+          genuinely clinically meaningful (state measures that fluctuate), never
+          for stable trait/personality measures or one-time values/schema work. */}
+      {(() => {
+        const daysSince = (dateStr) => Math.floor((new Date(today()) - new Date(dateStr)) / 86400000);
+        const MONTHLY_ASSESSMENTS = [
+          { profile: phq9Profile, label:"Mood Screening (PHQ-9)", color:"#7B6BA0",
+            start: () => { setPhqAnswers({}); setPhqStep(0); setView("phq9_q"); } },
+          { profile: gad7Profile, label:"Anxiety Screening (GAD-7)", color:"#5B9BD5",
+            start: () => { setGadAnswers({}); setGadStep(0); setView("gad7_q"); } },
+          { profile: fatigueProfile, label:"Fatigue Severity Scale", color:"#6B7B8B",
+            start: () => { setFatigueAnswers({}); setFatigueStep(0); setView("fatigue_q"); } },
+          { profile: scsProfile, label:"Self-Compassion Scale", color:"#C45B8B",
+            start: () => { setScsAnswers({}); setScsStep(0); setView("scs_q"); } },
+          { profile: worryProfile, label:"Worry/Rumination Scale", color:"#7BB369",
+            start: () => { setWorryAnswers({}); setWorryStep(0); setView("worry_q"); } },
+        ];
+        const due = MONTHLY_ASSESSMENTS.filter(a => !a.profile || daysSince(a.profile.date) >= 30);
+        const neverDone = due.filter(a => !a.profile);
+        const genuinelyDue = due.filter(a => a.profile); // has been done before, and 30+ days have passed
+        if(genuinelyDue.length === 0) return null; // only nudge for real re-checks, not first-timers
+        return (
+          <div style={{...card,marginBottom:12,background:"#7B6BA015",border:"1.5px solid #7B6BA055",padding:16}}>
+            <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
+              <span style={{fontSize:22}}>🐝</span>
+              <div>
+                <div style={{fontWeight:700,color:"#7B6BA0",fontSize:14,marginBottom:4}}>
+                  Time for a monthly check-in
+                </div>
+                <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
+                  These can genuinely shift month to month, so a fresh look helps Bea see what's actually changing for you.
+                </p>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {genuinelyDue.map(a=>(
+                <button key={a.label} onClick={a.start}
+                  style={{textAlign:"left",borderRadius:10,cursor:"pointer",
+                    padding:"10px 12px",background:`${a.color}12`,border:`1px solid ${a.color}33`}}>
+                  <div style={{fontWeight:700,color:a.color,fontSize:13}}>{a.label} →</div>
+                  <div style={{fontSize:11,color:PALETTE.soft,marginTop:2}}>Last done {fmtDate(a.profile.date)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Five Ways to Wellbeing */}
       <div style={{...card,marginBottom:12,borderTop:"3px solid #E8891A"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -8423,8 +8613,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
               const colors = ["#8B1A1A", "#5B9BD5", "#7BB369"];
               return (
                 <div key={idx} style={{...card,marginBottom:12,borderLeft:`4px solid ${colors[idx]}`,background:`${colors[idx]}0D`}}>
-                  <div style={{fontSize:11,fontWeight:700,color:colors[idx],letterSpacing:1,marginBottom:8}}>
-                    {labels[idx]?.toUpperCase()}
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <span style={{fontSize:11,fontWeight:700,color:colors[idx],letterSpacing:1,flex:1}}>
+                      {labels[idx]?.toUpperCase()}
+                    </span>
+                    <CopyButton text={part.trim()}/>
                   </div>
                   <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.8}}>{part.trim()}</p>
                 </div>
@@ -8449,7 +8642,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
                         <span style={{fontWeight:700,color:modeWorkSchema.domain.color,fontSize:11}}>Bea</span>
                       </div>
                     )}
-                    {msg.text}
+                    <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+                      <span style={{flex:1}}>{msg.text}</span>
+                      <CopyButton text={msg.text} dark={msg.from==="user"}/>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -10754,9 +10950,57 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
         border:`2px solid ${PALETTE.honey}44`,padding:20}}>
         <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
           <BeeMascot size={36}/>
-          <span style={{fontWeight:800,color:PALETTE.dark,fontSize:15}}>Bea's Integrated Reflection</span>
+          <span style={{fontWeight:800,color:PALETTE.dark,fontSize:15,flex:1}}>Bea's Integrated Reflection</span>
+          <CopyButton text={masterSummary.summary}/>
         </div>
         <p style={{margin:0,fontSize:14,color:PALETTE.dark,lineHeight:1.9}}>{masterSummary.summary}</p>
+      </div>
+
+      {/* Reply thread — a real conversation about the analysis, not one-shot */}
+      {masterThread.length>0 && (
+        <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
+          {masterThread.map((msg,i)=>(
+            <div key={i} style={{
+              alignSelf: msg.from==="user" ? "flex-end" : "flex-start",
+              maxWidth:"88%",
+              background: msg.from==="user" ? PALETTE.honey : "white",
+              color: msg.from==="user" ? "white" : PALETTE.dark,
+              border: msg.from==="bea" ? `1px solid ${PALETTE.honey}33` : "none",
+              borderRadius:12, padding:"10px 14px", fontSize:14, lineHeight:1.7,
+            }}>
+              {msg.from==="bea" && (
+                <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                  <BeeMascot size={20}/>
+                  <span style={{fontWeight:700,color:PALETTE.amber,fontSize:11}}>Bea</span>
+                </div>
+              )}
+              <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+                <span style={{flex:1}}>{msg.text}</span>
+                <CopyButton text={msg.text} dark={msg.from==="user"}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {masterReplyLoading && (
+        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}>
+          <BeeMascot size={24} outfit="therapist" animated/>
+          <span style={{fontSize:12,color:PALETTE.soft,fontStyle:"italic"}}>Bea is thinking…</span>
+        </div>
+      )}
+
+      <div style={{...card,marginTop:12,background:`${PALETTE.honey}0A`,border:`1px solid ${PALETTE.honey}33`}}>
+        <div style={{fontSize:11,fontWeight:700,color:PALETTE.amber,letterSpacing:1,marginBottom:8}}>
+          {masterThread.length===0 ? "RESPOND TO THIS ANALYSIS" : "KEEP GOING — REPLY TO BEA"}
+        </div>
+        <textarea value={masterReplyInput} onChange={e=>setMasterReplyInput(e.target.value)}
+          placeholder="Does this feel accurate? Push back, ask her to go deeper on something, or just talk it through…"
+          style={{...textareaStyle,minHeight:80,marginBottom:10}}/>
+        <button onClick={sendMasterReply} disabled={!masterReplyInput.trim()||masterReplyLoading}
+          style={{...btnStyle(PALETTE.honey),width:"100%",opacity:masterReplyInput.trim()?1:0.4,color:"white"}}>
+          {masterReplyLoading?"🐝 Bea is thinking…":"Send →"}
+        </button>
       </div>
 
       <button onClick={generateMasterSummary} disabled={masterLoading}
@@ -12518,7 +12762,9 @@ ${transcript}`}]);
             <div style={{fontSize:13,color:PALETTE.soft,fontStyle:"italic"}}>Bea is settling in…</div>
           </div>
         )}
-        {messages.map((m,i)=>(
+        {messages.map((m,i)=>{
+          const plainText = Array.isArray(m.content) ? (m.content.find(b=>b.type==="text")?.text || "") : m.content;
+          return (
           <div key={i} style={{display:"flex",flexDirection:"column",gap:6}}>
             <div style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:8}}>
               {m.role==="assistant" && <BeeMascot size={32} outfit="therapist"/>}
@@ -12533,9 +12779,10 @@ ${transcript}`}]);
                   <img src={m.imagePreview} alt="Attached"
                     style={{width:"100%",maxHeight:280,objectFit:"contain",borderRadius:12,marginBottom:Array.isArray(m.content)?8:0,display:"block"}}/>
                 )}
-                {Array.isArray(m.content)
-                  ? m.content.find(b=>b.type==="text")?.text
-                  : m.content}
+                <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+                  <span style={{flex:1}}>{plainText}</span>
+                  {plainText && <CopyButton text={plainText} dark={m.role==="user"}/>}
+                </div>
               </div>
             </div>
 
@@ -12573,7 +12820,7 @@ ${transcript}`}]);
               </div>
             )}
           </div>
-        ))}
+          );})}
         {loading && (
           <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
             <BeeMascot size={32} outfit="therapist"/>

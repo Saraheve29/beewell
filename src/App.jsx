@@ -745,7 +745,7 @@ function Onboarding({ onDone, onSaveName, userName, onSaveProfile, userProfile }
 }
 
 // ── Mood Tracker ──────────────────────────────────────────────────────────────
-function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, valuesProfile=null, dasProfile=null, ysqProfile=null, fcsProfile=null, phq9Profile=null, gad7Profile=null, pcl5Profile=null, masterSummary=null, problemCount=0, onQuickEating=null, onQuickLoop=null, lastProblem=null, onDismissCheckIn=null, lastPhysical=null, onDismissPhysicalCheckIn=null, userName="", feelItems=[], difficultItems=[], beaChatMessages=[], onSetValuesJump=null, onSetGoalsJump=null }) {
+function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, valuesProfile=null, dasProfile=null, ysqProfile=null, fcsProfile=null, phq9Profile=null, gad7Profile=null, pcl5Profile=null, fatigueProfile=null, scsProfile=null, worryProfile=null, masterSummary=null, problemCount=0, onQuickEating=null, onQuickLoop=null, lastProblem=null, onDismissCheckIn=null, lastPhysical=null, onDismissPhysicalCheckIn=null, userName="", feelItems=[], difficultItems=[], beaChatMessages=[], onSetValuesJump=null, onSetGoalsJump=null }) {
   // step: "emotion" → "rating" → "physical" → "followup" → "done"
   const [step, setStep]       = useState("emotion");
   const [emotion, setEmotion] = useState(null);
@@ -1365,6 +1365,48 @@ Respond directly and with real depth to what they just said — engage with push
                   style={{...btnStyle(PALETTE.lavender,true),flex:1,fontSize:12}}>
                   📦 Problem Box
                 </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Monthly re-check nudge — surfaced here on Home too, not just buried in
+            Inner Work, so it's genuinely seen when due rather than requiring the
+            person to remember to go looking for it. Same logic as the Inner Work
+            card, routed through the shared jump mechanism instead of local state. */}
+        {(() => {
+          const daysSince = (dateStr) => Math.floor((new Date(today()) - new Date(dateStr)) / 86400000);
+          const MONTHLY_ASSESSMENTS = [
+            { profile: phq9Profile, label:"Mood Screening (PHQ-9)", color:"#7B6BA0", jump:"phq9_q" },
+            { profile: gad7Profile, label:"Anxiety Screening (GAD-7)", color:"#5B9BD5", jump:"gad7_q" },
+            { profile: fatigueProfile, label:"Fatigue Severity Scale", color:"#6B7B8B", jump:"fatigue_q" },
+            { profile: scsProfile, label:"Self-Compassion Scale", color:"#C45B8B", jump:"scs_q" },
+            { profile: worryProfile, label:"Worry/Rumination Scale", color:"#7BB369", jump:"worry_q" },
+          ];
+          const genuinelyDue = MONTHLY_ASSESSMENTS.filter(a => a.profile && daysSince(a.profile.date) >= 30);
+          if(genuinelyDue.length === 0) return null;
+          return (
+            <div style={{...card,marginTop:8,marginBottom:8,background:"#7B6BA015",border:"1.5px solid #7B6BA055",padding:16}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
+                <span style={{fontSize:22}}>🐝</span>
+                <div>
+                  <div style={{fontWeight:700,color:"#7B6BA0",fontSize:14,marginBottom:4}}>
+                    Time for a monthly check-in
+                  </div>
+                  <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
+                    These can genuinely shift month to month, so a fresh look helps Bea see what's actually changing for you.
+                  </p>
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {genuinelyDue.map(a=>(
+                  <button key={a.label} onClick={()=>onSetValuesJump?.(a.jump)}
+                    style={{textAlign:"left",borderRadius:10,cursor:"pointer",
+                      padding:"10px 12px",background:`${a.color}12`,border:`1px solid ${a.color}33`}}>
+                    <div style={{fontWeight:700,color:a.color,fontSize:13}}>{a.label} →</div>
+                    <div style={{fontSize:11,color:PALETTE.soft,marginTop:2}}>Last done {fmtDate(a.profile.date)}</div>
+                  </button>
+                ))}
               </div>
             </div>
           );
@@ -4789,6 +4831,26 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
       setFatigueAnswers({});
       setFatigueStep(0);
       setView("fatigue_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "phq9_q") {
+      setPhqAnswers({});
+      setPhqStep(0);
+      setView("phq9_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "gad7_q") {
+      setGadAnswers({});
+      setGadStep(0);
+      setView("gad7_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "scs_q") {
+      setScsAnswers({});
+      setScsStep(0);
+      setView("scs_q");
+      onJumpHandled?.();
+    } else if(jumpToView === "worry_q") {
+      setWorryAnswers({});
+      setWorryStep(0);
+      setView("worry_q");
       onJumpHandled?.();
     } else if(jumpToView === "acceptance_q") {
       setAcceptanceAnswers({});
@@ -12540,6 +12602,7 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
   const [attaching, setAttaching] = useState(false);
   const bottomRef = useRef();
   const fileInputRef = useRef();
+  const chatInputRef = useRef();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
 
@@ -12685,6 +12748,7 @@ No preamble, just the greeting itself.`}]);
     const history = [...messages, userMsg];
     setMessages(history);
     setInput("");
+    if(chatInputRef.current) chatInputRef.current.style.height = "44px";
     setAttachedImage(null);
     setLoading(true);
     try {
@@ -12849,12 +12913,13 @@ ${transcript}`}]);
           style={{...btnStyle("#EEE",true),color:PALETTE.mid,padding:"10px 14px",flexShrink:0}}>
           {attaching ? "…" : "📎"}
         </button>
-        <input value={input} onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&send()}
+        <textarea ref={chatInputRef} value={input} onChange={e=>{ setInput(e.target.value); e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,240)+"px"; }}
+          onKeyDown={e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); send(); } }}
           placeholder={attachedImage ? "Add a note (optional)…" : "Talk to Bea…"}
-          style={{...inputStyle,flex:1}}/>
+          rows={1}
+          style={{...inputStyle,flex:1,resize:"none",minHeight:44,maxHeight:240,lineHeight:1.5,paddingTop:12,paddingBottom:12,overflowY:"auto",borderRadius:20}}/>
         <button onClick={send} disabled={loading||(!input.trim()&&!attachedImage)}
-          style={btnStyle(PALETTE.honey)}>Send</button>
+          style={{...btnStyle(PALETTE.honey),alignSelf:"flex-end"}}>Send</button>
       </div>
     </div>
   );
@@ -13217,6 +13282,9 @@ export default function BeeWell() {
           phq9Profile={phq9Profile}
           gad7Profile={gad7Profile}
           pcl5Profile={pcl5Profile}
+          fatigueProfile={fatigueProfile}
+          scsProfile={scsProfile}
+          worryProfile={worryProfile}
           masterSummary={masterSummary}
           problemCount={difficultItems.filter(i=>i.status==="pending"||i.status==="stored").length}
           onQuickEating={()=>{ setTab("act"); setValuesJump("eating_q"); }}

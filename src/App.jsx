@@ -120,6 +120,21 @@ const today = () => new Date().toISOString().slice(0,10);
 const fmtDate = d => new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short"});
 const uid = () => Math.random().toString(36).slice(2,9);
 
+// Turns a "last completed" date + a re-check interval (days) into a clean,
+// plain-English status — recalculated live off the real current date every
+// time it's called, so it's always accurate without anyone doing the maths
+// themselves, flare-up days included.
+const dueStatus = (lastDoneDate, intervalDays=30) => {
+  if(!lastDoneDate) return { label:"Not started yet", daysLeft:null, overdue:false };
+  const daysSince = Math.floor((new Date(today()) - new Date(lastDoneDate)) / 86400000);
+  const daysLeft = intervalDays - daysSince;
+  if(daysLeft <= 0) {
+    const overdueBy = Math.abs(daysLeft);
+    return { label: overdueBy===0 ? "Due today" : `${overdueBy} day${overdueBy===1?"":"s"} overdue`, daysLeft, overdue:true };
+  }
+  return { label:`Due in ${daysLeft} day${daysLeft===1?"":"s"}`, daysLeft, overdue:false };
+};
+
 // ── Bee SVG mascot ───────────────────────────────────────────────────────────
 function BeeMascot({ size=64, outfit="default", animated=false }) {
   return (
@@ -1404,7 +1419,7 @@ Respond directly and with real depth to what they just said — engage with push
                     style={{textAlign:"left",borderRadius:10,cursor:"pointer",
                       padding:"10px 12px",background:`${a.color}12`,border:`1px solid ${a.color}33`}}>
                     <div style={{fontWeight:700,color:a.color,fontSize:13}}>{a.label} →</div>
-                    <div style={{fontSize:11,color:PALETTE.soft,marginTop:2}}>Last done {fmtDate(a.profile.date)}</div>
+                    <div style={{fontSize:11,color:dueStatus(a.profile.date).overdue?"#8B1A1A":PALETTE.soft,marginTop:2,fontWeight:dueStatus(a.profile.date).overdue?700:400}}>Last done {fmtDate(a.profile.date)} · {dueStatus(a.profile.date).label}</div>
                   </button>
                 ))}
               </div>
@@ -6448,7 +6463,7 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
                   style={{textAlign:"left",borderRadius:10,cursor:"pointer",
                     padding:"10px 12px",background:`${a.color}12`,border:`1px solid ${a.color}33`}}>
                   <div style={{fontWeight:700,color:a.color,fontSize:13}}>{a.label} →</div>
-                  <div style={{fontSize:11,color:PALETTE.soft,marginTop:2}}>Last done {fmtDate(a.profile.date)}</div>
+                  <div style={{fontSize:11,color:dueStatus(a.profile.date).overdue?"#8B1A1A":PALETTE.soft,marginTop:2,fontWeight:dueStatus(a.profile.date).overdue?700:400}}>Last done {fmtDate(a.profile.date)} · {dueStatus(a.profile.date).label}</div>
                 </button>
               ))}
             </div>
@@ -6567,6 +6582,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <div style={{fontSize:12,color:PALETTE.soft}}>
               {phq9Profile ? `${fmtDate(phq9Profile.date)} · ${phq9Profile.severity.label} (${phq9Profile.total}/27)` : "9 questions · Standard depression screening tool"}
             </div>
+            {phq9Profile && (
+              <div style={{fontSize:11,fontWeight:dueStatus(phq9Profile.date).overdue?700:600,color:dueStatus(phq9Profile.date).overdue?"#8B1A1A":"#5B9BD5",marginTop:2}}>
+                {dueStatus(phq9Profile.date).label}
+              </div>
+            )}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -6588,6 +6608,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <div style={{fontSize:12,color:PALETTE.soft}}>
               {gad7Profile ? `${fmtDate(gad7Profile.date)} · ${gad7Profile.severity.label} (${gad7Profile.total}/21)` : "7 questions · Standard anxiety screening tool"}
             </div>
+            {gad7Profile && (
+              <div style={{fontSize:11,fontWeight:dueStatus(gad7Profile.date).overdue?700:600,color:dueStatus(gad7Profile.date).overdue?"#8B1A1A":"#9B8BC4",marginTop:2}}>
+                {dueStatus(gad7Profile.date).label}
+              </div>
+            )}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -6609,6 +6634,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <div style={{fontSize:12,color:PALETTE.soft}}>
               {scsProfile ? `${fmtDate(scsProfile.date)} · ${scsProfile.level.label} (${scsProfile.avg}/5)` : "10 questions · How kind are you to yourself?"}
             </div>
+            {scsProfile && (
+              <div style={{fontSize:11,fontWeight:dueStatus(scsProfile.date).overdue?700:600,color:dueStatus(scsProfile.date).overdue?"#8B1A1A":"#E8737A",marginTop:2}}>
+                {dueStatus(scsProfile.date).label}
+              </div>
+            )}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -6630,6 +6660,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <div style={{fontSize:12,color:PALETTE.soft}}>
               {worryProfile ? `${fmtDate(worryProfile.date)} · ${worryProfile.level.label} (${worryProfile.total}/40)` : "8 questions · How much do you get stuck in thought loops?"}
             </div>
+            {worryProfile && (
+              <div style={{fontSize:11,fontWeight:dueStatus(worryProfile.date).overdue?700:600,color:dueStatus(worryProfile.date).overdue?"#8B1A1A":"#7B4A8B",marginTop:2}}>
+                {dueStatus(worryProfile.date).label}
+              </div>
+            )}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -6996,6 +7031,11 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <div style={{fontSize:12,color:PALETTE.soft}}>
               {fatigueProfile ? `${fmtDate(fatigueProfile.date)} · ${fatigueProfile.level.label} (${fatigueProfile.total}/33)` : "11 questions · For CFS/ME, chronic illness, or ongoing tiredness"}
             </div>
+            {fatigueProfile && (
+              <div style={{fontSize:11,fontWeight:dueStatus(fatigueProfile.date).overdue?700:600,color:dueStatus(fatigueProfile.date).overdue?"#8B1A1A":"#6B7B8B",marginTop:2}}>
+                {dueStatus(fatigueProfile.date).label}
+              </div>
+            )}
           </div>
         </div>
         <p style={{fontSize:11,color:PALETTE.soft,margin:"0 0 10px",lineHeight:1.5}}>

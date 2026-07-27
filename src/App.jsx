@@ -12633,7 +12633,7 @@ function Progress({ moodLogs, feelItems, triggerItems, courtCases, difficultItem
 }
 
 // ── Bea Chat ──────────────────────────────────────────────────────────────────
-function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null }) {
+function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null, onAddFeel=null, onAddDifficult=null, onSaveMood=null }) {
   const [messages, setMessages] = usePersistedState("beaChatMessages", []);
   const [chatDistillation, setChatDistillation] = usePersistedState("beaChatDistillation", ""); // running summary of real conversation content, fed into Bea's global context
   const [input, setInput] = useState("");
@@ -12707,6 +12707,27 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
     (map[toolName] || (()=>onSetTab?.("act")))();
   };
 
+  // Confirm-to-save handlers for things Bea has proposed adding to a box —
+  // one tap, and mark that specific message as saved so the button doesn't
+  // stay live indefinitely or allow accidental duplicate saves.
+  const confirmSaveFeelGood = (msgIndex, text) => {
+    onAddFeel?.({ id:uid(), text, type:"moment", source:"Suggested by Bea in chat", date:today() });
+    setMessages(msgs => msgs.map((m,i) => i===msgIndex ? { ...m, recommendation:{...m.recommendation, saved:true} } : m));
+  };
+  const confirmSaveDifficult = (msgIndex, text) => {
+    onAddDifficult?.({ id:uid(), text, date:today(), status:"pending", source:"Suggested by Bea in chat" });
+    setMessages(msgs => msgs.map((m,i) => i===msgIndex ? { ...m, recommendation:{...m.recommendation, saved:true} } : m));
+  };
+  const confirmFlagPhysical = (msgIndex, label) => {
+    // Creates a genuine mood log entry in the exact shape the mood check-in
+    // itself produces, using the same EMOTIONS entries (Tired/Unwell/In Pain
+    // are flagged physical:true there) — so this flows through the existing
+    // "how's your body feeling now?" check-in with no duplicated logic at all.
+    const state = EMOTIONS.find(e => e.physical && e.label === label) || EMOTIONS.find(e => e.label==="Unwell");
+    onSaveMood?.({ id:uid(), date:today(), mood:state, rating:state?.score||3, physical:state, note:"Noticed by Bea in chat" });
+    setMessages(msgs => msgs.map((m,i) => i===msgIndex ? { ...m, recommendation:{...m.recommendation, saved:true} } : m));
+  };
+
   // Parse an optional recommendation out of Bea's reply. She's instructed to only
   // include this when she genuinely feels it would help — most replies won't have one.
   const parseReply = (raw) => {
@@ -12714,7 +12735,16 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
     // variation from the model doesn't silently drop a real recommendation.
     const toolMatch = raw.match(/\[\s*TOOL\s*:\s*([^\|\]]+?)\s*(?:\|\s*([^\]]+))?\s*\]/i);
     const feelMatch = raw.match(/\[\s*FEELITEM\s*:\s*([^\]]+?)\s*\]/i);
-    let text = raw.replace(/\[\s*TOOL\s*:[^\]]*\]/i,"").replace(/\[\s*FEELITEM\s*:[^\]]*\]/i,"").trim();
+    const saveFeelGoodMatch = raw.match(/\[\s*SAVE_FEELGOOD\s*:\s*([^\]]+?)\s*\]/i);
+    const saveDifficultMatch = raw.match(/\[\s*SAVE_DIFFICULT\s*:\s*([^\]]+?)\s*\]/i);
+    const flagPhysicalMatch = raw.match(/\[\s*FLAG_PHYSICAL\s*:\s*([^\]]+?)\s*\]/i);
+    let text = raw
+      .replace(/\[\s*TOOL\s*:[^\]]*\]/i,"")
+      .replace(/\[\s*FEELITEM\s*:[^\]]*\]/i,"")
+      .replace(/\[\s*SAVE_FEELGOOD\s*:[^\]]*\]/i,"")
+      .replace(/\[\s*SAVE_DIFFICULT\s*:[^\]]*\]/i,"")
+      .replace(/\[\s*FLAG_PHYSICAL\s*:[^\]]*\]/i,"")
+      .trim();
     let recommendation = null;
     if(toolMatch) {
       // Normalise against the known tool list so minor casing/wording differences
@@ -12731,6 +12761,23 @@ function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoals
       const itemText = feelMatch[1].trim();
       const match = feelItems.find(i => i.text.toLowerCase().includes(itemText.toLowerCase()) || itemText.toLowerCase().includes(i.text.toLowerCase()));
       if(match) recommendation = { type:"feelitem", item: match };
+    } else if(saveFeelGoodMatch) {
+      // Proposed, not automatic — she suggests, the person taps to confirm.
+      // Saving something on someone's behalf without asking first would be
+      // presumptuous even when well-intentioned; one tap keeps them in control.
+      recommendation = { type:"save_feelgood", text: saveFeelGoodMatch[1].trim() };
+    } else if(saveDifficultMatch) {
+      recommendation = { type:"save_difficult", text: saveDifficultMatch[1].trim() };
+    } else if(flagPhysicalMatch) {
+      // Normalise to one of the three real difficult physical states so this
+      // creates a genuine, correctly-shaped mood log entry on confirmation —
+      // the exact same shape the mood check-in itself produces, so it flows
+      // through the existing "how's your body now?" check-in with no
+      // duplicated logic.
+      const raw_state = flagPhysicalMatch[1].trim().toLowerCase();
+      const stateMap = { tired:"Tired", unwell:"Unwell", "in pain":"In Pain", pain:"In Pain" };
+      const resolvedLabel = stateMap[raw_state] || (raw_state.includes("pain") ? "In Pain" : raw_state.includes("tire") ? "Tired" : "Unwell");
+      recommendation = { type:"flag_physical", label: resolvedLabel };
     }
     return { text, recommendation };
   };
@@ -12797,7 +12844,19 @@ No preamble, just the greeting itself.`}]);
       const feelBoxContext = feelItems.length>0
         ? `\n\nThis person's Feel Better Box currently contains: ${feelItems.slice(0,15).map(i=>i.text).join("; ")}.`
         : "";
-      const toolReminder = `\n\nYou may, ONLY when you genuinely feel it would help this specific moment — not routinely, not in most messages — recommend one concrete thing. If a therapeutic tool fits, end your reply with exactly this format on its own: [TOOL: ToolName] using one of: Courtroom, ACT Matrix, Defusion Board, Limited Reparenting, Imagery Rescripting, Mode Check-In, Compassionate Self Practice, Three Circles Check-In, Behavioural Activation, Willingness Meter, Grief Box, Chronic Illness Grief, Pacing Log, Fatigue Severity Scale, Illness Acceptance, Emotional Eating Support, Loop Interrupt, SMART Plan, Goals Questionnaire. If something specific from their Feel Better Box fits better, end with exactly: [FEELITEM: the exact text of that item] instead. Never include both. Most replies should include neither — only add this when it's genuinely the right moment, not as a habit.${feelBoxContext}`;
+      const toolReminder = `\n\nYou may, ONLY when you genuinely feel it would help this specific moment — not routinely, not in most messages — do ONE of the following five things. Never combine more than one in a single reply.
+
+1. Recommend a therapeutic tool — end your reply with exactly: [TOOL: ToolName] using one of: Courtroom, ACT Matrix, Defusion Board, Limited Reparenting, Imagery Rescripting, Mode Check-In, Compassionate Self Practice, Three Circles Check-In, Behavioural Activation, Willingness Meter, Grief Box, Chronic Illness Grief, Pacing Log, Fatigue Severity Scale, Illness Acceptance, Emotional Eating Support, Loop Interrupt, SMART Plan, Goals Questionnaire.
+
+2. Point to something specific already in their Feel Better Box that fits — end with exactly: [FEELITEM: the exact text of that item].
+
+3. If something they've just said in conversation sounds like it genuinely helped them, lifted them, or is worth remembering for a harder day — a specific insight, a moment, something that worked — propose saving it to their Feel Better Box. End your reply with exactly: [SAVE_FEELGOOD: a short, specific summary in their own words of what helped]. This is a proposal, not an automatic save — they will be asked to confirm with one tap, so word it as something worth keeping, not a command.
+
+4. If something they've just shared sounds like a genuine ongoing difficulty worth having in their Problem Box to work through properly later (not just processed here and now) — end your reply with exactly: [SAVE_DIFFICULT: a short, specific summary of the difficulty in their own words]. Same as above — a proposal they confirm, not automatic.
+
+5. If what they've described sounds like a genuine physical low right now — being unwell, exhausted, in pain, run down, a flare-up — not just an emotional state, propose logging it so the app can check in on their body specifically later. End your reply with exactly: [FLAG_PHYSICAL: Tired] or [FLAG_PHYSICAL: Unwell] or [FLAG_PHYSICAL: In Pain] — whichever fits best. Same as above, a proposal they confirm with one tap, never automatic.
+
+Most replies should include NONE of these — only add one when it's genuinely the right moment, not as a habit.${feelBoxContext}`;
       const apiMsgsWithReminder = [...apiMsgs];
       const lastMsg = apiMsgsWithReminder[apiMsgsWithReminder.length-1];
       // Append the reminder correctly whether content is a plain string or a
@@ -12923,6 +12982,84 @@ ${transcript}`}]);
                     <div style={{color:PALETTE.dark,fontSize:13}}>{m.recommendation.item.text}</div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Bea proposing something to save — a genuine one-tap confirmation,
+                never an automatic silent save, so the person stays in control
+                of what actually goes into their own boxes. */}
+            {m.recommendation?.type==="save_feelgood" && (
+              <div style={{marginLeft:40,maxWidth:"75%"}}>
+                {m.recommendation.saved ? (
+                  <div style={{padding:"10px 14px",borderRadius:14,background:"#F5A62315",border:"1px solid #F5A62344",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:16}}>✓</span>
+                    <span style={{color:PALETTE.amber,fontSize:12,fontWeight:600}}>Saved to your Feel Better Box</span>
+                  </div>
+                ) : (
+                  <div style={{padding:"12px 14px",borderRadius:14,background:"#F5A62315",border:"1px solid #F5A62344"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <span style={{fontSize:18}}>💛</span>
+                      <span style={{color:PALETTE.amber,fontWeight:700,fontSize:11,letterSpacing:0.5}}>ADD TO YOUR FEEL BETTER BOX?</span>
+                    </div>
+                    <p style={{margin:"0 0 10px",fontSize:13,color:PALETTE.dark,lineHeight:1.5}}>"{m.recommendation.text}"</p>
+                    <button onClick={()=>confirmSaveFeelGood(i, m.recommendation.text)}
+                      style={{width:"100%",padding:"8px",borderRadius:10,border:"none",cursor:"pointer",
+                        background:PALETTE.honey,color:"white",fontWeight:700,fontSize:12}}>
+                      Yes, save it 💛
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {m.recommendation?.type==="save_difficult" && (
+              <div style={{marginLeft:40,maxWidth:"75%"}}>
+                {m.recommendation.saved ? (
+                  <div style={{padding:"10px 14px",borderRadius:14,background:`${PALETTE.lavender}15`,border:`1px solid ${PALETTE.lavender}44`,display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:16}}>✓</span>
+                    <span style={{color:PALETTE.lavender,fontSize:12,fontWeight:600}}>Saved to your Problem Box</span>
+                  </div>
+                ) : (
+                  <div style={{padding:"12px 14px",borderRadius:14,background:`${PALETTE.lavender}15`,border:`1px solid ${PALETTE.lavender}44`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <span style={{fontSize:18}}>📦</span>
+                      <span style={{color:PALETTE.lavender,fontWeight:700,fontSize:11,letterSpacing:0.5}}>ADD TO YOUR PROBLEM BOX?</span>
+                    </div>
+                    <p style={{margin:"0 0 10px",fontSize:13,color:PALETTE.dark,lineHeight:1.5}}>"{m.recommendation.text}"</p>
+                    <button onClick={()=>confirmSaveDifficult(i, m.recommendation.text)}
+                      style={{width:"100%",padding:"8px",borderRadius:10,border:"none",cursor:"pointer",
+                        background:PALETTE.lavender,color:"white",fontWeight:700,fontSize:12}}>
+                      Yes, save it 📦
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bea noticing a physical low from what's said in chat — confirming
+                logs it as a real mood entry, which feeds the existing "how's your
+                body now?" home check-in exactly as if logged through Mood directly. */}
+            {m.recommendation?.type==="flag_physical" && (
+              <div style={{marginLeft:40,maxWidth:"75%"}}>
+                {m.recommendation.saved ? (
+                  <div style={{padding:"10px 14px",borderRadius:14,background:"#9B8BC415",border:"1px solid #9B8BC444",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:16}}>✓</span>
+                    <span style={{color:"#7B6BA0",fontSize:12,fontWeight:600}}>Logged — Bea will check in on how you're doing physically next time you open the app</span>
+                  </div>
+                ) : (
+                  <div style={{padding:"12px 14px",borderRadius:14,background:"#9B8BC415",border:"1px solid #9B8BC444"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <span style={{fontSize:18}}>{PHYSICAL_STATES.find(p=>p.label===m.recommendation.label)?.emoji || "🤒"}</span>
+                      <span style={{color:"#7B6BA0",fontWeight:700,fontSize:11,letterSpacing:0.5}}>SOUNDS LIKE YOU'RE FEELING {m.recommendation.label.toUpperCase()} — LOG THIS?</span>
+                    </div>
+                    <p style={{margin:"0 0 10px",fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>I'll check in on how your body's doing next time you open the app.</p>
+                    <button onClick={()=>confirmFlagPhysical(i, m.recommendation.label)}
+                      style={{width:"100%",padding:"8px",borderRadius:10,border:"none",cursor:"pointer",
+                        background:"#7B6BA0",color:"white",fontWeight:700,fontSize:12}}>
+                      Yes, log it
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -13448,6 +13585,9 @@ export default function BeeWell() {
           onSetTab={setTab}
           onSetValuesJump={(target)=>{ setTab("act"); setValuesJump(target); }}
           onSetGoalsJump={(target)=>{ setTab("goals"); setGoalsJump(target); }}
+          onAddFeel={e=>setFeelItems(l=>[e,...l])}
+          onAddDifficult={e=>setDifficultItems(l=>[e,...l])}
+          onSaveMood={e=>setMoodLogs(l=>[e,...l])}
         />}
       </div>
 

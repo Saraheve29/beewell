@@ -78,8 +78,9 @@ const EMOTIONS = [
   { label:"Irritated",  emoji:"😤", color:"#E8731A", valence:"difficult", score:3 },
   { label:"Angry",      emoji:"😠", color:"#CC2200", valence:"difficult", score:2 },
   { label:"Sad",        emoji:"😢", color:"#7B90CC", valence:"difficult", score:2 },
+  { label:"Hurt",       emoji:"💔", color:"#C45B8B", valence:"difficult", score:2 },
   { label:"Low",        emoji:"😔", color:"#9B8BC4", valence:"difficult", score:2 },
-  { label:"Struggling", emoji:"💔", color:"#C45B6A", valence:"difficult", score:1 },
+  { label:"Struggling", emoji:"😞", color:"#C45B6A", valence:"difficult", score:1 },
   { label:"Overwhelmed",emoji:"😵", color:"#A05080", valence:"difficult", score:1 },
   { label:"Tired",      emoji:"😴", color:"#9B8BC4", valence:"difficult", score:2, physical:true },
   { label:"Unwell",     emoji:"🤒", color:"#E8737A", valence:"difficult", score:2, physical:true },
@@ -898,11 +899,15 @@ Respond directly and with real depth to what they just said — engage with push
   const [checkInStage, setCheckInStage] = useState(lastProblem ? "ask" : null);
   const [whatHelpedText, setWhatHelpedText] = useState("");
   const [checkInSaved, setCheckInSaved] = useState(false);
+  const [checkInDismissedId, setCheckInDismissedId] = useState(null); // tracks the id checkInStage was cleared FOR, so a genuinely new problem still shows even if the effect's dependency didn't change
   useEffect(() => {
-    if(lastProblem && checkInStage===null && !checkInSaved) setCheckInStage("ask");
-  }, [lastProblem?.id]);
+    if(!lastProblem) { setCheckInStage(null); return; }
+    // Show it whenever there's a real, current problem to ask about — unless
+    // this exact entry was already actively dismissed or saved in this session.
+    if(lastProblem.id !== checkInDismissedId && !checkInSaved) setCheckInStage("ask");
+  }, [lastProblem?.id, checkInDismissedId]);
 
-  const dismissCheckIn = () => { setCheckInStage(null); onDismissCheckIn?.(); };
+  const dismissCheckIn = () => { setCheckInDismissedId(lastProblem?.id||null); setCheckInStage(null); onDismissCheckIn?.(); };
 
   const saveWhatHelped = () => {
     if(!whatHelpedText.trim()) { dismissCheckIn(); return; }
@@ -1245,7 +1250,7 @@ Respond directly and with real depth to what they just said — engage with push
             grad:"linear-gradient(135deg,#6B9BB8,#9B8BC4)",
             shadow:"0 4px 20px rgba(107,155,184,0.45)" },
           { valence:"difficult",label:"Difficult", emoji:"🌧️",
-            sub:"Anxious · Angry · Sad · Low · Overwhelmed · Irritated · Struggling · Tired · Unwell · In Pain",
+            sub:"Anxious · Angry · Sad · Hurt · Low · Overwhelmed · Irritated · Struggling · Tired · Unwell · In Pain",
             grad:"linear-gradient(135deg,#C45B6A,#9B6BC4)",
             shadow:"0 4px 20px rgba(196,91,106,0.4)" },
         ].map(group=>(
@@ -12633,9 +12638,12 @@ function Progress({ moodLogs, feelItems, triggerItems, courtCases, difficultItem
 }
 
 // ── Bea Chat ──────────────────────────────────────────────────────────────────
-function BeaChat({ feelItems=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null, onAddFeel=null, onAddDifficult=null, onSaveMood=null }) {
+function BeaChat({ feelItems=[], difficultItems=[], moodLogs=[], onSetTab=null, onSetValuesJump=null, onSetGoalsJump=null, onAddFeel=null, onAddDifficult=null, onSaveMood=null }) {
   const [messages, setMessages] = usePersistedState("beaChatMessages", []);
   const [chatDistillation, setChatDistillation] = usePersistedState("beaChatDistillation", ""); // running summary of real conversation content, fed into Bea's global context
+  const [lastReviewDate, setLastReviewDate] = usePersistedState("lastWeeklyReviewDate", null);
+  const [reviewMode, setReviewMode] = useState(false); // true while a review session is in progress
+  const [reviewLoading, setReviewLoading] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [attachedImage, setAttachedImage] = useState(null); // {b64, mime, previewUrl}
@@ -12909,6 +12917,70 @@ ${transcript}`}]);
     }
   };
 
+  // ── Weekly Review — a genuine sit-down conversation about the last 7 days,
+  // distinct from the 14-day Mood Analysis (data/chart-driven) and the Master
+  // Summary (assessment-driven). This one is chat-and-life driven: what's
+  // actually been discussed, real patterns across the week, honest praise and
+  // encouragement, then opens straight into forward-looking conversation about
+  // plans, concerns, and what to work on — exactly as a real weekly check-in
+  // with a therapist would go, not a one-shot report.
+  const startWeeklyReview = async () => {
+    setReviewMode(true);
+    setReviewLoading(true);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-7);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+
+    const weekChat = messages.filter(m => m.date && m.date >= cutoffStr);
+    const weekMood = moodLogs.filter(l => l.date >= cutoffStr).sort((a,b)=>a.date.localeCompare(b.date));
+    const weekProblems = difficultItems.filter(i => i.date >= cutoffStr);
+    const weekFeelGood = feelItems.filter(i => i.date >= cutoffStr);
+
+    const chatText = weekChat.length>0
+      ? weekChat.map(m=>{
+          const text = Array.isArray(m.content) ? (m.content.find(b=>b.type==="text")?.text || "[shared an image]") : m.content;
+          return `${m.date} (${m.role==="user"?"them":"you"}): ${text?.slice(0,220)}`;
+        }).join("\n")
+      : "No chat conversation this week.";
+    const moodText = weekMood.length>0
+      ? weekMood.map(l=>`${l.date}: ${l.mood?.label||"?"} (${l.rating}/10)${l.physical?`, physically ${l.physical.label}`:""}`).join("\n")
+      : "No mood logs this week.";
+    const problemsText = weekProblems.length>0
+      ? weekProblems.map(i=>`${i.date}: "${i.text?.slice(0,150)}"`).join("\n")
+      : "Nothing logged as difficult this week.";
+    const feelGoodText = weekFeelGood.length>0
+      ? weekFeelGood.map(i=>`${i.date}: "${i.text?.slice(0,150)}"`).join("\n")
+      : "Nothing logged as helpful this week.";
+
+    try {
+      const reply = await askBee([{role:"user", content:
+        `This person has asked for a genuine weekly review — a real sit-down conversation about the last 7 days, not a data report. This is their idea and it matters to them; take it seriously and do it properly.
+
+CHAT CONVERSATION THIS WEEK:
+${chatText}
+
+MOOD LOG THIS WEEK:
+${moodText}
+
+PROBLEM BOX ENTRIES THIS WEEK:
+${problemsText}
+
+FEEL BETTER BOX ENTRIES THIS WEEK:
+${feelGoodText}
+
+Write the opening of a weekly review session, structured in this order, as warm flowing conversation — not headers or bullet points, genuinely spoken:
+1. A brief, honest recap of what the week actually held — the real throughline, not a list of every entry
+2. Name any genuine PATTERN you can see — this is the most important part, take real care here: a recurring trigger, a day-of-week effect, something that keeps resurfacing across chat/mood/problems together, a connection between what was said and how the week went. If there isn't enough for a confident pattern, say so honestly rather than inventing one.
+3. Genuine praise and encouragement where it's actually earned — specific to something real they did or handled this week, not generic
+4. End by opening the conversation forward: invite them to talk about plans or ideas for the week ahead, anything on their mind, any concerns, and anything they feel they could work on — ask this as ONE open, warm invitation, not a list of four separate questions
+
+This is the start of a real back-and-forth, not a final report — end in a way that makes it feel like a conversation genuinely opening up, not closing down. No preamble before point 1.`}]);
+      setMessages(h=>[...h, { role:"assistant", content:reply, date:today(), isReviewStart:true }]);
+      setLastReviewDate(today());
+    } catch(e) {
+      setMessages(h=>[...h,{role:"assistant",content:"I couldn't put the review together right now — try again in a moment 🐝",date:today()}]);
+    } finally { setReviewLoading(false); }
+  };
+
   return (
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -12920,6 +12992,31 @@ ${transcript}`}]);
           </button>
         )}
       </div>
+
+      {/* Weekly Review — due once 7 real days have passed since the last one,
+          computed fresh every render off the actual date rather than a flag
+          that can get stuck (the exact class of bug the home check-in had). */}
+      {!reviewMode && (() => {
+        const daysSince = lastReviewDate ? Math.floor((new Date(today()) - new Date(lastReviewDate)) / 86400000) : null;
+        const hasEnoughHistory = messages.filter(m=>m.date).length >= 3 || moodLogs.length >= 3;
+        const due = hasEnoughHistory && (lastReviewDate===null || daysSince >= 7);
+        if(due) return (
+          <button onClick={startWeeklyReview}
+            style={{...btnStyle(PALETTE.honey),width:"100%",marginBottom:10,color:"white",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:18}}>🐝</span>
+            <span>{lastReviewDate ? "Time for your Weekly Review" : "Ready for your first Weekly Review"}</span>
+          </button>
+        );
+        if(lastReviewDate && hasEnoughHistory) return (
+          <button onClick={startWeeklyReview}
+            style={{background:"none",border:"none",color:PALETTE.soft,fontSize:11,cursor:"pointer",
+              textDecoration:"underline",marginBottom:10,textAlign:"left"}}>
+            Start Weekly Review early ({7-daysSince} day{7-daysSince===1?"":"s"} until it's due)
+          </button>
+        );
+        return null;
+      })()}
       <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,padding:"4px 0 8px"}}>
         {messages.length===0 && loading && (
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -13582,6 +13679,8 @@ export default function BeeWell() {
         {tab==="progress" && <Progress moodLogs={moodLogs} feelItems={feelItems} triggerItems={triggers} courtCases={cases} difficultItems={difficultItems}/>}
         {tab==="bea"      && <BeaChat
           feelItems={feelItems}
+          difficultItems={difficultItems}
+          moodLogs={moodLogs}
           onSetTab={setTab}
           onSetValuesJump={(target)=>{ setTab("act"); setValuesJump(target); }}
           onSetGoalsJump={(target)=>{ setTab("goals"); setGoalsJump(target); }}

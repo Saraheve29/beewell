@@ -13266,7 +13266,6 @@ export default function BeeWell() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [valuesJump, setValuesJump] = useState(null); // deep-link request into ValuesGoals
   const [goalsJump, setGoalsJump] = useState(null); // deep-link request into GoalsHub
-  const [lastCheckedInId, setLastCheckedInId] = usePersistedState("lastCheckedInId", null); // avoid re-asking about the same problem
   const [lastPhysicalCheckedInId, setLastPhysicalCheckedInId] = usePersistedState("lastPhysicalCheckedInId", null); // avoid re-asking about the same physical entry
 
   // One-time cleanup: Relationships was removed as a Values Card Sort domain
@@ -13365,11 +13364,13 @@ export default function BeeWell() {
   const themeAccent = { honey:PALETTE.honey, sage:PALETTE.sage, lavender:PALETTE.lavender, sky:PALETTE.sky }[theme] || PALETTE.honey;
 
   // Most recent unresolved problem, used for the "are you feeling better?" home check-in.
-  // Strictly the newest item only — if it's released or already checked in about, no
-  // check-in shows at all (we never fall back to an older problem).
+  // Strictly the newest item only — if it's released, no check-in shows at all (we
+  // never fall back to an older problem). Session-level "not now" dismissal is
+  // handled inside MoodTracker itself (checkInDismissedId) rather than here, so a
+  // genuinely still-unresolved problem can surface again on a fresh app open
+  // instead of being permanently excluded by a flag that never resets.
   const newestProblem = difficultItems[0] || null;
-  const mostRecentProblem = (newestProblem && newestProblem.status !== "released" && newestProblem.id !== lastCheckedInId)
-    ? newestProblem : null;
+  const mostRecentProblem = (newestProblem && newestProblem.status !== "released") ? newestProblem : null;
   const lastProblemForCheckIn = mostRecentProblem ? {
     id: mostRecentProblem.id,
     text: mostRecentProblem.text,
@@ -13564,7 +13565,7 @@ export default function BeeWell() {
           onQuickEating={()=>{ setTab("act"); setValuesJump("eating_q"); }}
           onQuickLoop={()=>{ setTab("act"); setValuesJump("loop_q"); }}
           lastProblem={lastProblemForCheckIn}
-          onDismissCheckIn={()=>mostRecentProblem && setLastCheckedInId(mostRecentProblem.id)}
+          onDismissCheckIn={()=>{}}
           lastPhysical={lastPhysicalForCheckIn}
           onDismissPhysicalCheckIn={()=>newestPhysicalLog && setLastPhysicalCheckedInId(newestPhysicalLog.id)}
           userName={userName}

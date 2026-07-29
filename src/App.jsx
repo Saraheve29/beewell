@@ -1578,25 +1578,27 @@ Respond directly and with real depth to what they just said — engage with push
         <p style={{fontSize:11,color:PALETTE.soft,marginTop:8,textAlign:"center"}}>Tap or hold a bar to see that day's exact mood and rating</p>
 
         {(() => {
-          // Due once 14 real days have passed since the last analysis. If no
-          // analysis has ever been run, anchor to the earliest logged mood
-          // instead, so someone who just started isn't nudged on day one.
-          const daysSince = (dateStr) => Math.floor((new Date(today()) - new Date(dateStr)) / 86400000);
+          // Anchor to the last analysis date, or the earliest logged mood if
+          // none has ever been run, so someone who just started sees an honest
+          // countdown from day one rather than nothing at all.
           const anchor = lastAnalysisDate || (logs.length>0 ? [...logs].sort((a,b)=>a.date.localeCompare(b.date))[0]?.date : null);
-          const isDue = anchor && daysSince(anchor) >= 14;
-          if(!isDue) return null;
+          if(!anchor) return null;
+          const status = dueStatus(anchor, 14);
           return (
-            <div style={{...card,marginTop:16,background:`${PALETTE.honey}15`,border:`1.5px solid ${PALETTE.honey}55`,padding:16}}>
+            <div style={{...card,marginTop:16,background:status.overdue?`${PALETTE.honey}15`:"#F8F8F8",
+              border:status.overdue?`1.5px solid ${PALETTE.honey}55`:"1px solid #EEE",padding:16}}>
               <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                 <span style={{fontSize:22}}>🐝</span>
                 <div>
-                  <div style={{fontWeight:700,color:PALETTE.amber,fontSize:14,marginBottom:4}}>
-                    {lastAnalysisDate ? "It's been 14 days since your last check-in" : "You've got 14 days of mood logs now"}
+                  <div style={{fontWeight:700,color:status.overdue?PALETTE.amber:PALETTE.mid,fontSize:14,marginBottom:4}}>
+                    {status.overdue
+                      ? (lastAnalysisDate ? "It's been 14 days since your last check-in" : "You've got 14 days of mood logs now")
+                      : `Next Analyse My Mood: ${status.label}`}
                   </div>
                   <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
-                    {lastAnalysisDate
-                      ? "A fresh two weeks of data is ready — want Bea to look for what's changed since your last analysis?"
-                      : "That's enough for Bea to spot real patterns now — want her to take a look?"}
+                    {status.overdue
+                      ? (lastAnalysisDate ? "A fresh two weeks of data is ready — want Bea to look for what's changed since your last analysis?" : "That's enough for Bea to spot real patterns now — want her to take a look?")
+                      : `Last ${lastAnalysisDate ? "analysed" : "logging started"} ${fmtDate(anchor)} — you can still run it early any time.`}
                   </p>
                 </div>
               </div>

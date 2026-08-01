@@ -784,6 +784,10 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
   // Persisted (not plain useState) so it survives navigating away and back,
   // and app restarts — needed to reliably nudge again after 14 real days.
   const [lastAnalysisDate, setLastAnalysisDate] = usePersistedState("lastMoodAnalysisDate", null);
+  // Reads the same persisted key BeaChat writes to, so the home page can show
+  // its own Weekly Review nudge without needing this state passed as a prop.
+  const [lastReviewDate] = usePersistedState("lastWeeklyReviewDate", null);
+  const [reviewMsgCount] = usePersistedState("beaChatMessages", []); // used only to check there's enough real history for a first review
   const [moodAnalysisThread, setMoodAnalysisThread] = usePersistedState("moodAnalysisThread", []);
   const [moodReplyInput, setMoodReplyInput] = useState("");
   const [moodReplyLoading, setMoodReplyLoading] = useState(false);
@@ -850,7 +854,7 @@ For the ANALYSIS itself, when you have enough to write one, aim for 8-12 sentenc
 1. Open by naming the clearest pattern you can actually see across ALL of the above — mood entries, problems shared, what's helped, AND what they've actually said in chat over this window — a day of the week, a recurring trigger, a cycle between difficult and positive periods, a link between physical state and mood, something said in conversation that connects to a mood dip or lift, whatever is genuinely there
 2. Reference specific entries and specific things they've actually said in chat, connecting them to the moods that surrounded them where the dates line up
 3. Name what has actually helped, based on real Feel Better Box entries, chat content, and what followed difficult moods afterward — not generic advice
-4. If you notice a pattern connecting to something you already know about them (a schema, a known trigger, chronic illness/pacing), say so
+4. If you notice a pattern connecting to something you already know about them (a schema, a known trigger, chronic illness/pacing) — or to a genuine change in any of their assessment results if they've recently retaken one (mood, anxiety, self-compassion, worry, fatigue) — say so directly and connect it to this week's picture
 5. Give ONE clear, specific recommendation for what to focus on next, naming a real BeeWell tool if one fits
 6. End with one warm, grounding sentence
 
@@ -1602,6 +1606,41 @@ Respond directly and with real depth to what they just said — engage with push
                   </p>
                 </div>
               </div>
+            </div>
+          );
+        })()}
+
+        {/* Weekly Review nudge — mirrors the same card inside Bea Chat, but
+            surfaced here on Home too since that's where it's actually expected.
+            Tapping it takes you to Bea Chat, where the review itself runs. */}
+        {(() => {
+          const hasEnoughHistory = (reviewMsgCount||[]).filter(m=>m.date).length >= 3 || logs.length >= 3;
+          if(!hasEnoughHistory) return null;
+          const status = dueStatus(lastReviewDate, 7);
+          return (
+            <div style={{...card,marginTop:12,background:status.overdue?"#7B4A8B15":"#F8F8F8",
+              border:status.overdue?"1.5px solid #7B4A8B55":"1px solid #EEE",padding:16}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:status.overdue?12:0}}>
+                <span style={{fontSize:22}}>📋</span>
+                <div>
+                  <div style={{fontWeight:700,color:status.overdue?"#7B4A8B":PALETTE.mid,fontSize:14,marginBottom:4}}>
+                    {status.overdue
+                      ? (lastReviewDate ? "Time for your Weekly Review" : "Ready for your first Weekly Review")
+                      : `Next Weekly Review: ${status.label}`}
+                  </div>
+                  <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
+                    {status.overdue
+                      ? "A real sit-down with Bea about the last 7 days — patterns, praise, and what's ahead."
+                      : `Last review ${lastReviewDate ? fmtDate(lastReviewDate) : "not yet done"} — you can start one early any time.`}
+                  </p>
+                </div>
+              </div>
+              {status.overdue && (
+                <button onClick={()=>onSetTab?.("bea")}
+                  style={{...btnStyle("#7B4A8B"),width:"100%",color:"white"}}>
+                  Go to Weekly Review 📋
+                </button>
+              )}
             </div>
           );
         })()}
@@ -4750,9 +4789,13 @@ function InnerWork(props) {
           dasProfile={props.dasProfile} onSaveDas={props.onSaveDas}
           goalsProfile={props.goalsProfile} onSaveGoals={props.onSaveGoals}
           phq9Profile={props.phq9Profile} onSavePhq9={props.onSavePhq9}
+          phq9History={props.phq9History} onSavePhq9History={props.onSavePhq9History}
           gad7Profile={props.gad7Profile} onSaveGad7={props.onSaveGad7}
+          gad7History={props.gad7History} onSaveGad7History={props.onSaveGad7History}
           scsProfile={props.scsProfile} onSaveScs={props.onSaveScs}
+          scsHistory={props.scsHistory} onSaveScsHistory={props.onSaveScsHistory}
           worryProfile={props.worryProfile} onSaveWorry={props.onSaveWorry}
+          worryHistory={props.worryHistory} onSaveWorryHistory={props.onSaveWorryHistory}
           masterSummary={props.masterSummary} onSaveMasterSummary={props.onSaveMasterSummary}
           ysqProfile={props.ysqProfile} onSaveYsq={props.onSaveYsq}
           rescripts={props.rescripts} onSaveRescripts={props.onSaveRescripts}
@@ -4774,6 +4817,7 @@ function InnerWork(props) {
           fiveWaysProfile={props.fiveWaysProfile} onSaveFiveWays={props.onSaveFiveWays}
           onSetTab={props.onSetTab} onSetGoalsJump={props.onSetGoalsJump}
           fatigueProfile={props.fatigueProfile} onSaveFatigue={props.onSaveFatigue}
+          fatigueHistory={props.fatigueHistory} onSaveFatigueHistory={props.onSaveFatigueHistory}
           pacingLog={props.pacingLog} onSavePacing={props.onSavePacing}
           illnessGriefEntries={props.illnessGriefEntries} onSaveIllnessGrief={props.onSaveIllnessGrief}
           acceptanceEntries={props.acceptanceEntries} onSaveAcceptance={props.onSaveAcceptance}
@@ -4791,7 +4835,7 @@ function InnerWork(props) {
   );
 }
 
-function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, gad7Profile, onSaveGad7, scsProfile, onSaveScs, worryProfile, onSaveWorry, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses, fatigueProfile, onSaveFatigue, pacingLog, onSavePacing, illnessGriefEntries, onSaveIllnessGrief, acceptanceEntries, onSaveAcceptance, nr6Profile, onSaveNr6, fiveWaysProfile, onSaveFiveWays, onSetTab, onSetGoalsJump }) {
+function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeliefs, smartPlans, onSavePlans, dasProfile, onSaveDas, goalsProfile, onSaveGoals, phq9Profile, onSavePhq9, phq9History, onSavePhq9History, gad7Profile, onSaveGad7, gad7History, onSaveGad7History, scsProfile, onSaveScs, scsHistory, onSaveScsHistory, worryProfile, onSaveWorry, worryHistory, onSaveWorryHistory, masterSummary, onSaveMasterSummary, ysqProfile, onSaveYsq, rescripts, onSaveRescripts, modeCheckIns, onSaveModeCheckIns, fcsProfile, onSaveFcs, circlesEntries, onSaveCircles, pcl5Profile, onSavePcl5, griefEntries, onSaveGrief, eatingEntries, onSaveEating, jumpToView, onJumpHandled, ruminationProfile, onSaveRumination, loopEntries, onSaveLoop, reparentingJournal, onSaveReparenting, cardSortProfile, onSaveCardSort, ngseProfile, onSaveNgse, tipiProfile, onSaveTipi, bisBasProfile, onSaveBisBas, procrastinationProfile, onSaveProcrastination, rsesProfile, onSaveRses, fatigueProfile, onSaveFatigue, fatigueHistory, onSaveFatigueHistory, pacingLog, onSavePacing, illnessGriefEntries, onSaveIllnessGrief, acceptanceEntries, onSaveAcceptance, nr6Profile, onSaveNr6, fiveWaysProfile, onSaveFiveWays, onSetTab, onSetGoalsJump }) {
 
   const [view, setView] = useState("home"); // home | assessment | beliefs_q | smart_q | profile | belief_detail | plan_detail | das_q | das_profile | goals_list | goals_rate | goals_profile | phq9_q | phq9_profile | gad7_q | gad7_profile | scs_q | scs_profile | worry_q | worry_profile | master_summary
   const [homeSection, setHomeSection] = useState("assessments"); // assessments | tools — only used on the home view
@@ -4931,12 +4975,16 @@ function ValuesGoals({ valuesProfile, onSaveProfile, limitingBeliefs, onSaveBeli
   // PHQ-9 / GAD-7 / SCS / Worry state
   const [phqAnswers, setPhqAnswers] = useState({});
   const [phqStep, setPhqStep]       = useState(0);
+  const [phqLoading, setPhqLoading] = useState(false);
   const [gadAnswers, setGadAnswers] = useState({});
   const [gadStep, setGadStep]       = useState(0);
+  const [gadLoading, setGadLoading] = useState(false);
   const [scsAnswers, setScsAnswers] = useState({});
   const [scsStep, setScsStep]       = useState(0);
+  const [scsLoading, setScsLoading] = useState(false);
   const [worryAnswers, setWorryAnswers] = useState({});
   const [worryStep, setWorryStep]   = useState(0);
+  const [worryLoading, setWorryLoading] = useState(false);
   const [masterLoading, setMasterLoading] = useState(false);
   // Persisted (not plain useState) so a reply thread on the Master Summary
   // survives navigating away and back, same fix as the earlier chat bug.
@@ -5370,47 +5418,107 @@ Be specific to their actual goals and ratings. No preamble.`}]);
   };
 
   // ── Score PHQ-9 ───────────────────────────────────────────────────────
-  const scorePhq9 = () => {
+  const scorePhq9 = async () => {
+    setPhqLoading(true);
     const total = PHQ9_QUESTIONS.reduce((s,_,i)=>s+(phqAnswers[i]||0),0);
     const sev = phq9Severity(total);
+    const previous = phq9Profile; // the result about to be replaced, if any
+    let comparison = null;
+    if(previous) {
+      try {
+        comparison = await askBee([{role:"user", content:
+          `You are Bea. This person just retook the PHQ-9 depression screening. Give a genuine comparison to their previous result, not just a restatement of the new score.
+Previous (${fmtDate(previous.date)}): ${previous.total}/27, ${previous.severity.label}
+New (today): ${total}/27, ${sev.label}
+
+Write 3-4 sentences: name the actual direction and size of the change honestly (improved, worsened, or stayed similar — don't soften a real change either way), connect it to anything relevant you know about what's happened for them recently if genuinely relevant, and end with one grounding, non-judgmental sentence. No preamble, no suggestions to seek outside help unless there are genuine signs of crisis.`}]);
+      } catch(e) { comparison = null; }
+    }
     const profile = { id:uid(), date:today(), total, severity:sev, answers:{...phqAnswers},
-      flagItem9: (phqAnswers[8]||0) > 0 };
+      flagItem9: (phqAnswers[8]||0) > 0, comparison };
     onSavePhq9(profile);
+    if(previous) onSavePhq9History(h => [previous, ...(h||[])].slice(0, 24));
+    setPhqLoading(false);
     setView("phq9_profile");
   };
 
   // ── Score GAD-7 ───────────────────────────────────────────────────────
-  const scoreGad7 = () => {
+  const scoreGad7 = async () => {
+    setGadLoading(true);
     const total = GAD7_QUESTIONS.reduce((s,_,i)=>s+(gadAnswers[i]||0),0);
     const sev = gad7Severity(total);
-    const profile = { id:uid(), date:today(), total, severity:sev, answers:{...gadAnswers} };
+    const previous = gad7Profile;
+    let comparison = null;
+    if(previous) {
+      try {
+        comparison = await askBee([{role:"user", content:
+          `You are Bea. This person just retook the GAD-7 anxiety screening. Give a genuine comparison to their previous result, not just a restatement of the new score.
+Previous (${fmtDate(previous.date)}): ${previous.total}/21, ${previous.severity.label}
+New (today): ${total}/21, ${sev.label}
+
+Write 3-4 sentences: name the actual direction and size of the change honestly (improved, worsened, or stayed similar — don't soften a real change either way), connect it to anything relevant you know about what's happened for them recently if genuinely relevant, and end with one grounding, non-judgmental sentence. No preamble, no suggestions to seek outside help unless there are genuine signs of crisis.`}]);
+      } catch(e) { comparison = null; }
+    }
+    const profile = { id:uid(), date:today(), total, severity:sev, answers:{...gadAnswers}, comparison };
     onSaveGad7(profile);
+    if(previous) onSaveGad7History(h => [previous, ...(h||[])].slice(0, 24));
+    setGadLoading(false);
     setView("gad7_profile");
   };
 
   // ── Score Self-Compassion Scale ───────────────────────────────────────
-  const scoreScs = () => {
+  const scoreScs = async () => {
+    setScsLoading(true);
     const scores = SCS_QUESTIONS.map((q,i) => {
       const raw = scsAnswers[i] || 3;
       return q.reverse ? (6 - raw) : raw; // reverse-score where needed
     });
     const avg = scores.reduce((s,v)=>s+v,0) / scores.length;
     const level = scsLevel(avg);
-    const profile = { id:uid(), date:today(), avg: Math.round(avg*100)/100, level, answers:{...scsAnswers} };
+    const previous = scsProfile;
+    let comparison = null;
+    if(previous) {
+      try {
+        comparison = await askBee([{role:"user", content:
+          `You are Bea. This person just retook the Self-Compassion Scale. Give a genuine comparison to their previous result.
+Previous (${fmtDate(previous.date)}): ${previous.avg}/5, ${previous.level.label}
+New (today): ${Math.round(avg*100)/100}/5, ${level.label}
+
+Write 3-4 sentences: name the actual direction and size of the change honestly, connect it to any active work you know they've done (Compassionate Self Practice, Limited Reparenting) if genuinely relevant, and end with one grounding, encouraging sentence. No preamble, no suggestions to seek outside help unless there are genuine signs of crisis.`}]);
+      } catch(e) { comparison = null; }
+    }
+    const profile = { id:uid(), date:today(), avg: Math.round(avg*100)/100, level, answers:{...scsAnswers}, comparison };
     onSaveScs(profile);
+    if(previous) onSaveScsHistory(h => [previous, ...(h||[])].slice(0, 24));
+    setScsLoading(false);
     setView("scs_profile");
   };
 
   // ── Score Worry/Rumination Scale ──────────────────────────────────────
-  const scoreWorry = () => {
+  const scoreWorry = async () => {
+    setWorryLoading(true);
     const scores = WORRY_QUESTIONS.map((q,i) => {
       const raw = worryAnswers[i] || 3;
       return i===7 ? (6 - raw) : raw; // last item is reverse-scored ("I find it easy to dismiss...")
     });
     const total = scores.reduce((s,v)=>s+v,0);
     const level = worryLevel(total);
-    const profile = { id:uid(), date:today(), total, level, answers:{...worryAnswers} };
+    const previous = worryProfile;
+    let comparison = null;
+    if(previous) {
+      try {
+        comparison = await askBee([{role:"user", content:
+          `You are Bea. This person just retook the Worry/Rumination Scale. Give a genuine comparison to their previous result.
+Previous (${fmtDate(previous.date)}): ${previous.total}/40, ${previous.level.label}
+New (today): ${total}/40, ${level.label}
+
+Write 3-4 sentences: name the actual direction and size of the change honestly, connect it to any active work you know they've done (Loop Interrupt, Defusion) if genuinely relevant, and end with one grounding, encouraging sentence. No preamble, no suggestions to seek outside help unless there are genuine signs of crisis.`}]);
+      } catch(e) { comparison = null; }
+    }
+    const profile = { id:uid(), date:today(), total, level, answers:{...worryAnswers}, comparison };
     onSaveWorry(profile);
+    if(previous) onSaveWorryHistory(h => [previous, ...(h||[])].slice(0, 24));
+    setWorryLoading(false);
     setView("worry_profile");
   };
 
@@ -5431,15 +5539,15 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     if(nr6Profile) parts.push(`NATURE RELATEDNESS (NR-6): ${nr6Profile.level?.label} (${nr6Profile.avg}/5) — nature is a genuine, named source of strength and part of their spiritual life.`);
     if(bisBasProfile) parts.push(`MOTIVATION STYLE (BIS/BAS): Dominant system is ${bisBasProfile.dominant}.`);
     if(procrastinationProfile) parts.push(`PROCRASTINATION TENDENCY: ${procrastinationProfile.level?.label}.`);
-    if(phq9Profile) parts.push(`DEPRESSION SCREENING (PHQ-9): ${phq9Profile.severity.label} (score ${phq9Profile.total}/27).`);
-    if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity.label} (score ${gad7Profile.total}/21).`);
-    if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level.label} (avg ${scsProfile.avg}/5).`);
-    if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level.label} (score ${worryProfile.total}/40).`);
+    if(phq9Profile) parts.push(`DEPRESSION SCREENING (PHQ-9): ${phq9Profile.severity.label} (score ${phq9Profile.total}/27)${phq9Profile.comparison ? ` — changed since last time: ${phq9Profile.comparison}` : ""}.`);
+    if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity.label} (score ${gad7Profile.total}/21)${gad7Profile.comparison ? ` — changed since last time: ${gad7Profile.comparison}` : ""}.`);
+    if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level.label} (avg ${scsProfile.avg}/5)${scsProfile.comparison ? ` — changed since last time: ${scsProfile.comparison}` : ""}.`);
+    if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level.label} (score ${worryProfile.total}/40)${worryProfile.comparison ? ` — changed since last time: ${worryProfile.comparison}` : ""}.`);
     if(ysqProfile) parts.push(`CHILDHOOD SCHEMAS (YSQ): Most elevated patterns: ${ysqProfile.top3?.map(s=>s.label).join(", ")}. Likely active schema mode: ${ysqProfile.activeModes?.[0]?.label||"Healthy Adult"}.`);
     if(fcsProfile) parts.push(`FEARS OF COMPASSION: Highest fear is ${fcsProfile.highest.label} (${fcsProfile.subtotals[Object.keys(fcsProfile.subtotals).find(k=>fcsProfile.subtotals[k].label===fcsProfile.highest.label)]?.pct}%).`);
     if(pcl5Profile) parts.push(`TRAUMA SCREENING (PCL-5): ${pcl5Profile.severity.label} (score ${pcl5Profile.total}/80).`);
     if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level.label}. Strongest pattern: ${ruminationProfile.highest.label}.`);
-    if(fatigueProfile) parts.push(`FATIGUE SEVERITY: ${fatigueProfile.level.label} (${fatigueProfile.total}/33) — physical ${fatigueProfile.physicalTotal}/21, mental ${fatigueProfile.mentalTotal}/12.`);
+    if(fatigueProfile) parts.push(`FATIGUE SEVERITY: ${fatigueProfile.level.label} (${fatigueProfile.total}/33) — physical ${fatigueProfile.physicalTotal}/21, mental ${fatigueProfile.mentalTotal}/12${fatigueProfile.comparison ? ` — changed since last time: ${fatigueProfile.comparison}` : ""}.`);
 
     // Active work done — not just assessments, but the actual therapeutic work undertaken
     const journalEntries = Object.entries(reparentingJournal||{}).filter(([,sessions])=>sessions.length>0);
@@ -6214,24 +6322,27 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
     const mentalTotal = FATIGUE_QUESTIONS.map((q,i)=>({q,i})).filter(({q})=>q.type==="mental")
       .reduce((s,{i})=>s+(fatigueAnswers[i]??0),0);
     const level = fatigueLevel(total);
+    const previous = fatigueProfile;
 
     try {
       const reply = await askBee([{role:"user", content:
         `You are Bea, informed about chronic fatigue and ME/CFS. A person completed a fatigue severity scale (following the validated Chalder Fatigue Scale structure).
 Total: ${total}/33. Physical fatigue: ${physicalTotal}/21. Mental fatigue: ${mentalTotal}/12. Result: ${level.label}.
+${previous ? `\nTheir previous result (${fmtDate(previous.date)}): ${previous.total}/33, ${previous.level.label}. Genuinely compare this to today's result — name the actual direction and size of the change honestly, don't soften a real change either way, and connect it to their Pacing Log history if relevant.` : ""}
 
-Write a warm, validating 4-sentence response:
+Write a warm, validating ${previous?"5":"4"}-sentence response:
 1. Reflect the result honestly, without minimising
 2. Note whether physical or mental fatigue is more dominant and what that might mean day to day
-3. Point to the Pacing Log as the practical next step for tracking what triggers flares, and mention that overexertion on better days (the "boom-bust" cycle) is one of the most common and important patterns to watch for in CFS/ME
-4. End with one validating, non-judgmental sentence — fatigue like this is not laziness or a lack of effort
+${previous ? "3. Give the genuine comparison to their previous result described above\n4. Point to the Pacing Log as the practical next step, and mention the boom-bust cycle if relevant\n5. End with one validating, non-judgmental sentence" : `3. Point to the Pacing Log as the practical next step for tracking what triggers flares, and mention that overexertion on better days (the "boom-bust" cycle) is one of the most common and important patterns to watch for in CFS/ME\n4. End with one validating, non-judgmental sentence — fatigue like this is not laziness or a lack of effort`}
 
 No preamble, no suggestions to seek outside help unless there are signs of crisis.`}]);
       const profile = { id:uid(), date:today(), total, physicalTotal, mentalTotal, level, answers:{...fatigueAnswers}, summary:reply };
       onSaveFatigue(profile);
+      if(previous) onSaveFatigueHistory(h => [previous, ...(h||[])].slice(0, 24));
       setView("fatigue_profile");
     } catch(e) {
       onSaveFatigue({ id:uid(), date:today(), total, physicalTotal, mentalTotal, level, answers:{...fatigueAnswers}, summary:"" });
+      if(previous) onSaveFatigueHistory(h => [previous, ...(h||[])].slice(0, 24));
       setView("fatigue_profile");
     } finally { setFatigueLoading(false); }
   };
@@ -8196,8 +8307,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <button onClick={()=>phqAnswers[i]!==undefined&&setPhqStep(s=>s+1)} disabled={phqAnswers[i]===undefined}
               style={{...btnStyle("#5B9BD5"),flex:1,opacity:phqAnswers[i]!==undefined?1:0.4}}>Next →</button>
           ) : (
-            <button onClick={scorePhq9} disabled={!allAnswered}
-              style={{...btnStyle("#5B9BD5"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+            <button onClick={scorePhq9} disabled={!allAnswered||phqLoading}
+              style={{...btnStyle("#5B9BD5"),flex:1,opacity:allAnswered?1:0.4}}>
+              {phqLoading?"🐝 Bea is comparing your results…":"See My Results →"}
+            </button>
           )}
         </div>
       </div>
@@ -8223,6 +8336,15 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.6}}>
             💛 You indicated some thoughts of self-harm. Please consider reaching out to a doctor, crisis line, or someone you trust — you deserve support, and it is available.
           </p>
+        </div>
+      )}
+      {phq9Profile.comparison && (
+        <div style={{...card,marginBottom:16,background:"#5B9BD50D",border:"1.5px solid #5B9BD533"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#5B9BD5",fontSize:13}}>How this compares to last time</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{phq9Profile.comparison}</p>
         </div>
       )}
       <div style={{...card,background:"#F8F8F8"}}>
@@ -8283,8 +8405,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <button onClick={()=>gadAnswers[i]!==undefined&&setGadStep(s=>s+1)} disabled={gadAnswers[i]===undefined}
               style={{...btnStyle("#9B8BC4"),flex:1,opacity:gadAnswers[i]!==undefined?1:0.4}}>Next →</button>
           ) : (
-            <button onClick={scoreGad7} disabled={!allAnswered}
-              style={{...btnStyle("#9B8BC4"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+            <button onClick={scoreGad7} disabled={!allAnswered||gadLoading}
+              style={{...btnStyle("#9B8BC4"),flex:1,opacity:allAnswered?1:0.4}}>
+              {gadLoading?"🐝 Bea is comparing your results…":"See My Results →"}
+            </button>
           )}
         </div>
       </div>
@@ -8305,6 +8429,15 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           {gad7Profile.severity.label}
         </div>
       </div>
+      {gad7Profile.comparison && (
+        <div style={{...card,marginBottom:16,background:"#9B8BC40D",border:"1.5px solid #9B8BC433"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#9B8BC4",fontSize:13}}>How this compares to last time</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{gad7Profile.comparison}</p>
+        </div>
+      )}
       <div style={{...card,background:"#F8F8F8"}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.soft,lineHeight:1.6}}>
           This is a screening tool, not a diagnosis. Grounding, Three Circles Check-In and the ACT Matrix are well-suited to working with what's showing up here.
@@ -8364,8 +8497,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <button onClick={()=>scsAnswers[i]!==undefined&&setScsStep(s=>s+1)} disabled={scsAnswers[i]===undefined}
               style={{...btnStyle("#E8737A"),flex:1,opacity:scsAnswers[i]!==undefined?1:0.4}}>Next →</button>
           ) : (
-            <button onClick={scoreScs} disabled={!allAnswered}
-              style={{...btnStyle("#E8737A"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+            <button onClick={scoreScs} disabled={!allAnswered||scsLoading}
+              style={{...btnStyle("#E8737A"),flex:1,opacity:allAnswered?1:0.4}}>
+              {scsLoading?"🐝 Bea is comparing your results…":"See My Results →"}
+            </button>
           )}
         </div>
       </div>
@@ -8386,6 +8521,15 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           {scsProfile.level.label}
         </div>
       </div>
+      {scsProfile.comparison && (
+        <div style={{...card,marginBottom:16,background:"#E8737A0D",border:"1.5px solid #E8737A33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#E8737A",fontSize:13}}>How this compares to last time</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{scsProfile.comparison}</p>
+        </div>
+      )}
       <div style={{...card,background:`${PALETTE.lavender}0D`}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
           Self-compassion means treating yourself with the same kindness you would offer a good friend going through a hard time. This score can genuinely shift with practice — your Courtroom and Limiting Beliefs work directly build this skill.
@@ -8444,8 +8588,10 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
             <button onClick={()=>worryAnswers[i]!==undefined&&setWorryStep(s=>s+1)} disabled={worryAnswers[i]===undefined}
               style={{...btnStyle("#7B4A8B"),flex:1,opacity:worryAnswers[i]!==undefined?1:0.4}}>Next →</button>
           ) : (
-            <button onClick={scoreWorry} disabled={!allAnswered}
-              style={{...btnStyle("#7B4A8B"),flex:1,opacity:allAnswered?1:0.4}}>See My Results →</button>
+            <button onClick={scoreWorry} disabled={!allAnswered||worryLoading}
+              style={{...btnStyle("#7B4A8B"),flex:1,opacity:allAnswered?1:0.4}}>
+              {worryLoading?"🐝 Bea is comparing your results…":"See My Results →"}
+            </button>
           )}
         </div>
       </div>
@@ -8466,6 +8612,15 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
           {worryProfile.level.label}
         </div>
       </div>
+      {worryProfile.comparison && (
+        <div style={{...card,marginBottom:16,background:"#7B4A8B0D",border:"1.5px solid #7B4A8B33"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <BeeMascot size={28}/>
+            <span style={{fontWeight:700,color:"#7B4A8B",fontSize:13}}>How this compares to last time</span>
+          </div>
+          <p style={{margin:0,fontSize:13,color:PALETTE.dark,lineHeight:1.8}}>{worryProfile.comparison}</p>
+        </div>
+      )}
       <div style={{...card,background:`${PALETTE.lavender}0D`,marginBottom:12}}>
         <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.6}}>
           If this score is high, the Defusion Board in Inner Work was built exactly for this pattern — try "Clouds Passing" or "Leaves on a Stream" next time worry takes hold.
@@ -13244,15 +13399,20 @@ export default function BeeWell() {
   const [nr6Profile, setNr6Profile] = usePersistedState("nr6Profile", null);
   const [fiveWaysProfile, setFiveWaysProfile] = usePersistedState("fiveWaysProfile", null);
   const [fatigueProfile, setFatigueProfile] = usePersistedState("fatigueProfile", null);
+  const [fatigueHistory, setFatigueHistory] = usePersistedState("fatigueHistory", []);
   const [pacingLog, setPacingLog] = usePersistedState("pacingLog", []);
   const [illnessGriefEntries, setIllnessGriefEntries] = usePersistedState("illnessGriefEntries", []);
   const [acceptanceEntries, setAcceptanceEntries] = usePersistedState("acceptanceEntries", []);
   const [bisBasProfile, setBisBasProfile] = usePersistedState("bisBasProfile", null);
   const [procrastinationProfile, setProcrastinationProfile] = usePersistedState("procrastinationProfile", null);
   const [phq9Profile, setPhq9Profile] = usePersistedState("phq9Profile", null);
+  const [phq9History, setPhq9History] = usePersistedState("phq9History", []);
   const [gad7Profile, setGad7Profile] = usePersistedState("gad7Profile", null);
+  const [gad7History, setGad7History] = usePersistedState("gad7History", []);
   const [scsProfile, setScsProfile]   = usePersistedState("scsProfile", null);
+  const [scsHistory, setScsHistory]   = usePersistedState("scsHistory", []);
   const [worryProfile, setWorryProfile] = usePersistedState("worryProfile", null);
+  const [worryHistory, setWorryHistory] = usePersistedState("worryHistory", []);
   const [masterSummary, setMasterSummary] = usePersistedState("masterSummary", null);
   const [ysqProfile, setYsqProfile] = usePersistedState("ysqProfile", null);
   const [rescripts, setRescripts] = usePersistedState("rescripts", []);
@@ -13297,11 +13457,12 @@ export default function BeeWell() {
     if(dasProfile) parts.push(`CORE BELIEFS (DAS): Vulnerable domains: ${dasProfile.highest?.map(d=>d.label).join(", ")||"none significant"}. Strengths: ${dasProfile.lowest?.map(d=>d.label).join(", ")||"none notable"}.`);
     if(ysqProfile) parts.push(`CHILDHOOD SCHEMAS (YSQ): Most elevated patterns: ${ysqProfile.top3?.map(s=>s.label).join(", ")}. Likely active schema mode: ${ysqProfile.activeModes?.[0]?.label||"Healthy Adult"}.`);
     if(fcsProfile) parts.push(`FEARS OF COMPASSION: Highest fear is ${fcsProfile.highest?.label}.`);
-    if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level?.label} (avg ${scsProfile.avg}/5).`);
-    if(phq9Profile) parts.push(`MOOD SCREENING (PHQ-9): ${phq9Profile.severity?.label}.`);
-    if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity?.label}.`);
+    if(scsProfile) parts.push(`SELF-COMPASSION: ${scsProfile.level?.label} (avg ${scsProfile.avg}/5)${scsProfile.comparison ? ` — changed since last time: ${scsProfile.comparison}` : ""}.`);
+    if(phq9Profile) parts.push(`MOOD SCREENING (PHQ-9): ${phq9Profile.severity?.label}${phq9Profile.comparison ? ` — changed since last time: ${phq9Profile.comparison}` : ""}.`);
+    if(gad7Profile) parts.push(`ANXIETY SCREENING (GAD-7): ${gad7Profile.severity?.label}${gad7Profile.comparison ? ` — changed since last time: ${gad7Profile.comparison}` : ""}.`);
     if(pcl5Profile) parts.push(`TRAUMA SCREENING (PCL-5): ${pcl5Profile.severity?.label}.`);
-    if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level?.label}.`);
+    if(worryProfile) parts.push(`WORRY/RUMINATION: ${worryProfile.level?.label}${worryProfile.comparison ? ` — changed since last time: ${worryProfile.comparison}` : ""}.`);
+    if(fatigueProfile) parts.push(`FATIGUE SEVERITY: ${fatigueProfile.level?.label} (${fatigueProfile.total}/33)${fatigueProfile.comparison ? ` — changed since last time: ${fatigueProfile.comparison}` : ""}.`);
     if(ruminationProfile) parts.push(`THOUGHT LOOP TENDENCY: ${ruminationProfile.level?.label}, strongest pattern: ${ruminationProfile.highest?.label}.`);
     if(tipiProfile) parts.push(`BIG FIVE PERSONALITY (full BFI-44): ${Object.values(tipiProfile.dimScores||{}).map(d=>`${d.label} ${d.avg}/5`).join(", ")}.`);
     if(rsesProfile) parts.push(`SELF-ESTEEM (Rosenberg): ${rsesProfile.level?.label} (${rsesProfile.total}/30).`);
@@ -13338,7 +13499,7 @@ export default function BeeWell() {
 
     setBeeContext(parts.length>0 ? parts.join("\n") : "");
   }, [userProfile, chatDistillation, valuesProfile, cardSortProfile, dasProfile, ysqProfile, fcsProfile, scsProfile, phq9Profile, gad7Profile,
-      pcl5Profile, worryProfile, ruminationProfile, tipiProfile, rsesProfile, nr6Profile, bisBasProfile, procrastinationProfile, ngseProfile,
+      pcl5Profile, worryProfile, fatigueProfile, ruminationProfile, tipiProfile, rsesProfile, nr6Profile, bisBasProfile, procrastinationProfile, ngseProfile,
       goalsProfile, smartPlans, limitingBeliefs, reparentingJournal, griefEntries, rescripts, loopEntries,
       modeCheckIns, circlesEntries, eatingEntries, difficultItems, masterSummary]);
 
@@ -13611,12 +13772,20 @@ export default function BeeWell() {
           onSaveGoals={setGoalsProfile}
           phq9Profile={phq9Profile}
           onSavePhq9={setPhq9Profile}
+          phq9History={phq9History}
+          onSavePhq9History={setPhq9History}
           gad7Profile={gad7Profile}
           onSaveGad7={setGad7Profile}
+          gad7History={gad7History}
+          onSaveGad7History={setGad7History}
           scsProfile={scsProfile}
           onSaveScs={setScsProfile}
+          scsHistory={scsHistory}
+          onSaveScsHistory={setScsHistory}
           worryProfile={worryProfile}
           onSaveWorry={setWorryProfile}
+          worryHistory={worryHistory}
+          onSaveWorryHistory={setWorryHistory}
           masterSummary={masterSummary}
           onSaveMasterSummary={setMasterSummary}
           ysqProfile={ysqProfile}
@@ -13653,6 +13822,8 @@ export default function BeeWell() {
           onSaveNr6={setNr6Profile}
           fatigueProfile={fatigueProfile}
           onSaveFatigue={setFatigueProfile}
+          fatigueHistory={fatigueHistory}
+          onSaveFatigueHistory={setFatigueHistory}
           pacingLog={pacingLog}
           onSavePacing={setPacingLog}
           illnessGriefEntries={illnessGriefEntries}

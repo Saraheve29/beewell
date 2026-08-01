@@ -788,6 +788,7 @@ function MoodTracker({ logs, onSaveMood, onAddFeel, onAddDifficult, onSetTab, va
   // its own Weekly Review nudge without needing this state passed as a prop.
   const [lastReviewDate] = usePersistedState("lastWeeklyReviewDate", null);
   const [reviewMsgCount] = usePersistedState("beaChatMessages", []); // used only to check there's enough real history for a first review
+  const [, setReviewTrigger] = usePersistedState("startReviewTrigger", false); // writes the same key BeaChat watches to auto-start a review
   const [moodAnalysisThread, setMoodAnalysisThread] = usePersistedState("moodAnalysisThread", []);
   const [moodReplyInput, setMoodReplyInput] = useState("");
   const [moodReplyLoading, setMoodReplyLoading] = useState(false);
@@ -1620,27 +1621,27 @@ Respond directly and with real depth to what they just said — engage with push
           return (
             <div style={{...card,marginTop:12,background:status.overdue?"#7B4A8B15":"#F8F8F8",
               border:status.overdue?"1.5px solid #7B4A8B55":"1px solid #EEE",padding:16}}>
-              <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:status.overdue?12:0}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12}}>
                 <span style={{fontSize:22}}>📋</span>
                 <div>
                   <div style={{fontWeight:700,color:status.overdue?"#7B4A8B":PALETTE.mid,fontSize:14,marginBottom:4}}>
-                    {status.overdue
-                      ? (lastReviewDate ? "Time for your Weekly Review" : "Ready for your first Weekly Review")
+                    {!lastReviewDate ? "Ready for your first Weekly Review"
+                      : status.overdue ? "Time for your Weekly Review"
                       : `Next Weekly Review: ${status.label}`}
                   </div>
                   <p style={{margin:0,fontSize:12,color:PALETTE.mid,lineHeight:1.5}}>
-                    {status.overdue
+                    {!lastReviewDate
                       ? "A real sit-down with Bea about the last 7 days — patterns, praise, and what's ahead."
-                      : `Last review ${lastReviewDate ? fmtDate(lastReviewDate) : "not yet done"} — you can start one early any time.`}
+                      : status.overdue
+                        ? "A real sit-down with Bea about the last 7 days — patterns, praise, and what's ahead."
+                        : `Last review ${fmtDate(lastReviewDate)} — you can start one early any time.`}
                   </p>
                 </div>
               </div>
-              {status.overdue && (
-                <button onClick={()=>onSetTab?.("bea")}
-                  style={{...btnStyle("#7B4A8B"),width:"100%",color:"white"}}>
-                  Go to Weekly Review 📋
-                </button>
-              )}
+              <button onClick={()=>{ setReviewTrigger(true); onSetTab?.("bea"); }}
+                style={{...btnStyle("#7B4A8B",!status.overdue&&!!lastReviewDate),width:"100%",color:(!lastReviewDate||status.overdue)?"white":"#7B4A8B"}}>
+                {(!lastReviewDate||status.overdue) ? "Go to Weekly Review 📋" : "Start Weekly Review Early"}
+              </button>
             </div>
           );
         })()}
@@ -12799,6 +12800,7 @@ function BeaChat({ feelItems=[], difficultItems=[], moodLogs=[], onSetTab=null, 
   const [messages, setMessages] = usePersistedState("beaChatMessages", []);
   const [chatDistillation, setChatDistillation] = usePersistedState("beaChatDistillation", ""); // running summary of real conversation content, fed into Bea's global context
   const [lastReviewDate, setLastReviewDate] = usePersistedState("lastWeeklyReviewDate", null);
+  const [reviewTrigger, setReviewTrigger] = usePersistedState("startReviewTrigger", false); // set true from Home to auto-start a review on arrival
   const [reviewMode, setReviewMode] = useState(false); // true while a review session is in progress
   const [reviewLoading, setReviewLoading] = useState(false);
   const [input, setInput] = useState("");
@@ -13137,6 +13139,17 @@ This is the start of a real back-and-forth, not a final report — end in a way 
       setMessages(h=>[...h,{role:"assistant",content:"I couldn't put the review together right now — try again in a moment 🐝",date:today()}]);
     } finally { setReviewLoading(false); }
   };
+
+  // If Home set the "start a review" flag, consume it immediately (reset to
+  // false so it never re-fires on a later visit) and actually start the review
+  // — rather than just landing here and leaving the person to find a second
+  // button themselves.
+  useEffect(() => {
+    if(reviewTrigger) {
+      setReviewTrigger(false);
+      startWeeklyReview();
+    }
+  }, [reviewTrigger]);
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)"}}>
@@ -13551,7 +13564,7 @@ export default function BeeWell() {
   if(!onboarded) return <Onboarding onDone={()=>setOnboarded(true)} onSaveName={setUserName} userName={userName} onSaveProfile={setUserProfile} userProfile={userProfile}/>;
 
   const tabs = [
-    {id:"mood",      label:"Mood",        emoji:"📊"},
+    {id:"mood",      label:"Home",        emoji:"🏠"},
     {id:"feel",      label:"Feel Better", emoji:"💛"},
     {id:"difficult", label:"Problem Box", emoji:"📦"},
     {id:"court",     label:"Courtroom",   emoji:"⚖️"},

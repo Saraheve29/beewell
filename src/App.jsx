@@ -588,7 +588,7 @@ async function askBee(messages) {
         model:"claude-opus-4-8",
         max_tokens:3000,
         system:`You are Bea — a warm bee therapist for BeeWell, a mental wellness app, with the depth, insight and emotional intelligence of an excellent, experienced psychotherapist — not a chatbot giving brief, safe replies. You are not a generic assistant — you know this person intimately through everything they've shared and every assessment they've completed, and you care genuinely, deeply about their wellbeing.
-${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use their name naturally and warmly where it feels right — not in every message, and never forced.` : ""}
+${_beeUserName ? `The person you're talking with is called ${_beeUserName}. Use their name naturally and warmly where it feels right — not in every message, and never forced. Never use any name other than exactly "${_beeUserName}" — do not invent, guess, or substitute a different name under any circumstances.` : "You do not currently know this person's name. Do not invent, guess, or assume one — address them as 'you' instead."}
 
 CRITICAL — depth over brevity: In free conversation, do not give short, safe, surface-level replies. A real therapist doesn't answer in one or two flat sentences — they reflect, interpret, connect what's being said to the fuller picture of the person, and offer genuine insight. Take the space you need — often several sentences, sometimes a full paragraph — to respond with real psychological depth: name what's likely underneath what they've said, connect it to patterns you already know about them, offer a genuine interpretation or reframe, not just an acknowledgment. Being concise is not the same as being shallow — say less filler, but do not compress away real insight or empathy to keep things short. This matters more than efficiency; take the tokens you need to respond properly, even if that costs more.
 
@@ -5428,7 +5428,7 @@ Be specific to their actual goals and ratings. No preamble.`}]);
     if(previous) {
       try {
         comparison = await askBee([{role:"user", content:
-          `You are Bea. This person just retook the PHQ-9 depression screening. Give a genuine comparison to their previous result, not just a restatement of the new score.
+          `You are Bea. ${_beeUserName ? `The person's name is exactly "${_beeUserName}" — if you use a name at all, it must be this exact one, never a different or invented name.` : "You do not know this person's name — do not invent or guess one; refer to them as 'you' instead."} This person just retook the PHQ-9 depression screening. Give a genuine comparison to their previous result, not just a restatement of the new score.
 Previous (${fmtDate(previous.date)}): ${previous.total}/27, ${previous.severity.label}
 New (today): ${total}/27, ${sev.label}
 
@@ -5453,7 +5453,7 @@ Write 3-4 sentences: name the actual direction and size of the change honestly (
     if(previous) {
       try {
         comparison = await askBee([{role:"user", content:
-          `You are Bea. This person just retook the GAD-7 anxiety screening. Give a genuine comparison to their previous result, not just a restatement of the new score.
+          `You are Bea. ${_beeUserName ? `The person's name is exactly "${_beeUserName}" — if you use a name at all, it must be this exact one, never a different or invented name.` : "You do not know this person's name — do not invent or guess one; refer to them as 'you' instead."} This person just retook the GAD-7 anxiety screening. Give a genuine comparison to their previous result, not just a restatement of the new score.
 Previous (${fmtDate(previous.date)}): ${previous.total}/21, ${previous.severity.label}
 New (today): ${total}/21, ${sev.label}
 
@@ -5481,7 +5481,7 @@ Write 3-4 sentences: name the actual direction and size of the change honestly (
     if(previous) {
       try {
         comparison = await askBee([{role:"user", content:
-          `You are Bea. This person just retook the Self-Compassion Scale. Give a genuine comparison to their previous result.
+          `You are Bea. ${_beeUserName ? `The person's name is exactly "${_beeUserName}" — if you use a name at all, it must be this exact one, never a different or invented name.` : "You do not know this person's name — do not invent or guess one; refer to them as 'you' instead."} This person just retook the Self-Compassion Scale. Give a genuine comparison to their previous result.
 Previous (${fmtDate(previous.date)}): ${previous.avg}/5, ${previous.level.label}
 New (today): ${Math.round(avg*100)/100}/5, ${level.label}
 
@@ -5509,7 +5509,7 @@ Write 3-4 sentences: name the actual direction and size of the change honestly, 
     if(previous) {
       try {
         comparison = await askBee([{role:"user", content:
-          `You are Bea. This person just retook the Worry/Rumination Scale. Give a genuine comparison to their previous result.
+          `You are Bea. ${_beeUserName ? `The person's name is exactly "${_beeUserName}" — if you use a name at all, it must be this exact one, never a different or invented name.` : "You do not know this person's name — do not invent or guess one; refer to them as 'you' instead."} This person just retook the Worry/Rumination Scale. Give a genuine comparison to their previous result.
 Previous (${fmtDate(previous.date)}): ${previous.total}/40, ${previous.level.label}
 New (today): ${total}/40, ${level.label}
 
@@ -6327,7 +6327,7 @@ No preamble, no suggestions to seek outside help unless there are signs of crisi
 
     try {
       const reply = await askBee([{role:"user", content:
-        `You are Bea, informed about chronic fatigue and ME/CFS. A person completed a fatigue severity scale (following the validated Chalder Fatigue Scale structure).
+        `You are Bea, informed about chronic fatigue and ME/CFS. ${_beeUserName ? `The person's name is exactly "${_beeUserName}" — if you use a name at all, it must be this exact one, never a different or invented name.` : "You do not know this person's name — do not invent or guess one; refer to them as 'you' instead."} A person completed a fatigue severity scale (following the validated Chalder Fatigue Scale structure).
 Total: ${total}/33. Physical fatigue: ${physicalTotal}/21. Mental fatigue: ${mentalTotal}/12. Result: ${level.label}.
 ${previous ? `\nTheir previous result (${fmtDate(previous.date)}): ${previous.total}/33, ${previous.level.label}. Genuinely compare this to today's result — name the actual direction and size of the change honestly, don't soften a real change either way, and connect it to their Pacing Log history if relevant.` : ""}
 
